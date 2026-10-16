@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "players": {
+    "2": { "gems_per_color": 4, "nobles": 3 },
+    "3": { "gems_per_color": 5, "nobles": 4 },
+    "4": { "gems_per_color": 7, "nobles": 5 }
+  },
+  "gold_count": 5,
+  "win_points": 15,
+  "max_tokens": 10,
+  "max_reserved": 3,
+  "board_slots_per_level": 4,
+  "take_two_min_remaining": 4,
+  "switches": {
+    "allow_take_fewer_when_colors_short": false,
+    "reserve_takes_gold": true,
+    "noble_visit_at_turn_end": true,
+    "max_one_noble_per_turn": true
+  }
+}
