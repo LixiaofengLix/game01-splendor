@@ -6,9 +6,83 @@
 
 - **阶段 1（工程骨架与数据层）：已验收并提交（`37b708c`）**
 - **阶段 2（核心规则引擎 + 文本调试台）：已验收并提交**（2026-10-17；规则解释经用户确认无异议）
-- 人工验收的分工与结果：规则解释 ✓；**试玩推迟到阶段 3（界面）+ 阶段 4（AI 补座位）之后**
-  （用户明确不要用文本命令一个人控所有座位打完整局）；卡表对照实体卡仍是可选待办。
+- **阶段 3（对局流程、座位控制器与最小可视化界面）：已验收并提交**（2026-10-17；用户确认提交）。
+  2 人局可以用鼠标试玩；完整 3/4 人局仍建议等阶段 4 有 AI 补座位后再做。
+- 人工验收的分工与结果：规则解释 ✓；阶段 3 界面已验收（用户 2026-10-17 确认提交）；
+  **完整 3/4 人局试玩留到阶段 4 的 AI 补座位之后**（用户明确不要一个人控制所有座位打完整局）；
+  卡表对照实体卡仍是可选待办。
 - 上次更新：2026-10-17
+
+---
+
+## 阶段 3：对局流程、座位控制器与最小可视化界面
+
+### 已完成
+
+- `game/`（Node 层，可以引用 autoload；规则仍在 `core/`）：
+  - `player_controller.gd` — 控制器基类：`request_action(view, legal_actions)` + `action_decided(action)`。
+  - `human_controller.gd` — 人类座位：`submit(action)`；另外提供 `action_requested` 信号，
+    方便正式 UI 自己渲染操作面板。
+  - `game_controller.gd` — 持有 GameState，按座位向控制器要动作、二次校验后执行；
+    发出 `state_changed` / `events_emitted` / `game_finished` / `action_rejected`；
+    提供 `start_new_game` / `start_with_controllers` / `load_snapshot` / `load_replay` /
+    `submit_action` / `current_view` / `can_save_replay` / `build_replay_data` / `fingerprint` / `reset`。
+- `debug_ui/main/` — 新的调试入口（`run/main_scene`）：设置界面 ↔ 棋盘切换。
+- `debug_ui/setup/` — 人数、种子、每个座位的类型（阶段 3 只有“人类”可选，其余置灰）。
+- `debug_ui/board/` — 最小可视化桌面：
+  - 银行、三级场面卡（购买 / 预留）、牌堆剩余与盲抽预留、贵族、玩家面板（宝石 / 折扣 / 分数 / 预留）。
+  - 底部的「拿宝石」按钮直接来自合法动作列表；卡牌 / 牌堆按钮按合法动作启用或禁用。
+  - 弃宝石、选贵族用弹出选择框；对局结束有结算弹窗。
+  - 顶部：存档 / 读档 / 重放（固定 `user://saves/board_quick.json`）、六个预设局面、返回设置。
+  - 事件日志。4 人局时右侧玩家面板可滚动。
+- `docs/UI_INTEGRATION.md` 草稿；`CLAUDE.md` 常用命令与各目录 README 已更新。
+- 新增 `tests/flow_selfcheck.gd/.tscn`、`tests/board_smoke.gd/.tscn`。
+- 窗口默认 1280×800（`project.godot`）。
+
+### 自动验证结果（2026-10-17）
+
+- `tests/flow_selfcheck.tscn`：2/3/4 人各 10 局（共 30 局），8647 项检查全部通过，约 3.2 秒。
+- `tests/board_smoke.tscn`：84 项检查全部通过，约 0.2 秒。
+- `tests/rules_selfcheck.tscn -- 2000`：2000 局 / 523273 项检查全部通过，131.4 秒（core/ 未改动，回归用）。
+- `tests/data_report.tscn`：通过；文本调试台批处理回归通过；主场景 headless 启动通过。
+- 逐页截图检查了 4 人棋盘、弃宝石 / 选贵族 / 结算弹窗、设置界面（临时预览脚本已删除，截图未进仓库）。
+
+### 与计划的偏差 / 本阶段定的约定
+
+1. **动作泵（计划没提）**：GameController 用循环而不是递归向控制器要动作。同步控制器（阶段 4 的 AI、
+   测试）不会因为连续动作爆栈；异步控制器（人类点击、阶段 5 的大模型）保持等待，两边都不需要特殊处理。
+2. **多一个 `action_rejected` 信号**：控制器交了非法 / 过期动作时发给界面写日志；对局状态不变。
+   阶段 6 主机校验客户端动作时也能复用。
+3. **控制器注入点 `start_with_controllers()`**：阶段 4 的 AI、阶段 6 的远程座位、测试都从这里接入；
+   阶段 3 的 `start_new_game()` 只接受 `"human"`。
+4. **主场景换成 `debug_ui/main/main.tscn`**：`godot --path .` 现在进设置界面 / 棋盘；
+   文本调试台仍然用显式场景路径打开（命令见 `CLAUDE.md`）。
+5. **棋盘只读当前行动玩家的过滤视图**：不显示种子 / 指纹（这些在调试台里仍有）；
+   其他玩家盲抽预留的牌显示为 `?级（盲抽）`，只有轮到本人时才看得到具体卡牌。
+6. **存档 / 读档 / 重放固定用 `user://saves/board_quick.json`**，没有文件选择框；
+   预设局面从 `res://tests/scenarios/` 读取。快照载入的局不能再存成重放文件（与调试台一致）。
+7. **文本调试台没有改成调用 GameController**：阶段 2 的批处理逻辑保留，避免回归；
+   `GameController` 的存读档是给界面用的。阶段 7 再考虑统一。
+8. **座位类型字符串**：`human`（可用）；置灰项的元数据是 `bot_easy` / `bot_normal` / `bot_hard` /
+   `llm` / `remote`，阶段 4 / 5 / 6 直接启用即可。
+9. **新增两个自动测试**（计划没提）：`flow_selfcheck` 覆盖 GameController / 控制器 / 视图 / 重放；
+   `board_smoke` 实例化界面按按钮走关键流程。它们让本阶段大部分验收可以机器完成。
+10. **窗口默认 1280×800**：保证 4 人局一屏能看到主要区域；4 人玩家面板仍需滚动。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **阶段 4 接入 AI**：在 `debug_ui/setup/` 取消对应禁用项；实现 `ai/bot_controller.gd` 继承
+  `PlayerController`，用 `GameController.start_with_controllers()` 开局。动作泵对同步 AI 友好；
+  批量模拟可以直接复用 GameController（也可以像阶段 2 自检那样直接用 Rules）。
+- **`load_snapshot` / `load_replay` 目前总是重建为人类控制器**：阶段 6 的客户端镜像模式 / 远程座位
+  需要另走一条装配路径（控制器注入），不要把这两个方法当成通用入口。
+- **同屏视图**：棋盘显示当前行动玩家的视图。阶段 6 每个客户端应拿自己座位的 `to_dict(自己的座位)`。
+- **玩家面板高度**：4 人局需要滚动；正式 UI 再排版。事件日志固定在下半区。
+- **存读档**：只有快速存档；没有文件选择框、没有多存档槽。调试台仍是完整的 save/load/replay 工具。
+- **UI 对接文档**：`docs/UI_INTEGRATION.md` 是草稿，阶段 7 定稿。
+- **预设局面菜单依赖 `res://tests/scenarios/*.json`**：导出时要把这些 JSON 加进导出过滤，
+  或者阶段 7 把调试用的「预设局面」菜单去掉。棋盘里的兜底名单只保证菜单项存在，文件没导出仍会加载失败。
+- 卡表对照实体卡仍是阶段 1 的可选待办。
 
 ---
 
@@ -25,12 +99,14 @@
     （盲抽预留不带 `card_id`）。
   - `game_state.gd` — `to_dict(viewer_seat)` / `from_dict()` / `duplicate_state()` / `validate()` /
     `fingerprint()`；头部注释是状态字典的协议定义。
-  - `rules.gd` — `setup()`（带种子的 Fisher–Yates 洗牌）、`get_legal_actions(view)`、`apply(state, action)`、
-    `is_action_legal()`、`noble_met()`；`apply` 内部再校验一次合法性，执行后自动推进回合末流程。
+  - `rules.gd` — `setup()`（带种子的 Fisher–Yates 洗牌）、`get_legal_actions(view, catalog, config)`、
+    `apply(state, action)`、`is_action_legal()`、`noble_met()`；`apply` 内部再校验一次合法性，
+    执行后自动推进回合末流程。
   - `save_file.gd` — 存档（`kind: "replay"` = 种子 + 动作序列 + 指纹）与快照（`kind: "snapshot"`）两种格式。
 - `debug_ui/console/` 文本调试台：命令 `new / state / legal / do / view / save / dump / load / replay / help / quit`；
   界面用代码搭（Label + LineEdit + RichTextLabel）。支持批处理模式
-  （`-- --commands <文件>`，任一命令失败退出码 1）。已是 `run/main_scene`，`godot --path .` 直接进调试台。
+  （`-- --commands <文件>`，任一命令失败退出码 1）。阶段 2 时它是 `run/main_scene`；
+  阶段 3 已把主场景换成 `debug_ui/main/main.tscn`，现在用显式场景路径打开。
 - `tests/scenarios/` 六个预设局面（快照 JSON）+ 生成脚本 `build_scenarios.gd`：
   `token_limit`（持币 10）、`two_nobles`（同时满足两位贵族）、`endgame`（14 分 + 能买到分）、
   `bank_edges`（银行剩 4 / 3 / 0）、`colors_short`（只剩 2 种颜色可取）、`deck_empty`（1 级牌堆空）。
@@ -142,6 +218,6 @@
 
 ---
 
-## 阶段 3 及以后
+## 阶段 4 及以后
 
-未开始。计划见 `docs/DEVELOPMENT_PLAN.md`。
+未开始。下一阶段是程序 AI（阶段 4），计划见 `docs/DEVELOPMENT_PLAN.md`。

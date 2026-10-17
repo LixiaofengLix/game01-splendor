@@ -21,8 +21,8 @@ CONSOLE="$GODOT --headless --path . debug_ui/console/console.tscn"
 
 **两种玩法**：
 
-- 交互：`$GODOT --path . debug_ui/console/console.tscn`（主场景就是它，直接 `$GODOT --path .` 也一样），
-  下面的命令一条条敲进去。命令列表在界面里输入 `help`。
+- 交互：`$GODOT --path . debug_ui/console/console.tscn`（阶段 3 起主场景换成了可视化界面，
+  调试台要显式指定场景路径），下面的命令一条条敲进去。命令列表在界面里输入 `help`。
 - 批处理：把命令写进文件一次跑完，任一命令失败退出码为 1：
 
 ```bash

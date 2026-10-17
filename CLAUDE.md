@@ -68,10 +68,17 @@
 # 规则自检：随机合法动作跑 N 局并检查不变量（改完 core/ 必跑；不写局数默认 2000）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/rules_selfcheck.tscn -- 2000
 
-# 文本调试台：交互模式（主场景就是它，直接 godot --path . 也行）
+# 可视化调试界面（主场景）：开局设置 → 棋盘
+/Applications/Godot.app/Contents/MacOS/Godot --path .
+# 文本调试台：交互模式
 /Applications/Godot.app/Contents/MacOS/Godot --path . debug_ui/console/console.tscn
 # 批处理模式：按顺序执行命令文件，任一命令失败退出码 1
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . debug_ui/console/console.tscn -- --commands <命令文件>
+
+# 对局流程自检（GameController / 控制器 / 视图 / 重放；改完 game/ 必跑）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/flow_selfcheck.tscn
+# 界面冒烟测试（实例化设置界面和棋盘，按按钮走关键流程；改完 debug_ui/ 必跑）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/board_smoke.tscn
 
 # 重新生成 tests/scenarios/ 的预设局面（改完卡表或规则后）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/scenarios/build_scenarios.tscn
