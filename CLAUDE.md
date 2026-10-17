@@ -14,6 +14,7 @@
   /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/data_report.tscn
   ```
   脚本以 `quit(0/1)` 返回结果，失败时退出码非 0。
+- 无界面脚本一律用 `.tscn` 场景跑（`tests/xxx.tscn`）：`godot -s script.gd` 模式下 autoload 不加载，脚本里访问不到 `DataRegistry`。参数用 `-- 2000` 传给 `OS.get_cmdline_user_args()`。
 - 版本管理：每阶段验收通过后提交一次。
 
 ## 架构原则（开发计划第 1 节，摘录）
@@ -39,6 +40,11 @@
 - AI、大模型、界面只能读 `to_dict(viewer_seat)` 视图，不能直接访问 GameState 内部字段（评审时用 grep 检查）。
 - 改动 `core/` 后必须跑一次规则自检（阶段 2 起：`tests/rules_selfcheck.gd`）。
 - 每个阶段结束必须完成：代码 + 文件夹 README + 更新 `docs/PROGRESS.md` + 输出 `docs/tests/phase_N.md` 测试用例 + 验收通过后 git 提交。
+- 验收分工：**程序能验证的自己验证完，只汇报结论**（自检脚本、命令批处理的结果不用交接步骤）；
+  只把机器判断不了的交给用户——规则解释是否符合实体规则、卡表是否符合实体卡、界面手感——
+  并在 `docs/tests/phase_N.md` 里给可直接复制的命令和明确的观察点。
+- **不要让用户用文本命令手动控制所有座位打完整局**（一个人操作不过来）。试玩等阶段 3（界面）+
+  阶段 4（AI 补座位）之后再做；在那之前，用户只拍板规则解释和卡面数据。
 
 ## 数据格式约定
 
@@ -58,4 +64,15 @@
 # 导入资源 + 数据层自检（会重新生成 docs/CARD_LIST.md）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --import --path .
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/data_report.tscn
+
+# 规则自检：随机合法动作跑 N 局并检查不变量（改完 core/ 必跑；不写局数默认 2000）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/rules_selfcheck.tscn -- 2000
+
+# 文本调试台：交互模式（主场景就是它，直接 godot --path . 也行）
+/Applications/Godot.app/Contents/MacOS/Godot --path . debug_ui/console/console.tscn
+# 批处理模式：按顺序执行命令文件，任一命令失败退出码 1
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . debug_ui/console/console.tscn -- --commands <命令文件>
+
+# 重新生成 tests/scenarios/ 的预设局面（改完卡表或规则后）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/scenarios/build_scenarios.tscn
 ```

@@ -32,6 +32,7 @@ var _cards_by_id: Dictionary[String, CardData] = {}
 var _cards_by_level: Dictionary = {}
 var _nobles: Array[NobleData] = []
 var _rules: RulesConfig = null
+var _catalog: CardCatalog = null
 var _errors: Array[String] = []
 
 func _ready() -> void:
@@ -44,6 +45,7 @@ func load_all() -> void:
 	_cards_by_level.clear()
 	_nobles.clear()
 	_rules = null
+	_catalog = null
 	_load_rules()
 	_load_cards()
 	_load_nobles()
@@ -52,6 +54,12 @@ func load_all() -> void:
 
 func rules() -> RulesConfig:
 	return _rules
+
+## core/ 的查表对象：规则引擎、状态重建都用它（core/ 不直接引用本单例）。
+func card_catalog() -> CardCatalog:
+	if _catalog == null:
+		_catalog = CardCatalog.new(all_cards(), all_nobles())
+	return _catalog
 
 func get_card(card_id: String) -> CardData:
 	return _cards_by_id.get(card_id)

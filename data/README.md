@@ -25,9 +25,9 @@
 
 | 开关 | 默认 | 含义 |
 |---|---|---|
-| `allow_take_fewer_when_colors_short` | `false` | 可取的不同颜色不足 3 种时，是否允许少拿（`false` = 该动作不可用） |
+| `allow_take_fewer_when_colors_short` | `true` | 可取的不同颜色不足 3 种时能否少拿：`true` = 可以拿 1~2 种（官方规则说明："如果没办法一次拿足 3 种不同颜色的指示物，玩家也可以拿走 2 种，甚至 1 种"）；可取颜色 ≥ 3 种时仍必须拿满 3 种。`false` = 颜色不足 3 种时「拿三枚」不可用 |
 | `reserve_takes_gold` | `true` | 预留时是否附带 1 枚金币（金币已用完时仍然可以预留，只是拿不到） |
-| `noble_visit_at_turn_end` | `true` | 贵族只在回合末结算时来访 |
-| `max_one_noble_per_turn` | `true` | 一回合最多来一位贵族（同时满足多位时由玩家选择） |
+| `noble_visit_at_turn_end` | `true` | 贵族只在回合末结算时来访（`false` = 买入卡牌后立即检查） |
+| `max_one_noble_per_turn` | `true` | 一回合最多来一位贵族（同时满足多位时由玩家选择，没被选的留在场面） |
 
 格式约定见根目录 `CLAUDE.md`。改完数据后用 `tests/data_report.tscn` 自检。

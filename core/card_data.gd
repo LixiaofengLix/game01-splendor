@@ -32,6 +32,11 @@ static func from_dict(data: Dictionary) -> CardData:
 			int(data.get("points", 0)),
 			parsed_cost)
 
+## 未知牌占位（id 为空、等级已知）：从过滤视图重建状态时，或 AI 推演时新翻开的牌。
+## 未知牌不能被购买或预留（没有 id 可引用），也不参与折扣与分数。
+func is_unknown() -> bool:
+	return id.is_empty()
+
 ## 在指定颜色上的花费（没有则为 0）。
 func cost_of(color: Enums.GemColor) -> int:
 	return cost.get(color, 0)
@@ -58,6 +63,8 @@ func to_dict() -> Dictionary:
 
 ## 一行中文描述，供日志与人工核对。
 func describe() -> String:
+	if is_unknown():
+		return "%d级 未知牌" % level
 	var parts: Array[String] = []
 	for color: Enums.GemColor in Enums.PURCHASABLE_COLORS:
 		if cost_of(color) > 0:

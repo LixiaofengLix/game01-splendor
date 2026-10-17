@@ -12,7 +12,7 @@
   "board_slots_per_level": 4,
   "take_two_min_remaining": 4,
   "switches": {
-    "allow_take_fewer_when_colors_short": false,
+    "allow_take_fewer_when_colors_short": true,
     "reserve_takes_gold": true,
     "noble_visit_at_turn_end": true,
     "max_one_noble_per_turn": true

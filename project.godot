@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="Splendor"
+run/main_scene="res://debug_ui/console/console.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
