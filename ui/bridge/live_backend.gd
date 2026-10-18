@@ -51,6 +51,15 @@ func load_snapshot(state_data: Dictionary, errors: Array[String]) -> bool:
 	return _controller.load_snapshot(state_data, errors)
 
 
+## 载入重放存档（种子 + 动作序列），成功后再由 GameController 发 state_changed。
+func load_replay(data: Dictionary, errors: Array[String]) -> bool:
+	if _controller == null:
+		errors.append("桥接层还没有连接控制器")
+		return false
+	_controller.load_replay(data, false, errors)
+	return errors.is_empty()
+
+
 func submit(action: Action) -> bool:
 	if _controller == null:
 		return false
@@ -71,6 +80,10 @@ func can_save_replay() -> bool:
 
 func build_replay_data() -> Dictionary:
 	return _controller.build_replay_data() if _controller != null else {}
+
+
+func fingerprint() -> String:
+	return _controller.fingerprint() if _controller != null else ""
 
 
 func reset() -> void:

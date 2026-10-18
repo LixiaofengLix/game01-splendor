@@ -4,17 +4,39 @@ UI 与逻辑层之间的唯一接触面。屏幕和零件只认这一层；`ui/`
 
 - `live_backend.gd` — `UiLiveBackend`（RefCounted）：包装 `GameController`，转发
   `state_changed` / `events_emitted` / `game_finished` / `action_rejected` 和 IR-08 的大模型信号。
-  只调用 `docs/UI_INTEGRATION.md` 的公开接口。
+  只调用 `docs/UI_INTEGRATION.md` 的公开接口。载入支持 `load_snapshot()` / `load_replay()`。
 - `table_session.gd` — `UiTableSession`（Node，挂在牌桌宿主下）：
-  - `start_local({count, seed, seats: [{name, type}], hotseat_cover})` / `load_snapshot(state, errors)` / `close()`。
+  - `start_local({count, seed, seats: [{name, type}], hotseat_cover})` / `resume(entry, errors)` /
+    `resume_until(entry, step, errors)` / `load_snapshot(state, errors)` / `close()`。
   - 信号：`view_updated(view, me_seat)`、`events_arrived(Array[Dictionary])`、`game_ended(result)`、
     `action_failed(message)`、`seat_status_changed(seat, status)`。
-  - `legal_actions()` / `submit(action)` / `submit_sequence(actions)` / `is_my_turn()` / `me_seat()` /
-    `names()` / `seat_types()` / `seat_info(seat)` / `rules()` / `catalog()` / `log_entries()` / `result()`。
+  - 动作与查询：`legal_actions()` / `submit(action)` / `submit_sequence(actions)` / `is_my_turn()` /
+    `me_seat()` / `names()` / `seat_types()` / `seat_info(seat)` / `rules()` / `catalog()` /
+    `log_entries()` / `result()` / `elapsed_seconds()`。
+  - 存档：`can_save()` / `build_save_data()` / `fingerprint()`；重开一局用 `rematch_setup()`。
+  - 读档：`original_seat_types()` / `hotseat_cover()` / `resume_note()`。
   - 隐私：别人的盲抽 id 一律置空；viewer 不是“我”时，viewer 自己的盲抽也置空；
     “我”的盲抽用缓存补上（见下）。
   - 日志：把事件整理成 `{seat, text, time}`（从新到旧），连续的弃宝石合并成一条。
   - 结算：`game_ended` 的 `result` 字段见 `docs/ui/BRIDGE_AND_REQUESTS.md` 1.2；`tiebreak` 由分数和卡牌数推出。
+- `save_entry.gd` — `UiSaveEntry`（RefCounted）：读档列表的一项。字段有 `kind`（replay / snapshot /
+  unreadable）、`reason`、`ui_meta`、`display_name`、`player_count`、`action_count`、`saved_at`、
+  `read_only`、以及选中时填写的 `verify_*`。屏幕只读它，不解析存档 JSON。
+- `save_store.gd` — `UiSaveStore`（Node）：管理 `user://saves/`。
+  - `list()` / `autosave_entry()` / `autosave_summary()` / `validate(entry)` / `delete_entry(entry)`。
+  - `save_autosave(data, meta)`（每回合结束）/ `save_quick(data, meta)`（暂停菜单）/ `transfer_finished(data, meta)`
+    （对局结束写 `finished/<yyyyMMdd-HHmmss>.json` 并删掉自动存档）。
+  - `ui_meta` 由 `make_meta()` / `make_summary()` 生成：名字、座位类型、同屏开关、用时、轮数 / 当前座位 /
+    分数 / 胜者。读不了的存档也留在列表里，`reason` 取 `version_too_new` / `corrupt` / `unknown_kind`；
+    选中时 `validate()` 用临时 `GameController` 重放，失败记为 `verify_failed` 并指出步数。
+  - 测试可以设置静态变量 `root_override` 指向临时目录（`user://ui_smoke_saves`）。
+
+## IR-04 前的读档行为
+
+`GameController.load_replay` / `load_snapshot` 目前会把所有座位恢复为人类控制器。`UiTableSession.resume()`
+因此把实际座位类型都记成 `human`，但保留 ui_meta 里的原类型：牌桌按实际类型显示（都是人类），
+`resume_note()` 给出“电脑座位暂时以人类身份恢复”的提示；`rematch_setup()` 和存档 ui_meta 仍沿用原类型。
+IR-04 落地后只需在 `_resume_payload()` 里把原类型传给控制器。
 
 ## 盲抽缓存的边界（IR-01 落地前）
 

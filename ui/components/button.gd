@@ -69,6 +69,8 @@ func _apply_style() -> void:
 	var padding: Vector3i = PADDING.get(size_key, PADDING[&"default"])
 	var states: Array[StringName] = [&"normal", &"hover", &"pressed", &"disabled"]
 	for state: StringName in states:
+		# 运行时切换 variant 时，旧的 StyleBox override 会挡住新变体的主题样式，先清掉。
+		remove_theme_stylebox_override(state)
 		var source: StyleBox = get_theme_stylebox(state, type_name)
 		if source == null:
 			continue

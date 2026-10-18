@@ -33,7 +33,16 @@ func _ready() -> void:
 	await _check_u3_failure_and_result()
 	await _check_u3_result_variants()
 	await _check_u3_bot_lock()
-	await _check_u3_quick_start()
+	await _check_u4_save_store()
+	await _check_u4_session_resume()
+	await _check_u4_main_menu()
+	await _check_u4_local_setup()
+	await _check_u4_save_browser()
+	await _check_u4_error_modals()
+	await _check_u4_pause_rules()
+	await _check_u4_hotseat_cover()
+	await _check_u4_flow_autosave()
+	await _check_u4_app_flow()
 	await _check_app()
 	if _failures == 0:
 		print("ui_smoke：%d 项全部通过。" % _checks)
@@ -834,7 +843,7 @@ func _count_nodes(node: Node) -> int:
 
 # ---------------------------------------------------------------- U3：交互与真实对局
 
-func _u3_host() -> Array:
+func _u3_host(store: UiSaveStore = null) -> Array:
 	await get_tree().process_frame
 	var host := Control.new()
 	host.name = "UiU3Host"
@@ -850,10 +859,10 @@ func _u3_host() -> Array:
 	var flow := UiTableFlow.new()
 	flow.name = "Flow"
 	host.add_child(flow)
-	flow.setup(table, session)
+	flow.setup(table, session, store)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	return [host, table, session, flow]
+	return [host, table, session, flow, store]
 
 
 func _u3_cleanup(parts: Array) -> void:
@@ -1323,34 +1332,690 @@ func _check_u3_bot_lock() -> void:
 	await _u3_cleanup(parts)
 
 
-func _check_u3_quick_start() -> void:
-	var scene: PackedScene = load("res://ui/dev/quick_start.tscn")
-	_check(scene != null, "U3 临时开局场景可以加载")
-	if scene == null:
+# ---------------------------------------------------------------- U4：入口与流程
+
+const U4_SAVE_ROOT: String = "user://ui_smoke_saves"
+
+
+func _u4_new_store() -> UiSaveStore:
+	_u4_wipe(U4_SAVE_ROOT)
+	var store := UiSaveStore.new()
+	store.name = "U4Store"
+	store.configure(U4_SAVE_ROOT)
+	add_child(store)
+	store.ensure_dirs()
+	return store
+
+
+func _u4_wipe(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
 		return
-	var quick: Control = scene.instantiate()
-	get_tree().root.add_child(quick)
+	for file_name: String in dir.get_files():
+		dir.remove(file_name)
+	for child: String in dir.get_directories():
+		var sub: String = path.path_join(child)
+		_u4_wipe(sub)
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(sub))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _u4_free_store(store: UiSaveStore) -> void:
+	if is_instance_valid(store):
+		store.queue_free()
+	await get_tree().process_frame
+
+
+func _u4_play_replay_data(seed_value: int = 20261018, count: int = 2) -> Dictionary:
+	var host := Node.new()
+	get_tree().root.add_child(host)
+	var session := UiTableSession.new()
+	host.add_child(session)
+	var seats: Array[Dictionary] = []
+	for seat: int in count:
+		seats.append({"name": "座位 %d" % (seat + 1), "type": "human"})
+	if not session.start_local({"count": count, "seed": seed_value, "seats": seats}):
+		host.queue_free()
+		return {}
+	var steps: int = 0
+	while not String(session.view().get("phase", "")).is_empty() \
+			and String(session.view().get("phase", "")) != "finished" and steps < 600:
+		var actions: Array[Action] = session.legal_actions()
+		if actions.is_empty():
+			break
+		session.submit(actions[0])
+		steps += 1
+	var data: Dictionary = session.build_save_data()
+	session.close()
+	host.queue_free()
+	return data
+
+
+func _u4_make_meta(names: Array, types: Array, round_number: int = 1,
+		status: String = "in_progress", winners: Array = []) -> Dictionary:
+	return UiSaveStore.make_meta(status, names, types, false, 120,
+			UiSaveStore.make_summary(round_number, 0, [1, 2], winners))
+
+
+func _check_u4_save_store() -> void:
+	var store: UiSaveStore = _u4_new_store()
+	var data: Dictionary = _u4_play_replay_data()
+	_check(not data.is_empty(), "U4 能跑出一局可存的回放数据")
+	var names: Array = ["小明", "薄荷"]
+	var types: Array = ["human", "human"]
+	var meta: Dictionary = _u4_make_meta(names, types)
+	_check(store.save_autosave(data, meta), "U4 自动存档可以写入")
+	var summary: Dictionary = store.autosave_summary()
+	_check(not summary.is_empty(), "U4 自动存档摘要非空")
+	_check(String(summary.get("text", "")).contains("2 人"), "U4 摘要写人数")
+	_check(String(summary.get("text", "")).contains("第 1 轮"), "U4 摘要写轮数")
+	var entries: Array[UiSaveEntry] = store.list()
+	_check(entries.size() == 1, "U4 列表读到自动存档")
+	if not entries.is_empty():
+		var entry: UiSaveEntry = entries[0]
+		_check(entry.is_autosave, "U4 自动存档标记")
+		_check(entry.display_name == "自动存档", "U4 自动存档名称")
+		_check(entry.readable() and entry.status() == UiSaveEntry.STATUS_IN_PROGRESS,
+				"U4 自动存档状态进行中")
+		_check(entry.names() == ["小明", "薄荷"], "U4 ui_meta 名字保留")
+		var check_result: Dictionary = store.validate(entry)
+		_check(bool(check_result.get("ok", false)), "U4 回放存档可以完整校验")
+
+	_check(store.save_quick(data, meta), "U4 快速存档可以写入")
+	entries = store.list()
+	_check(entries.size() == 2, "U4 快速存档出现在列表里")
+	var quick_path: String = U4_SAVE_ROOT.path_join("quick.json")
+	_check(FileAccess.file_exists(quick_path), "U4 快速存档文件存在")
+	var finished_meta: Dictionary = _u4_make_meta(names, types, 3, "finished", [0])
+	var finished_path: String = store.transfer_finished(data, finished_meta)
+	_check(not finished_path.is_empty(), "U4 结束转存返回路径")
+	_check(not FileAccess.file_exists(U4_SAVE_ROOT.path_join("autosave.json")),
+			"U4 结束转存后删掉自动存档")
+	var finished_entry: UiSaveEntry = null
+	for entry: UiSaveEntry in store.list():
+		if entry.is_finished:
+			finished_entry = entry
+	_check(finished_entry != null, "U4 结束记录出现在列表里")
+	if finished_entry != null:
+		_check(finished_entry.status() == UiSaveEntry.STATUS_FINISHED, "U4 结束记录状态")
+		_check(finished_entry.display_name.contains("小明获胜"), "U4 结束记录名称写胜者")
+		_check(finished_entry.mascot_seat() == 0, "U4 结束记录头像用胜者座位")
+
+	# 坏文件：损坏 / 版本太新 / 不认识的类型。
+	var corrupt := FileAccess.open(U4_SAVE_ROOT.path_join("corrupt.json"), FileAccess.WRITE)
+	corrupt.store_string("{ 这不是 JSON")
+	corrupt.close()
+	_write_json(U4_SAVE_ROOT.path_join("too_new.json"), {
+		"schema_version": 99, "kind": "replay", "player_count": 2,
+	})
+	_write_json(U4_SAVE_ROOT.path_join("unknown.json"), {
+		"schema_version": 1, "kind": "mystery", "player_count": 2,
+	})
+	_write_json(U4_SAVE_ROOT.path_join("readonly_replay.json"), data)
+	var reasons: Dictionary = {}
+	for entry: UiSaveEntry in store.list():
+		if entry.readable():
+			continue
+		reasons[entry.file_name] = entry.reason
+	_check(reasons.get("corrupt.json", "") == UiSaveEntry.REASON_CORRUPT, "U4 损坏文件原因")
+	_check(reasons.get("too_new.json", "") == UiSaveEntry.REASON_VERSION_TOO_NEW,
+			"U4 版本太新原因")
+	_check(reasons.get("unknown.json", "") == UiSaveEntry.REASON_UNKNOWN_KIND,
+			"U4 未知类型原因")
+	var read_only_entry: UiSaveEntry = null
+	for entry: UiSaveEntry in store.list():
+		if entry.file_name == "readonly_replay.json":
+			read_only_entry = entry
+	_check(read_only_entry != null and read_only_entry.read_only, "U4 其他 json 只读")
+	if read_only_entry != null:
+		_check(not store.delete_entry(read_only_entry), "U4 只读存档不能删除")
+
+	# 改坏动作的回放：校验要指出第几步失败（把第 1 步换成买一张不存在的卡）。
+	var bad_actions: Array = data.get("actions", []).duplicate(true)
+	bad_actions[0] = Action.purchase("L3-R-99").to_dict()
+	_write_json(U4_SAVE_ROOT.path_join("bad_replay.json"), {
+		"schema_version": 1, "kind": "replay", "player_count": int(data.get("player_count", 2)),
+		"seed": int(data.get("seed", 0)), "actions": bad_actions, "fingerprint": "",
+	})
+	var bad_entry: UiSaveEntry = null
+	for entry: UiSaveEntry in store.list():
+		if entry.file_name == "bad_replay.json":
+			bad_entry = entry
+	_check(bad_entry != null, "U4 坏动作回放被列出")
+	if bad_entry != null:
+		var bad_check: Dictionary = store.validate(bad_entry)
+		_check(not bool(bad_check.get("ok", true)), "U4 坏动作回放校验失败")
+		_check(int(bad_check.get("step", 0)) == 1,
+				"U4 校验指出失败步数")
+
+	var quick_entry: UiSaveEntry = null
+	for entry: UiSaveEntry in store.list():
+		if entry.is_quick:
+			quick_entry = entry
+	if quick_entry != null:
+		_check(store.delete_entry(quick_entry), "U4 删除自己的存档")
+		_check(not FileAccess.file_exists(quick_path), "U4 删除后文件消失")
+
+	_check(UiSaveEntry.relative_time(int(Time.get_unix_time_from_system())) == "刚刚",
+			"U4 相对时间刚刚")
+	_check(UiSaveEntry.relative_time(int(Time.get_unix_time_from_system()) - 3600) == "1 小时前",
+			"U4 相对时间小时")
+	_check(UiSaveEntry.relative_time(int(Time.get_unix_time_from_system()) - 86400 * 3) != "",
+			"U4 相对时间日期")
+	await _u4_free_store(store)
+	_u4_wipe(U4_SAVE_ROOT)
+
+
+func _write_json(path: String, data: Dictionary) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(data, "  "))
+	file.close()
+
+
+func _check_u4_session_resume() -> void:
+	var store: UiSaveStore = _u4_new_store()
+	var host := Node.new()
+	get_tree().root.add_child(host)
+	var first := UiTableSession.new()
+	host.add_child(first)
+	var seats: Array[Dictionary] = [
+		{"name": "小明", "type": "human"}, {"name": "薄荷", "type": "human"},
+	]
+	_check(first.start_local({"count": 2, "seed": 20261019, "seats": seats}),
+			"U4 续档测试开局")
+	first.submit(first.legal_actions()[0])
+	first.submit(first.legal_actions()[0])
+	var fingerprint: String = first.fingerprint()
+	var current_seat: int = int(first.view().get("current_seat", -1))
+	var data: Dictionary = first.build_save_data()
+	var meta: Dictionary = _u4_make_meta(["小明", "薄荷"], ["human", "bot_hard"])
+	meta["elapsed_sec"] = 600
+	meta["hotseat_cover"] = true
+	store.save_autosave(data, meta)
+	var entry: UiSaveEntry = store.autosave_entry()
+	_check(entry != null, "U4 续档入口存在")
+	first.close()
+
+	var second := UiTableSession.new()
+	host.add_child(second)
+	var errors: Array[String] = []
+	var ok: bool = second.resume(entry, errors) if entry != null else false
+	_check(ok, "U4 回放存档可以继续")
+	_check(errors.is_empty(), "U4 继续成功没有错误")
+	_check(second.fingerprint() == fingerprint, "U4 续档后状态指纹一致")
+	_check(int(second.view().get("current_seat", -1)) == current_seat, "U4 续档后轮到同一座位")
+	_check(second.names() == ["小明", "薄荷"], "U4 续档保留名字")
+	_check(second.seat_types() == ["human", "human"], "U4 IR-04 前座位恢复成人类")
+	_check(second.original_seat_types() == ["human", "bot_hard"], "U4 原座位类型保留")
+	_check(not second.resume_note().is_empty(), "U4 电脑座位恢复提示")
+	_check(second.elapsed_seconds() >= 600, "U4 续档接上用时")
+	_check(second.hotseat_cover(), "U4 续档恢复同屏遮挡设置")
+	var rematch: Dictionary = second.rematch_setup()
+	var rematch_types: Array[String] = []
+	for item: Variant in rematch.get("seats", []):
+		rematch_types.append(String((item as Dictionary).get("type", "")))
+	_check(rematch_types == ["human", "bot_hard"], "U4 再来一局沿用原座位类型")
+	second.close()
+
+	# 快照存档：继续后全部人类、不能保存回放。
+	var snapshot_text: String = FileAccess.get_file_as_string("res://tests/scenarios/token_limit.json")
+	_check(not snapshot_text.is_empty(), "U4 快照文件可读")
+	_write_json(U4_SAVE_ROOT.path_join("preset_snapshot.json"), JSON.parse_string(snapshot_text))
+	var snap_entry: UiSaveEntry = null
+	for item: UiSaveEntry in store.list():
+		if item.file_name == "preset_snapshot.json":
+			snap_entry = item
+	_check(snap_entry != null and snap_entry.kind == "snapshot", "U4 预设快照被识别")
+	var third := UiTableSession.new()
+	host.add_child(third)
+	errors.clear()
+	_check(third.resume(snap_entry, errors) if snap_entry != null else false,
+			"U4 快照可以继续")
+	_check(String(third.view().get("phase", "")) == "playing", "U4 快照恢复到对局中")
+	_check(UiViewMath.token_total(third.view(), 0) == 10, "U4 快照持币数正确")
+	_check(not third.can_save(), "U4 快照来源的局不能保存回放")
+	third.close()
+	host.queue_free()
+	await get_tree().process_frame
+	await _u4_free_store(store)
+	_u4_wipe(U4_SAVE_ROOT)
+
+
+func _check_u4_main_menu() -> void:
+	var menu: UiMainMenu = load("res://ui/screens/main_menu/main_menu.tscn").instantiate()
+	get_tree().root.add_child(menu)
+	await get_tree().process_frame
+	_check(menu.find_child("HeroTitle", true, false) != null, "U4 主菜单标题")
+	var hero := menu.find_child("HeroTitle", true, false) as Label
+	_check(hero != null and hero.text == "璀璨宝石", "U4 主菜单标题文字")
+	_check(not menu.continue_button().visible, "U4 没有自动存档时隐藏继续")
+	_check(menu.local_button() != null and not menu.local_button().disabled, "U4 本地游戏按钮可点")
+	_check(menu.online_button().disabled, "U4 联网入口禁用")
+	_check(menu.find_child("SettingsButton", true, false) != null
+			and (menu.find_child("SettingsButton", true, false) as Button).disabled,
+			"U4 设置入口禁用")
+	_check(menu.still_life_card_ids().size() == 3, "U4 主菜单三张扇形卡")
+	menu.configure({"text": "3 人 · 第 9 轮 · 10 分钟前"})
+	_check(menu.continue_button().visible, "U4 有自动存档时显示继续")
+	_check(menu.continue_button().subtitle.contains("第 9 轮"), "U4 继续按钮副标题")
+	var clicked: Array[String] = []
+	menu.local_pressed.connect(func() -> void: clicked.append("local"))
+	menu.local_button().pressed.emit()
+	_check(clicked == ["local"], "U4 本地游戏按钮发信号")
+	menu.queue_free()
+	await get_tree().process_frame
+
+
+func _check_u4_local_setup() -> void:
+	var setup: UiLocalSetup = load("res://ui/screens/local_setup/local_setup.tscn").instantiate()
+	get_tree().root.add_child(setup)
+	await get_tree().process_frame
+	_check(setup.seat_count() == 3, "U4 默认 3 个座位")
+	var data: Dictionary = setup.start_data()
+	_check(int(data.get("count", 0)) == 3, "U4 默认开局人数")
+	var types: Array[String] = []
+	for item: Variant in data.get("seats", []):
+		types.append(String((item as Dictionary).get("type", "")))
+	_check(types == ["human", "bot_normal", "bot_normal"], "U4 默认座位类型")
+	_check(not bool(data.get("hotseat_cover", true)), "U4 1 人类不开遮挡")
+
+	setup.set_seed_text("1234")
+	_check(int(setup.start_data().get("seed", 0)) == 1234, "U4 种子写进开局设置")
+	setup.set_seed_text("abc")
+	var starts: Array[Dictionary] = []
+	setup.start_requested.connect(func(value: Dictionary) -> void: starts.append(value))
+	setup.start_pressed()
+	_check(starts.is_empty() and not setup.error_text().is_empty(), "U4 非法种子被拦下")
+	setup.set_seed_text("")
+
+	setup.apply_preset("duel")
+	_check(setup.seat_count() == 2, "U4 单挑组合人数")
+	var duel: Dictionary = setup.start_data()
+	_check(String((duel["seats"] as Array)[1]["type"]) == "bot_hard", "U4 单挑组合困难电脑")
+
+	setup.apply_preset("hotseat")
+	_check(setup.seat_count() == 4, "U4 同屏组合 4 人")
+	var hotseat: Dictionary = setup.start_data()
+	_check(bool(hotseat.get("hotseat_cover", false)), "U4 同屏组合打开遮挡")
+	var human_count: int = 0
+	for item: Variant in hotseat.get("seats", []):
+		if String((item as Dictionary).get("type", "")) == "human":
+			human_count += 1
+	_check(human_count == 4, "U4 同屏组合全是人类")
+
+	setup.apply_preset("bots")
+	_check(setup.start_button().text == "开始观战", "U4 全电脑时按钮改开始观战")
+	_check(setup.rule_value("胜利分") == "%d 分" % int(DataRegistry.rules().win_points),
+			"U4 规则只读标签取 RulesConfig")
+	_check(setup.rule_value("宝石").contains("每色"), "U4 宝石规则标签")
+
+	setup.apply_preset("standard")
+	setup.count_segment().selected_changed.emit(2)
+	await get_tree().process_frame
+	_check(setup.seat_count() == 4, "U4 人数分段同步座位数")
+	setup.count_segment().selected_changed.emit(0)
+	await get_tree().process_frame
+	_check(setup.seat_count() == 2, "U4 人数分段可以减少座位")
+	setup.queue_free()
+	await get_tree().process_frame
+
+
+func _check_u4_save_browser() -> void:
+	var store: UiSaveStore = _u4_new_store()
+	var data: Dictionary = _u4_play_replay_data()
+	var meta: Dictionary = _u4_make_meta(["小明", "薄荷"], ["human", "human"])
+	store.save_autosave(data, meta)
+	store.save_quick(data, _u4_make_meta(["小明", "薄荷"], ["human", "human"], 2))
+	var snapshot_text: String = FileAccess.get_file_as_string("res://tests/scenarios/token_limit.json")
+	_write_json(U4_SAVE_ROOT.path_join("preset_snapshot.json"), JSON.parse_string(snapshot_text))
+	var corrupt := FileAccess.open(U4_SAVE_ROOT.path_join("corrupt.json"), FileAccess.WRITE)
+	corrupt.store_string("not json")
+	corrupt.close()
+	_write_json(U4_SAVE_ROOT.path_join("too_new.json"), {
+		"schema_version": 99, "kind": "replay", "player_count": 2,
+	})
+	_write_json(U4_SAVE_ROOT.path_join("unknown.json"), {
+		"schema_version": 1, "kind": "mystery", "player_count": 2,
+	})
+
+	var browser: UiSaveBrowser = load("res://ui/screens/save_browser/save_browser.tscn").instantiate()
+	browser.configure(store)
+	get_tree().root.add_child(browser)
+	await get_tree().process_frame
+	_check(browser.row_count() == 6, "U4 读档列表包含全部文件")
+	_check(browser.selected_entry() != null, "U4 默认选中第一份存档")
+	_check(browser.details_integrity_text().contains("✓"), "U4 选中时校验可以完整重放")
+	_check(browser.continue_button() != null and not browser.continue_button().disabled,
+			"U4 可读存档的继续按钮启用")
+
+	var corrupt_entry: UiSaveEntry = null
+	var read_only_entry: UiSaveEntry = null
+	var quick_entry: UiSaveEntry = null
+	for entry: UiSaveEntry in browser.entries():
+		match entry.file_name:
+			"corrupt.json":
+				corrupt_entry = entry
+			"preset_snapshot.json":
+				read_only_entry = entry
+			"quick.json":
+				quick_entry = entry
+	_check(corrupt_entry != null and not corrupt_entry.readable(), "U4 损坏存档留在列表里")
+	_check(read_only_entry != null and read_only_entry.read_only, "U4 预设局面只读")
+	if corrupt_entry != null:
+		browser.select_path(corrupt_entry.path)
+		_check(browser.find_child("DetailReason", true, false) != null, "U4 损坏存档写明原因")
+		_check(browser.continue_button() == null, "U4 损坏存档没有继续按钮")
+	if read_only_entry != null:
+		browser.select_path(read_only_entry.path)
+		_check(browser.delete_button() != null and browser.delete_button().disabled,
+				"U4 只读存档删除按钮禁用")
+	if quick_entry != null:
+		browser.select_path(quick_entry.path)
+		browser.request_delete()
+		_check(browser.confirm_modal_visible(), "U4 删除前二次确认")
+		browser.confirm_delete()
+		await get_tree().process_frame
+		_check(not FileAccess.file_exists(U4_SAVE_ROOT.path_join("quick.json")),
+				"U4 确认后删除存档")
+		_check(browser.row_count() == 5, "U4 删除后列表刷新")
+
+	var selected: Array[UiSaveEntry] = []
+	browser.continue_requested.connect(func(entry: UiSaveEntry) -> void: selected.append(entry))
+	browser.select_path(U4_SAVE_ROOT.path_join("autosave.json"))
+	if browser.continue_button() != null:
+		browser.continue_button().pressed.emit()
+	_check(selected.size() == 1 and selected[0].is_autosave, "U4 继续按钮发出选中存档")
+	browser.queue_free()
+	await get_tree().process_frame
+	await _u4_free_store(store)
+	_u4_wipe(U4_SAVE_ROOT)
+
+
+func _check_u4_error_modals() -> void:
+	var data_modal := UiErrorModal.new()
+	get_tree().root.add_child(data_modal)
+	await get_tree().process_frame
+	data_modal.setup_data_errors(["cards.json：文件不存在", "rules.json：win_points 应为正数"])
+	var title := data_modal.find_child("Title", true, false) as Label
+	_check(title != null and title.text == "游戏数据有问题，没法开局", "U4 数据错误弹窗标题")
+	var error_list := data_modal.find_child("ErrorList", true, false)
+	_check(error_list != null and error_list.get_child_count() == 2, "U4 数据错误逐条列出")
+	_check(data_modal.find_child("ErrorCopy", true, false) != null, "U4 复制错误按钮")
+	var quit_requested: Array[bool] = []
+	data_modal.exit_requested.connect(func() -> void: quit_requested.append(true))
+	(data_modal.find_child("ErrorQuit", true, false) as Button).pressed.emit()
+	_check(quit_requested == [true], "U4 数据错误弹窗退出信号")
+	data_modal.queue_free()
+	await get_tree().process_frame
+
+	var version_modal := UiErrorModal.new()
+	get_tree().root.add_child(version_modal)
+	await get_tree().process_frame
+	version_modal.setup_save_error(UiSaveEntry.REASON_VERSION_TOO_NEW, "版本 99")
+	_check(_modal_text(version_modal).contains("更新版本"), "U4 版本太新文案")
+	version_modal.queue_free()
+	await get_tree().process_frame
+
+	var verify_modal := UiErrorModal.new()
+	get_tree().root.add_child(verify_modal)
+	await get_tree().process_frame
+	verify_modal.setup_save_error(UiSaveEntry.REASON_VERIFY_FAILED, "指纹不一致", 37)
+	_check(_modal_text(verify_modal).contains("第 37 步"), "U4 重放校验失败写步数")
+	_check(verify_modal.find_child("SaveErrorBack", true, false) != null, "U4 存档错误返回列表")
+	_check(verify_modal.find_child("SaveErrorReadUntil", true, false) == null,
+			"U4 IR-03 前不显示读到某步")
+	verify_modal.queue_free()
+	await get_tree().process_frame
+
+
+func _modal_text(modal: UiErrorModal) -> String:
+	var text: String = ""
+	for node: Node in modal.find_children("*", "Label", true, false):
+		text += (node as Label).text + "\n"
+	return text
+
+
+func _check_u4_pause_rules() -> void:
+	var store: UiSaveStore = _u4_new_store()
+	var parts := await _u3_host(store)
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	_check(_u3_start_humans(parts, 2, 20261023), "U4 暂停菜单测试开局")
+	await get_tree().process_frame
+	flow.open_pause()
+	_check(flow.is_paused() and flow.pause_menu() != null, "U4 Esc / 菜单打开暂停")
+	var pause: UiPauseMenu = flow.pause_menu()
+	_check(pause.save_button().disabled == false, "U4 可保存的局保存按钮启用")
+	var rules_text: String = ""
+	for line: Dictionary in UiRulesPanel.lines(session.rules()):
+		rules_text += String(line.get("text", ""))
+	_check(rules_text.contains(str(int(session.rules().win_points))), "U4 规则速查含胜利分")
+	_check(rules_text.contains(str(int(session.rules().max_tokens))), "U4 规则速查含持币上限")
+	pause.request_exit_confirm()
+	_check((pause.find_child("ExitConfirmRow", true, false) as Control).visible,
+			"U4 退出前展开二次确认")
+	pause.cancel_exit_confirm()
+	_check((pause.find_child("ExitRow", true, false) as Control).visible, "U4 取消退出确认")
+	flow.quick_save()
+	_check(FileAccess.file_exists(U4_SAVE_ROOT.path_join("quick.json")), "U4 快速存档写入")
+	flow.close_pause()
+	_check(not flow.is_paused(), "U4 关闭暂停")
+
+	flow.open_rules()
+	_check(flow.rules_visible(), "U4 顶栏规则打开速查")
+	flow.close_rules()
+	_check(not flow.rules_visible(), "U4 关闭规则速查")
+	await _u3_cleanup(parts)
+
+	# 弃宝石弹窗上还能叠开暂停（关掉后回到弃宝石）。
+	var parts2 := await _u3_host(store)
+	var flow2: UiTableFlow = parts2[3]
+	var session2: UiTableSession = parts2[2]
+	session2.load_snapshot(_u3_snapshot("token_limit"))
+	await get_tree().process_frame
+	var table2: UiTableScreen = parts2[1]
+	table2.gem_chip_clicked.emit(Enums.GemColor.RED)
+	table2.gem_chip_clicked.emit(Enums.GemColor.RED)
+	table2.confirm_pressed.emit()
+	await get_tree().process_frame
+	_check(flow2.modal_kind() == "discard", "U4 预设局面进入弃宝石弹窗")
+	flow2.open_pause()
+	_check(flow2.is_paused(), "U4 弃宝石弹窗上叠开暂停")
+	flow2.close_pause()
+	_check(flow2.modal_kind() == "discard", "U4 关闭暂停后回到弃宝石弹窗")
+	await _u3_cleanup(parts2)
+	await _u4_free_store(store)
+	_u4_wipe(U4_SAVE_ROOT)
+
+
+func _check_u4_hotseat_cover() -> void:
+	var store: UiSaveStore = _u4_new_store()
+	var parts := await _u3_host(store)
+	var table: UiTableScreen = parts[1]
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	flow.set_hotseat_cover_enabled(true)
+	var seats: Array[Dictionary] = _u3_seats(2)
+	_check(session.start_local({"count": 2, "seed": 20261024, "seats": seats,
+			"hotseat_cover": true}), "U4 同屏两人局开局")
+	await get_tree().process_frame
+	_check(flow.cover_visible(), "U4 开局先显示换人遮挡")
+	_check(flow.cover_seat() == 0, "U4 遮挡指向座位 1")
+	_check(table.my_panel().get_render_data().is_empty(), "U4 遮挡期间不渲染私密信息")
+	flow.dismiss_cover()
+	_check(not flow.cover_visible(), "U4 点开始后收起遮挡")
+	_check(int(table.my_panel().get_render_data().get("seat", -1)) == 0,
+			"U4 遮挡收起后渲染座位 1")
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in 3:
+		flow.click_color(colors[index])
+	flow.confirm()
+	await get_tree().process_frame
+	_check(flow.cover_visible(), "U4 换到另一位人类时再次遮挡")
+	_check(flow.cover_seat() == 1, "U4 遮挡指向座位 2")
+	_check(flow.cover_summary().contains("拿了"), "U4 遮挡总结上一位的动作")
+	flow.dismiss_cover()
+	_check(int(table.my_panel().get_render_data().get("seat", -1)) == 1,
+			"U4 收起后渲染座位 2")
+	await _u3_cleanup(parts)
+	await _u4_free_store(store)
+	_u4_wipe(U4_SAVE_ROOT)
+
+
+func _check_u4_flow_autosave() -> void:
+	var store: UiSaveStore = _u4_new_store()
+	var parts := await _u3_host(store)
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	_check(_u3_start_humans(parts, 2, 20261025), "U4 自动存档测试开局")
+	await get_tree().process_frame
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in 3:
+		flow.click_color(colors[index])
+	flow.confirm()
+	await get_tree().process_frame
+	var entry: UiSaveEntry = store.autosave_entry()
+	_check(entry != null, "U4 回合结束写自动存档")
+	if entry != null:
+		_check(entry.names() == ["小明", "薄荷"], "U4 自动存档带名字")
+		_check(int(entry.summary().get("round", 0)) >= 1, "U4 自动存档带轮数")
+	await _u3_cleanup(parts)
+
+	# 用一份已经打完的回放继续：载入后立刻结算并转存 finished。
+	var finished_data: Dictionary = _u4_play_replay_data(20261026, 2)
+	_check(not finished_data.is_empty(), "U4 能生成完整对局回放")
+	store.save_autosave(finished_data, _u4_make_meta(["小明", "薄荷"],
+			["human", "human"], 20))
+	var finished_entry: UiSaveEntry = store.autosave_entry()
+	_check(finished_entry != null, "U4 完整对局存档在列表里")
+	var parts2 := await _u3_host(store)
+	var session2: UiTableSession = parts2[2]
+	var flow2: UiTableFlow = parts2[3]
+	var errors: Array[String] = []
+	_check(session2.resume(finished_entry, errors), "U4 可以直接继续已结束的回放")
+	await get_tree().process_frame
+	_check(String(session2.view().get("phase", "")) == "finished", "U4 继续后进入结束状态")
+	_check(flow2.result_saved(), "U4 对局结束自动转存 finished")
+	_check(not FileAccess.file_exists(U4_SAVE_ROOT.path_join("autosave.json")),
+			"U4 结束转存后自动存档移除")
+	var has_finished: bool = false
+	for item: UiSaveEntry in store.list():
+		if item.is_finished:
+			has_finished = true
+	_check(has_finished, "U4 列表出现结束记录")
+	var table2: UiTableScreen = parts2[1]
+	var result_modal: Control = table2.modal_control()
+	_check(result_modal != null and result_modal.name == "ResultModal", "U4 结算弹窗出现")
+	if result_modal != null:
+		var save_button := result_modal.find_child("ResultSaveReplay", true, false) as Button
+		_check(save_button != null and save_button.disabled and save_button.text == "已保存回放",
+				"U4 结算弹窗显示已保存回放")
+		var rematch_button := result_modal.find_child("ResultRematch", true, false) as Button
+		var main_menu_button := result_modal.find_child("ResultMainMenu", true, false) as Button
+		_check(rematch_button != null and main_menu_button != null, "U4 结算弹窗有再来一局 / 回主菜单")
+		var rematches: Array[Dictionary] = []
+		flow2.rematch_requested.connect(func(setup: Dictionary) -> void: rematches.append(setup))
+		if rematch_button != null:
+			rematch_button.pressed.emit()
+		_check(rematches.size() == 1 and int(rematches[0].get("count", 0)) == 2,
+				"U4 再来一局沿用人数")
+		var rematch_seed_ok: bool = false
+		if not rematches.is_empty():
+			rematch_seed_ok = int(rematches[0].get("seed", 0)) == -1
+		_check(rematch_seed_ok, "U4 再来一局用新种子")
+		var leaves: Array[bool] = []
+		flow2.leave_requested.connect(func() -> void: leaves.append(true))
+		if main_menu_button != null:
+			main_menu_button.pressed.emit()
+		_check(leaves == [true], "U4 结算弹窗回主菜单")
+	await _u3_cleanup(parts2)
+	await _u4_free_store(store)
+	_u4_wipe(U4_SAVE_ROOT)
+
+
+func _check_u4_app_flow() -> void:
+	UiSaveStore.root_override = U4_SAVE_ROOT
+	_u4_wipe(U4_SAVE_ROOT)
+	var app: Control = load(APP_PATH).instantiate()
+	get_tree().root.add_child(app)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var setup: Control = quick.setup_root()
-	_check(setup != null, "临时入口先显示开局设置")
-	if setup != null:
-		_check(setup.find_child("CountSegment", true, false) != null, "人数分段存在")
-		_check(setup.find_child("DifficultySegment", true, false) != null, "难度分段存在")
-		_check(setup.find_child("StartButton", true, false) != null, "开始按钮存在")
-	_check(quick.start_game(3, "normal", 20261022), "临时入口可以开 3 人局")
+	_check(app.main_menu() != null, "U4 启动直接进主菜单")
+	_check(app.session() == null, "U4 主菜单没有会话")
+	app.show_local_setup()
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(quick.session() != null and quick.flow() != null and quick.table() != null,
-			"临时入口创建会话、交互和牌桌")
-	_check(quick.setup_root() == null, "开局后隐藏设置")
-	_check(int(quick.session().view().get("player_count", 0)) == 3, "临时入口人数正确")
-	_check(quick.session().seat_types() == ["human", "bot_normal", "bot_normal"],
-			"临时入口座位类型正确")
-	_check(quick.table().find_child("CardPopover", true, false) != null, "牌桌有卡牌浮层")
-	_check(quick.table().find_child("ModalLayer", true, false) != null, "牌桌有弹窗层")
-	quick.queue_free()
+	var setup: UiLocalSetup = app.local_setup()
+	_check(setup != null, "U4 主菜单能进本地设置")
+	setup.apply_preset("hotseat")
+	setup.set_hotseat_cover(false)
+	setup.set_seed_text("20261027")
+	setup.start_pressed()
 	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(app.session() != null and app.table() != null and app.flow() != null,
+			"U4 设置界面能开一局")
+	_check(app.current_screen() == app.table(), "U4 开局后当前屏幕是牌桌")
+	var session: UiTableSession = app.session()
+	var flow: UiTableFlow = app.flow()
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in 3:
+		flow.click_color(colors[index])
+	flow.confirm()
+	await get_tree().process_frame
+	var fingerprint: String = session.fingerprint()
+	var current_seat: int = int(session.view().get("current_seat", -1))
+	_check(app.store().autosave_entry() != null, "U4 对局中产生自动存档")
+	flow.open_pause()
+	var pause: UiPauseMenu = flow.pause_menu()
+	(pause.find_child("PauseLoad", true, false) as Button).pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(app.save_browser() != null, "U4 暂停菜单能打开读档")
+	_check(app.screen_stack_size() == 1 and not app.table().visible, "U4 读档时牌桌留在栈底")
+	app.save_browser().back_button().pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(app.current_screen() == app.table() and app.table().visible, "U4 从读档返回牌桌")
+	_check(app.session().fingerprint() == fingerprint, "U4 读档往返后牌桌状态不变")
+	app.show_save_browser(true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var browser2: UiSaveBrowser = app.save_browser()
+	_check(browser2 != null, "U4 再次打开读档")
+	if browser2 != null:
+		browser2.select_path(U4_SAVE_ROOT.path_join("autosave.json"))
+		if browser2.continue_button() != null:
+			browser2.continue_button().pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(app.current_screen() == app.table() and app.session() != null,
+			"U4 从读档列表继续这局")
+	_check(app.session().fingerprint() == fingerprint if app.session() != null else false,
+			"U4 从读档列表继续后状态一致")
+	_check(app.screen_stack_size() == 0, "U4 从读档列表继续后清空返回栈")
+	app.back_to_main_menu()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(app.main_menu() != null, "U4 牌桌能回主菜单")
+	_check(app.main_menu().continue_button().visible, "U4 主菜单显示继续上一局")
+	_check(app.main_menu().continue_button().subtitle.contains("人"),
+			"U4 继续按钮带摘要")
+	app.continue_last_game()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(app.session() != null, "U4 继续上一局恢复会话")
+	if app.session() != null:
+		_check(app.session().fingerprint() == fingerprint, "U4 继续后状态一致")
+		_check(int(app.session().view().get("current_seat", -1)) == current_seat,
+				"U4 继续后轮到同一座位")
+		_check(app.session().names()[0] == "小明", "U4 继续后名字恢复")
+	app.back_to_main_menu()
+	await get_tree().process_frame
+	app.queue_free()
+	await get_tree().process_frame
+	UiSaveStore.root_override = ""
+	_u4_wipe(U4_SAVE_ROOT)
 
 
 func _check_app() -> void:

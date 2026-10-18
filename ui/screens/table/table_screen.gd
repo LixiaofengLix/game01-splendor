@@ -14,6 +14,7 @@ signal blank_clicked
 signal purchase_pressed
 signal reserve_pressed
 signal menu_requested
+signal rules_requested
 
 const TABLE_MARGIN := 14
 const HUD_HEIGHT := 44
@@ -47,6 +48,10 @@ var _popover: UiCardPopover
 var _modal_layer: Control
 var _modal_center: CenterContainer
 var _modal_control: Control = null
+## 暂停菜单 / 规则速查 / 换人遮挡叠在回合内弹窗之上。
+var _overlay_layer: Control
+var _toast: UiToast = null
+var _toast_slot: Control
 
 var _deck_piles: Dictionary[int, UiDeckPile] = {}
 var _market_cards: Dictionary[int, Array] = {}
@@ -68,8 +73,11 @@ func _ready() -> void:
 	_build_content()
 	_build_popover()
 	_build_modal_layer()
+	_build_overlay_layer()
+	_build_toast_slot()
 	resized.connect(_update_columns)
 	resized.connect(_place_popover)
+	resized.connect(_layout_toast)
 	_update_columns()
 
 
@@ -86,6 +94,7 @@ func _build_hud() -> void:
 	_hud.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_hud.offset_bottom = HUD_HEIGHT
 	_hud.menu_requested.connect(func() -> void: menu_requested.emit())
+	_hud.rules_requested.connect(func() -> void: rules_requested.emit())
 	add_child(_hud)
 
 
@@ -141,6 +150,78 @@ func _build_modal_layer() -> void:
 	_modal_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_modal_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_modal_layer.add_child(_modal_center)
+
+
+func _build_overlay_layer() -> void:
+	_overlay_layer = Control.new()
+	_overlay_layer.name = "OverlayLayer"
+	_overlay_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# 空层不能挡住牌桌点击；有子节点时由子节点（遮罩 / 弹窗）自己接收输入。
+	_overlay_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay_layer.z_index = 150
+	add_child(_overlay_layer)
+
+
+## 压在最上层的整屏控件：换人遮挡、暂停菜单、规则速查。可以叠多层。
+func push_overlay(control: Control) -> void:
+	if _overlay_layer == null:
+		return
+	_overlay_layer.add_child(control)
+	control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_overlay_layer.visible = true
+
+
+func pop_overlay(control: Control = null) -> void:
+	if _overlay_layer == null or _overlay_layer.get_child_count() == 0:
+		return
+	var target: Control = control
+	if target == null:
+		target = _overlay_layer.get_child(_overlay_layer.get_child_count() - 1) as Control
+	if target == null:
+		return
+	if target.get_parent() == _overlay_layer:
+		_overlay_layer.remove_child(target)
+	target.queue_free()
+	_overlay_layer.visible = _overlay_layer.get_child_count() > 0
+
+
+func has_overlay() -> bool:
+	return _overlay_layer != null and _overlay_layer.get_child_count() > 0
+
+
+func overlay_control() -> Control:
+	if _overlay_layer == null or _overlay_layer.get_child_count() == 0:
+		return null
+	return _overlay_layer.get_child(_overlay_layer.get_child_count() - 1) as Control
+
+
+func _build_toast_slot() -> void:
+	_toast_slot = Control.new()
+	_toast_slot.name = "ToastSlot"
+	_toast_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toast_slot.z_index = 220
+	add_child(_toast_slot)
+
+
+## 牌桌顶部居中的 toast（保存成功、读档提示）。只用于“我刚做的事成功了”。
+func show_toast(seat: int, message: String, detail: String = "", duration: float = 2.5) -> void:
+	if _toast == null:
+		_toast = UiToast.new()
+		_toast.name = "TableToast"
+		_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_toast_slot.add_child(_toast)
+	_toast.show_message(seat, message, detail, duration)
+	_layout_toast()
+
+
+func _layout_toast() -> void:
+	if _toast == null or _toast_slot == null:
+		return
+	var minimum: Vector2 = _toast.get_combined_minimum_size()
+	_toast.size = minimum
+	_toast.position = Vector2(
+			roundf((size.x - minimum.x) * 0.5),
+			HUD_HEIGHT + 12)
 
 
 func show_modal(control: Control) -> void:

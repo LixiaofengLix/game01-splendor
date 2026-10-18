@@ -93,7 +93,7 @@
 # 重新生成 tests/scenarios/ 的预设局面（改完卡表或规则后）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/scenarios/build_scenarios.tscn
 
-# 正式 UI：启动空壳 / 无界面启动自检
+# 正式 UI：完整流程（主菜单 → 本地开局 / 读档 → 牌桌 → 结算）/ 无界面启动自检
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/app/app.tscn
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . ui/app/app.tscn --quit-after 10
 # 正式 UI 冒烟测试（主题 / 字体 / 贴图 / 零件 / 入口结构 / 快捷键；改完 ui/ 必跑）
@@ -112,7 +112,6 @@
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/table_preview.tscn -- --fixture g3_turn_mine
 # 牌桌截图（夹具名见 ui/dev/fixtures/；截图必须带窗口）
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
-
-# U3 临时开局入口：选人数 / 电脑难度 / 种子，人机对局（U4 正式设置界面出来后删除）
-/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/quick_start.tscn
+# 正式屏幕截图：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 400 -- --screen main_menu --out /tmp/splendor_ui/main_menu.png --width 1280 --height 800 --wait 10
 ```

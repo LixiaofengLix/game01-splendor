@@ -30,6 +30,14 @@ var _log: Array[Dictionary] = []
 var _ended: bool = false
 var _result: Dictionary = {}
 var _started_ms: int = 0
+## 读档继续的局：界面计时要接上存档里的 elapsed_sec。
+var _elapsed_offset_sec: int = 0
+## 开局设置（重开一局用）；读档继续的局由存档的 ui_meta 重建。
+var _setup: Dictionary = {}
+## 读档继续前的座位类型（IR-04 落地前实际控制器全是人类，重开一局时仍沿用原类型）。
+var _original_types: Array[String] = []
+var _hotseat_cover: bool = true
+var _resume_note: String = ""
 
 
 func _exit_tree() -> void:
@@ -53,6 +61,14 @@ func start_local(setup: Dictionary) -> bool:
 		_types.append(seat_type)
 		if seat_type == "human":
 			_local_seats.append(seat)
+	_original_types = _types.duplicate()
+	_hotseat_cover = bool(setup.get("hotseat_cover", true))
+	_setup = {
+		"count": count,
+		"seed": int(setup.get("seed", -1)),
+		"seats": seats.duplicate(true),
+		"hotseat_cover": _hotseat_cover,
+	}
 	_prepare()
 	_backend = UiLiveBackend.new()
 	_backend.attach(self)
@@ -75,6 +91,8 @@ func load_snapshot(state_data: Dictionary, errors: Array[String] = []) -> bool:
 		_names.append(DEFAULT_NAMES[seat] if seat < DEFAULT_NAMES.size() else "座位 %d" % (seat + 1))
 		_types.append("human")
 		_local_seats.append(seat)
+	_original_types = _types.duplicate()
+	_hotseat_cover = false
 	_prepare()
 	_backend = UiLiveBackend.new()
 	_backend.attach(self)
@@ -82,6 +100,86 @@ func load_snapshot(state_data: Dictionary, errors: Array[String] = []) -> bool:
 	if not _backend.load_snapshot(state_data, errors):
 		close()
 		return false
+	return true
+
+
+## 从存档继续：回放存档走 load_replay（种子 + 动作），快照走 load_snapshot。
+## IR-04 落地前，所有座位都恢复为人类控制器；原座位类型保留在 ui_meta 里供界面提示和重开一局。
+func resume(entry: UiSaveEntry, errors: Array[String]) -> bool:
+	if entry == null:
+		close()
+		errors.append("没有选中存档")
+		return false
+	if not entry.readable():
+		close()
+		errors.append(entry.reason_label())
+		return false
+	return _resume_payload(entry.kind, entry.data, entry.ui_meta, entry.player_count, errors)
+
+
+## 回放到第 step 步为止（U6 的“从这里接着玩”会用到）。
+func resume_until(entry: UiSaveEntry, step: int, errors: Array[String]) -> bool:
+	if entry == null or entry.kind != "replay":
+		errors.append("只有回放存档可以读到指定步")
+		return false
+	var data: Dictionary = entry.data.duplicate(true)
+	var actions: Variant = data.get("actions", [])
+	if not actions is Array:
+		errors.append("存档里没有动作序列")
+		return false
+	var action_list: Array = actions
+	var count: int = clampi(step, 0, action_list.size())
+	action_list.resize(count)
+	data["actions"] = action_list
+	data["fingerprint"] = ""
+	return _resume_payload("replay", data, entry.ui_meta, entry.player_count, errors)
+
+
+func _resume_payload(kind: String, data: Dictionary, ui_meta: Dictionary,
+		count: int, errors: Array[String]) -> bool:
+	close()
+	if count <= 0:
+		errors.append("存档里没有有效的人数")
+		return false
+	var meta_names: Array[String] = []
+	var raw_names: Variant = ui_meta.get("names", [])
+	if raw_names is Array:
+		for item: Variant in raw_names:
+			meta_names.append(String(item))
+	var original_types: Array[String] = []
+	var raw_types: Variant = ui_meta.get("seat_types", [])
+	if raw_types is Array:
+		for item: Variant in raw_types:
+			original_types.append(String(item))
+	if original_types.size() != count:
+		original_types.clear()
+		for seat: int in count:
+			original_types.append("human")
+	for seat: int in count:
+		_names.append(meta_names[seat] if seat < meta_names.size() and not meta_names[seat].is_empty()
+				else (DEFAULT_NAMES[seat] if seat < DEFAULT_NAMES.size() else "座位 %d" % (seat + 1)))
+		_types.append("human")
+		_local_seats.append(seat)
+	_original_types = original_types
+	_hotseat_cover = bool(ui_meta.get("hotseat_cover", true))
+	_elapsed_offset_sec = maxi(int(ui_meta.get("elapsed_sec", 0)), 0)
+	_setup = _build_rematch_setup(count)
+	_prepare()
+	_backend = UiLiveBackend.new()
+	_backend.attach(self)
+	_connect_backend()
+	var ok: bool = false
+	if kind == "replay":
+		ok = _backend.load_replay(data, errors)
+	else:
+		ok = _backend.load_snapshot(SaveFile.unwrap_snapshot(data), errors)
+	if not ok:
+		close()
+		return false
+	for seat_type: String in _original_types:
+		if seat_type != "human":
+			_resume_note = "这局里的电脑座位暂时以人类身份恢复；轮到它们时请替它们操作。"
+			break
 	return true
 
 
@@ -99,6 +197,11 @@ func close() -> void:
 	_log.clear()
 	_ended = false
 	_result = {}
+	_elapsed_offset_sec = 0
+	_setup = {}
+	_original_types.clear()
+	_hotseat_cover = true
+	_resume_note = ""
 
 
 func _prepare() -> void:
@@ -342,7 +445,61 @@ func catalog() -> CardCatalog:
 
 
 func elapsed_seconds() -> int:
-	return maxi(int((Time.get_ticks_msec() - _started_ms) / 1000), 0)
+	return _elapsed_offset_sec + maxi(int((Time.get_ticks_msec() - _started_ms) / 1000), 0)
+
+
+## 重开一局用的设置：同样的名字 / 座位类型 / 同屏开关，新种子（-1 = 随机）。
+func rematch_setup() -> Dictionary:
+	if not _setup.is_empty():
+		var setup: Dictionary = _setup.duplicate(true)
+		setup["seed"] = -1
+		return setup
+	return _build_rematch_setup(_names.size())
+
+
+func _build_rematch_setup(count: int) -> Dictionary:
+	var seats: Array[Dictionary] = []
+	for seat: int in count:
+		var seat_type: String = _original_types[seat] \
+				if seat < _original_types.size() else "human"
+		var seat_name: String = _names[seat] \
+				if seat < _names.size() else "座位 %d" % (seat + 1)
+		seats.append({"name": seat_name, "type": seat_type})
+	return {"count": count, "seed": -1, "seats": seats, "hotseat_cover": _hotseat_cover}
+
+
+## 读档继续前的座位类型（界面显示 / 存档 ui_meta 用）；新开局等于实际座位类型。
+func original_seat_types() -> Array[String]:
+	return _original_types.duplicate()
+
+
+func hotseat_cover() -> bool:
+	return _hotseat_cover
+
+
+## 读档继续时给界面的提示（电脑座位暂时以人类身份恢复）；没有提示时为空。
+func resume_note() -> String:
+	return _resume_note
+
+
+func can_save() -> bool:
+	return _backend != null and _backend.can_save_replay()
+
+
+## 存档内容：GameController.build_replay_data()；这局来自预设局面时为 {}。
+func build_save_data() -> Dictionary:
+	if _backend == null:
+		return {}
+	return _backend.build_replay_data()
+
+
+func fingerprint() -> String:
+	return _backend.fingerprint() if _backend != null else ""
+
+
+## 暂停菜单：IR-12 落地前只记录状态，电脑在后台照常行动。
+func set_paused(_paused: bool) -> void:
+	pass
 
 
 func view() -> Dictionary:

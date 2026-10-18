@@ -1,6 +1,6 @@
 ## 运行时注册正式 UI 的全局快捷键（INTERACTION.md 第 8 节）。
 ## 动作名统一用 spl_ 前缀，避开 Godot 内置动作；重复调用是幂等的。
-## app.tscn 与 ui/dev/quick_start.tscn 共用这一份定义。
+## app.tscn 与牌桌交互共用这一份定义。
 class_name UiShortcuts
 extends RefCounted
 

@@ -11,8 +11,11 @@
   $GODOT --path . ui/dev/capture.tscn --quit-after 300 -- --out /tmp/splendor_ui/g.png --width 1440 --height 900 --scale fractional --wait 8
   # 牌桌夹具（U2）
   $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
+  # 正式屏幕（U4）：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22
+  $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --screen main_menu --out /tmp/splendor_ui/main_menu.png --width 1280 --height 800 --wait 10
   ```
   `--scale` 可取 `fractional` / `integer`；`--scroll` 指定窗口截图的滚动位置。
+  屏幕模式用临时 `user://capture_saves/` 生成读档数据，截图后清理。
 - `table_preview.tscn/.gd` — 单张夹具的牌桌预览：
   `$GODOT --path . ui/dev/table_preview.tscn -- --fixture g3_turn_mine`（默认 `g3_turn_mine`）。
 - `build_fixtures.tscn/.gd` — 生成 `fixtures/` 下的夹具。改完卡表、规则或样张局面后重跑：
@@ -36,6 +39,4 @@
   `views/*.json` 就是 `GameState.to_dict(viewer_seat)` 的格式。日志文本支持
   `{card:L2-R-01}`（卡牌引用）与 `{gem:red}`（宝石图标）。`strip` / `pill_text` / `mode` /
   `replay_label` / `flash_cards` / `log_limit` 是可选的显示覆盖项。U3 的 `FakeBackend` 可以直接复用这些文件。
-- `quick_start.tscn/.gd` — U3 的临时开局入口：选人数 / 电脑难度 / 种子，直接进入正式牌桌。
-  `$GODOT --path . ui/dev/quick_start.tscn`。开局后 HUD 的“菜单”按钮直接回到开局设置（U4 的暂停菜单之前的临时行为）。
-  这是开发入口，正式的主菜单与开局设置（02）在 U4 接入后删除。
+U3 的临时开局入口 `quick_start.tscn` 已在 U4 删除；正式流程从 `ui/app/app.tscn` 的主菜单开始。

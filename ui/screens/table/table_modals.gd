@@ -205,7 +205,8 @@ static func populate_noble(modal: UiModalFrame, view: Dictionary, me_seat: int,
 
 
 static func populate_result(modal: UiModalFrame, result: Dictionary, view: Dictionary,
-		rules: RulesConfig, names: Array, types: Array, callbacks: Dictionary) -> void:
+		rules: RulesConfig, names: Array, types: Array, callbacks: Dictionary,
+		can_save: bool = true, saved: bool = false) -> void:
 	var player_count: int = int(view.get("player_count", 0))
 	var scores: Dictionary = result.get("scores", {})
 	var cards: Dictionary = result.get("cards", {})
@@ -287,7 +288,7 @@ static func populate_result(modal: UiModalFrame, result: Dictionary, view: Dicti
 
 	var close := UiButton.new()
 	close.name = "ResultClose"
-	close.variant = &"ghost"
+	close.variant = &"quiet"
 	close.text = "查看牌桌"
 	close.focus_mode = Control.FOCUS_NONE
 	close.pressed.connect(func() -> void:
@@ -296,16 +297,46 @@ static func populate_result(modal: UiModalFrame, result: Dictionary, view: Dicti
 			callback.call())
 	modal.add_action(close)
 
-	var leave := UiButton.new()
-	leave.name = "ResultLeave"
-	leave.variant = &"accent"
-	leave.text = "返回开局"
-	leave.focus_mode = Control.FOCUS_NONE
-	leave.pressed.connect(func() -> void:
-		var callback: Callable = callbacks.get("leave", Callable())
+	var main_menu := UiButton.new()
+	main_menu.name = "ResultMainMenu"
+	main_menu.variant = &"ghost"
+	main_menu.text = "回主菜单"
+	main_menu.focus_mode = Control.FOCUS_NONE
+	main_menu.pressed.connect(func() -> void:
+		var callback: Callable = callbacks.get("main_menu", Callable())
 		if callback.is_valid():
 			callback.call())
-	modal.add_action(leave)
+	modal.add_action(main_menu)
+
+	var save_replay := UiButton.new()
+	save_replay.name = "ResultSaveReplay"
+	save_replay.variant = &"ghost"
+	save_replay.focus_mode = Control.FOCUS_NONE
+	if not can_save:
+		save_replay.text = "保存回放（不可用）"
+		save_replay.disabled = true
+		save_replay.tooltip_text = "这局来自预设局面，没有种子和动作序列"
+	elif saved:
+		save_replay.text = "已保存回放"
+		save_replay.disabled = true
+	else:
+		save_replay.text = "保存回放"
+	save_replay.pressed.connect(func() -> void:
+		var callback: Callable = callbacks.get("save_replay", Callable())
+		if callback.is_valid():
+			callback.call())
+	modal.add_action(save_replay)
+
+	var rematch := UiButton.new()
+	rematch.name = "ResultRematch"
+	rematch.variant = &"accent"
+	rematch.text = "再来一局"
+	rematch.focus_mode = Control.FOCUS_NONE
+	rematch.pressed.connect(func() -> void:
+		var callback: Callable = callbacks.get("rematch", Callable())
+		if callback.is_valid():
+			callback.call())
+	modal.add_action(rematch)
 
 
 static func _ranking_row(seat: int, rank: int, winners: Array, scores: Dictionary,

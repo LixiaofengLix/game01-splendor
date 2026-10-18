@@ -5,12 +5,16 @@ class_name UiTableFlow
 extends Node
 
 signal leave_requested
+signal load_requested
+signal rematch_requested(setup: Dictionary)
 
 const FLASH_SECONDS := 1.5
 const FAILURE_SECONDS := 3.0
+const RESUME_NOTICE_SECONDS := 8.0
 
 var _screen: UiTableScreen = null
 var _session: UiTableSession = null
+var _store: UiSaveStore = null
 var _view: Dictionary = {}
 var _me_seat: int = -1
 var _legal: Array[Action] = []
@@ -39,10 +43,29 @@ var _last_phase: String = ""
 var _flash_timer: Timer
 var _failure_timer: Timer
 
+## 暂停菜单 / 规则速查。
+var _pause: UiPauseMenu = null
+var _rules_overlay: Control = null
 
-func setup(screen: UiTableScreen, session: UiTableSession) -> void:
+## 同屏换人遮挡（INTERACTION.md 第 5 节）。
+var _hotseat_cover_enabled: bool = false
+var _approved_seat: int = -1
+var _cover: UiHotseatCover = null
+var _cover_pending_view: Dictionary = {}
+var _cover_pending_me: int = -1
+var _cover_events: Array[Dictionary] = []
+
+## 回合结束时写自动存档；对局结束时转存 finished。
+var _autosave_pending: bool = false
+var _result_saved: bool = false
+
+
+func setup(screen: UiTableScreen, session: UiTableSession,
+		save_store: UiSaveStore = null, options: Dictionary = {}) -> void:
 	_screen = screen
 	_session = session
+	_store = save_store
+	_hotseat_cover_enabled = bool(options.get("hotseat_cover", false))
 	_flash_timer = Timer.new()
 	_flash_timer.one_shot = true
 	_flash_timer.wait_time = FLASH_SECONDS
@@ -66,7 +89,8 @@ func setup(screen: UiTableScreen, session: UiTableSession) -> void:
 	_screen.blank_clicked.connect(click_blank)
 	_screen.purchase_pressed.connect(purchase_selected)
 	_screen.reserve_pressed.connect(reserve_selected)
-	_screen.menu_requested.connect(func() -> void: leave_requested.emit())
+	_screen.menu_requested.connect(open_pause)
+	_screen.rules_requested.connect(open_rules)
 
 	if not session.view().is_empty():
 		_on_view_updated(session.view(), session.me_seat())
@@ -75,6 +99,24 @@ func setup(screen: UiTableScreen, session: UiTableSession) -> void:
 # ---------------------------------------------------------------- 视图 / 事件
 
 func _on_view_updated(view: Dictionary, me_seat: int) -> void:
+	var phase: String = String(view.get("phase", ""))
+	var need_cover: bool = _hotseat_cover_enabled \
+			and _session.local_seats().size() >= 2 \
+			and phase != "finished" \
+			and _session.is_my_turn() \
+			and me_seat >= 0 \
+			and me_seat != _approved_seat
+	if need_cover:
+		_cover_pending_view = view
+		_cover_pending_me = me_seat
+		_write_autosave(view)
+		_show_hotseat_cover(me_seat)
+		return
+	_apply_view(view, me_seat)
+	_write_autosave(view)
+
+
+func _apply_view(view: Dictionary, me_seat: int) -> void:
 	_view = view
 	_me_seat = me_seat
 	_legal = _session.legal_actions()
@@ -89,6 +131,8 @@ func _on_view_updated(view: Dictionary, me_seat: int) -> void:
 		_result_dismissed = false
 	if not _session.is_my_turn():
 		_clear_selection()
+	elif me_seat >= 0:
+		_approved_seat = me_seat
 	_validate_selection()
 	_sync_modal()
 	_render()
@@ -98,6 +142,10 @@ func _on_events(events: Array[Dictionary]) -> void:
 	var added_flash: bool = false
 	for event: Dictionary in events:
 		var type: String = String(event.get("type", ""))
+		if type == "turn_ended":
+			_autosave_pending = true
+		if _hotseat_cover_enabled and _session.local_seats().size() >= 2:
+			_cover_events.append(event)
 		if type == "card_reserved" and not bool(event.get("blind", false)):
 			var card_id: String = String(event.get("card_id", ""))
 			if not card_id.is_empty() and not _flash_cards.has(card_id):
@@ -144,6 +192,7 @@ func _on_action_failed(message: String) -> void:
 func _on_game_ended(result: Dictionary) -> void:
 	_result = result
 	_result_dismissed = false
+	_save_finished_record()
 	_sync_modal()
 	_render()
 
@@ -152,6 +201,8 @@ func _on_game_ended(result: Dictionary) -> void:
 
 func _render() -> void:
 	if _screen == null or _session == null or _view.is_empty():
+		return
+	if _cover != null:
 		return
 	var phase: String = String(_view.get("phase", ""))
 	var interactive: bool = _session.is_my_turn()
@@ -676,13 +727,16 @@ func _build_noble_modal() -> void:
 func _show_result_modal() -> void:
 	var callbacks: Dictionary = {
 		"close": func() -> void: dismiss_result(),
-		"leave": func() -> void: leave_requested.emit(),
+		"main_menu": func() -> void: leave_requested.emit(),
+		"save_replay": func() -> void: save_result_replay(),
+		"rematch": func() -> void: rematch_requested.emit(_session.rematch_setup()),
 	}
 	var modal := UiModalFrame.new()
 	modal.name = "ResultModal"
 	_screen.show_modal(modal)
 	UiTableModals.populate_result(modal, _result, _view, _session.rules(),
-			_session.names(), _session.seat_types(), callbacks)
+			_session.names(), _session.original_seat_types(), callbacks,
+			_session.can_save(), _result_saved)
 	_modal_kind = "result"
 
 
@@ -760,18 +814,240 @@ func dismiss_result() -> void:
 	_close_modal()
 
 
+# ---------------------------------------------------------------- 暂停菜单 / 规则
+
+func open_pause() -> void:
+	if _screen == null or _session == null or _pause != null:
+		return
+	_pause = UiPauseMenu.new()
+	_pause.name = "PauseMenu"
+	_pause.configure(_session.can_save(), _save_note(), _exit_note())
+	_screen.push_overlay(_pause)
+	_pause.setup_rules(_session.rules())
+	_pause.continue_pressed.connect(close_pause)
+	_pause.save_pressed.connect(quick_save)
+	_pause.load_pressed.connect(func() -> void:
+		close_pause()
+		load_requested.emit())
+	_pause.exit_pressed.connect(func() -> void:
+		close_pause()
+		leave_requested.emit())
+	_pause.closed.connect(close_pause)
+	_session.set_paused(true)
+
+
+func close_pause() -> void:
+	if _pause == null:
+		return
+	_screen.pop_overlay(_pause)
+	_pause = null
+	_session.set_paused(false)
+
+
+func open_rules() -> void:
+	if _screen == null or _rules_overlay != null:
+		return
+	var overlay := UiModalFrame.new()
+	overlay.name = "RulesOverlay"
+	overlay.preferred_width = 560
+	overlay.title = "规则速查"
+	var scrim_host := Control.new()
+	scrim_host.name = "RulesOverlayHost"
+	scrim_host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scrim_host.mouse_filter = Control.MOUSE_FILTER_STOP
+	var scrim := ColorRect.new()
+	scrim.color = UiPalette.SCRIM
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	scrim_host.add_child(scrim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scrim_host.add_child(center)
+	center.add_child(overlay)
+
+	_screen.push_overlay(scrim_host)
+	var rules_panel := UiRulesPanel.new()
+	rules_panel.name = "RulesContent"
+	overlay.body().add_child(rules_panel)
+	rules_panel.setup(_session.rules())
+	var close := UiButton.new()
+	close.variant = &"ghost"
+	close.text = "关闭"
+	close.focus_mode = Control.FOCUS_NONE
+	close.pressed.connect(close_rules)
+	overlay.add_action(close)
+	_rules_overlay = scrim_host
+
+
+func close_rules() -> void:
+	if _rules_overlay == null:
+		return
+	_screen.pop_overlay(_rules_overlay)
+	_rules_overlay = null
+
+
+func _save_note() -> String:
+	if not _session.can_save():
+		return "这局来自预设局面，不能保存回放。"
+	return ""
+
+
+func _exit_note() -> String:
+	if _session.can_save():
+		return "退出后可从「继续上一局」或「读取存档」回来。"
+	return "这局不能存档，退出会丢掉当前进度。"
+
+
+# ---------------------------------------------------------------- 同屏换人遮挡
+
+func _show_hotseat_cover(next_seat: int) -> void:
+	if _screen == null:
+		return
+	if _cover == null:
+		_cover = UiHotseatCover.new()
+		_cover.name = "HotseatCover"
+		_cover.next_seat = next_seat
+		_cover.next_name = _name(next_seat)
+		_cover.previous_seat = _approved_seat
+		_cover.previous_name = _name(_approved_seat) if _approved_seat >= 0 else ""
+		_cover.summary = _cover_summary_text(next_seat)
+		_screen.push_overlay(_cover)
+		_cover.start_pressed.connect(dismiss_cover)
+
+
+func dismiss_cover() -> void:
+	if _cover == null:
+		return
+	var pending_view: Dictionary = _cover_pending_view
+	var pending_me: int = _cover_pending_me
+	_screen.pop_overlay(_cover)
+	_cover = null
+	_cover_events.clear()
+	_cover_pending_view = {}
+	_cover_pending_me = -1
+	_approved_seat = pending_me
+	if not pending_view.is_empty():
+		_apply_view(pending_view, pending_me)
+
+
+## 上一位本机座位之后、别人做的最后一件事；多件时写动作数。
+func _cover_summary_text(next_seat: int) -> String:
+	var texts: Array[String] = []
+	var last_text: String = ""
+	for event: Dictionary in _cover_events:
+		var type: String = String(event.get("type", ""))
+		if type in ["turn_started", "turn_ended", "discard_required", "noble_choice_required"]:
+			continue
+		var text: String = UiEventText.text_for(event, _session.catalog(), _session.names())
+		if text.is_empty():
+			continue
+		texts.append(text)
+		if int(event.get("seat", -1)) != next_seat:
+			last_text = text
+	if last_text.is_empty():
+		return "刚才没有其他动作。"
+	if texts.size() <= 1:
+		return last_text
+	return "刚才发生了 %d 个动作 · 最后：%s" % [texts.size(), last_text]
+
+
+# ---------------------------------------------------------------- 存档
+
+func quick_save() -> void:
+	if _store == null or not _session.can_save():
+		_screen.show_toast(_me_seat, "保存失败", "这局不能保存回放。", 3.0)
+		return
+	var data: Dictionary = _session.build_save_data()
+	if data.is_empty() or not _store.save_quick(data, _make_meta(UiSaveEntry.STATUS_IN_PROGRESS, _view, [])):
+		_screen.show_toast(_me_seat, "保存失败", "无法写入存档目录。", 3.0)
+		return
+	_screen.show_toast(_me_seat, "已保存到「快速存档」", "可从主菜单 → 读取存档 继续")
+
+
+func _write_autosave(view: Dictionary) -> void:
+	if not _autosave_pending:
+		return
+	_autosave_pending = false
+	if _store == null or not _session.can_save():
+		return
+	if String(view.get("phase", "")) == "finished":
+		return
+	var data: Dictionary = _session.build_save_data()
+	if not data.is_empty():
+		_store.save_autosave(data, _make_meta(UiSaveEntry.STATUS_IN_PROGRESS, view, []))
+
+
+func _save_finished_record() -> void:
+	_result_saved = false
+	if _store == null or not _session.can_save() or _view.is_empty():
+		return
+	var data: Dictionary = _session.build_save_data()
+	if data.is_empty():
+		return
+	var winners: Array = _result.get("winners", [])
+	var path: String = _store.transfer_finished(data,
+			_make_meta(UiSaveEntry.STATUS_FINISHED, _view, winners))
+	_result_saved = not path.is_empty()
+
+
+func save_result_replay() -> void:
+	if _result_saved or not _session.can_save():
+		return
+	_save_finished_record()
+	if _result_saved:
+		_screen.show_toast(_me_seat, "已保存回放", "可从主菜单 → 读取存档 查看")
+	else:
+		_screen.show_toast(_me_seat, "保存失败", "无法写入存档目录。", 3.0)
+	_show_result_modal()
+
+
+func _make_meta(status: String, view: Dictionary, winners: Array) -> Dictionary:
+	var scores: Array[int] = []
+	var count: int = int(view.get("player_count", 0))
+	for seat: int in count:
+		scores.append(UiViewMath.score(view, seat, _session.catalog()))
+	var round_number: int = UiViewMath.round_number(view)
+	var current_seat: int = int(view.get("current_seat", -1))
+	var summary: Dictionary = UiSaveStore.make_summary(round_number, current_seat, scores, winners)
+	return UiSaveStore.make_meta(status, _session.names(), _session.original_seat_types(),
+			_session.hotseat_cover(), _session.elapsed_seconds(), summary)
+
+
+func show_resume_notice(text: String) -> void:
+	if text.is_empty() or _screen == null:
+		return
+	_screen.show_toast(_me_seat, text, "等逻辑层支持后会恢复电脑座位。", RESUME_NOTICE_SECONDS)
+
+
 # ---------------------------------------------------------------- 输入
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _session == null or _view.is_empty():
 		return
+	if event.is_action_pressed("spl_cancel"):
+		if _pause != null:
+			close_pause()
+		elif _rules_overlay != null:
+			close_rules()
+		elif _cover != null:
+			return
+		elif _modal_kind in ["discard", "noble", "result"]:
+			# 回合内弹窗不能取消，但可以叠开暂停菜单。
+			open_pause()
+		elif not _selection.is_empty() or not _selected_kind.is_empty() or not _failure_text.is_empty():
+			cancel()
+		else:
+			open_pause()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("spl_confirm"):
+		if _pause != null or _rules_overlay != null or _cover != null:
+			return
 		confirm()
 		get_viewport().set_input_as_handled()
 		return
-	if event.is_action_pressed("spl_cancel"):
-		cancel()
-		get_viewport().set_input_as_handled()
+	if _pause != null or _rules_overlay != null or _cover != null:
 		return
 	if not _is_playing_mine():
 		return
@@ -916,3 +1192,35 @@ func clickable_colors() -> Array[int]:
 
 func flash_cards() -> Array[String]:
 	return _flash_cards.duplicate()
+
+
+func pause_menu() -> UiPauseMenu:
+	return _pause
+
+
+func is_paused() -> bool:
+	return _pause != null
+
+
+func rules_visible() -> bool:
+	return _rules_overlay != null
+
+
+func cover_visible() -> bool:
+	return _cover != null
+
+
+func cover_seat() -> int:
+	return _cover.next_seat if _cover != null else -1
+
+
+func cover_summary() -> String:
+	return _cover.summary if _cover != null else ""
+
+
+func set_hotseat_cover_enabled(on: bool) -> void:
+	_hotseat_cover_enabled = on
+
+
+func result_saved() -> bool:
+	return _result_saved
