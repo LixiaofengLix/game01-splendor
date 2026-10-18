@@ -29,8 +29,12 @@
 - `card_ref.gd` — `UiCardRef`：日志里的卡牌引用小块。
 - `hud.gd` — `UiHud`：高 44 的顶栏（标题、人数轮数、终局标签、回合胶囊、规则 / 菜单按钮）。
 - `turn_pill.gd` — `UiTurnPill`：回合胶囊（轮到我 / 等别人 + 转圈 / 纯文字）。
-- `bank_column.gd` — `UiBankColumn`：宽 100 的银行列，6 枚 lg 筹码 + 操作提示。
+- `card_popover.gd` — `UiCardPopover`：选中卡 / 牌堆后的浮层（宽 272），显示支付预览、
+  “需要 / 已有”、买后变化与购买 / 预留按钮；`mode` 取 `market` / `deck` / `reserved`。
+- `bank_column.gd` — `UiBankColumn`：宽 100 的银行列，6 枚 lg 筹码 + 操作提示 + 确认 / 取消；
+  `set_interactive()` / `set_clickable_colors()` / `set_selection()` 控制点击态，发出 `chip_clicked`。
 - `my_panel.gd` — `UiMyPanel`：左栏底部高 246 的面板：状态条 + 身份 / 资源 / 预留三列。
+  顶部托盘有确认 / 取消（发出 `confirm_pressed` / `cancel_pressed`）；预留卡可点（`reserved_card_clicked`）。
 - `opponent_panel.gd` — `UiOpponentPanel`：右栏对手面板：分数进度条、6 列折扣 + 宝石网格、预留标记。
 - `log_panel.gd` — `UiLogPanel`：对局日志，最新一条高亮，支持 `{card:id}` / `{gem:color}` 内联标记。
 

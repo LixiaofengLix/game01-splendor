@@ -1,8 +1,19 @@
-## 牌桌静态渲染（U2）：按视图整桌重画，暂不响应点击。
-## 唯一入口 render(view, me_seat, session_info)；重复调用是幂等的，不累积节点。
+## 牌桌：按视图整桌重画（U2），并把筹码 / 卡 / 牌堆 / 浮层 / 弹窗的点击信号发出去（U3）。
+## 唯一渲染入口 render(view, me_seat, session_info)；重复调用是幂等的，不累积节点。
+## 交互状态（已选宝石、选中卡、浮层内容）由 UiTableFlow 放进 session_info；
+## 这个脚本只负责画和发信号，不判断规则。
 ## 几何按 docs/ui/SCREENS.md：顶栏 44 + 左栏 906（市场 470 / 我的面板 246）+ 右栏 330。
 class_name UiTableScreen
 extends Control
+
+signal gem_chip_clicked(color: int)
+signal confirm_pressed
+signal cancel_pressed
+signal card_clicked(kind: String, id: String, level: int)
+signal blank_clicked
+signal purchase_pressed
+signal reserve_pressed
+signal menu_requested
 
 const TABLE_MARGIN := 14
 const HUD_HEIGHT := 44
@@ -32,6 +43,10 @@ var _spectator_hint: Label
 var _right: VBoxContainer
 var _opponents: VBoxContainer
 var _log: UiLogPanel
+var _popover: UiCardPopover
+var _modal_layer: Control
+var _modal_center: CenterContainer
+var _modal_control: Control = null
 
 var _deck_piles: Dictionary[int, UiDeckPile] = {}
 var _market_cards: Dictionary[int, Array] = {}
@@ -47,10 +62,14 @@ var _rules: RulesConfig = null
 
 
 func _ready() -> void:
+	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build_background()
 	_build_hud()
 	_build_content()
+	_build_popover()
+	_build_modal_layer()
 	resized.connect(_update_columns)
+	resized.connect(_place_popover)
 	_update_columns()
 
 
@@ -66,6 +85,7 @@ func _build_hud() -> void:
 	_hud.name = "Hud"
 	_hud.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_hud.offset_bottom = HUD_HEIGHT
+	_hud.menu_requested.connect(func() -> void: menu_requested.emit())
 	add_child(_hud)
 
 
@@ -88,6 +108,68 @@ func _build_content() -> void:
 
 	_build_left()
 	_build_right()
+
+
+func _build_popover() -> void:
+	_popover = UiCardPopover.new()
+	_popover.name = "CardPopover"
+	_popover.z_index = 50
+	_popover.visible = false
+	_popover.purchase_pressed.connect(func() -> void: purchase_pressed.emit())
+	_popover.reserve_pressed.connect(func() -> void: reserve_pressed.emit())
+	add_child(_popover)
+
+
+func _build_modal_layer() -> void:
+	_modal_layer = Control.new()
+	_modal_layer.name = "ModalLayer"
+	_modal_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_modal_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_modal_layer.z_index = 100
+	_modal_layer.visible = false
+	add_child(_modal_layer)
+
+	var scrim := ColorRect.new()
+	scrim.name = "Scrim"
+	scrim.color = UiPalette.SCRIM
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_modal_layer.add_child(scrim)
+
+	_modal_center = CenterContainer.new()
+	_modal_center.name = "Center"
+	_modal_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_modal_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modal_layer.add_child(_modal_center)
+
+
+func show_modal(control: Control) -> void:
+	if _modal_layer == null:
+		return
+	for child in _modal_center.get_children():
+		_modal_center.remove_child(child)
+		child.queue_free()
+	_modal_control = control
+	_modal_center.add_child(control)
+	_modal_layer.visible = true
+
+
+func hide_modal() -> void:
+	if _modal_layer == null:
+		return
+	for child in _modal_center.get_children():
+		_modal_center.remove_child(child)
+		child.queue_free()
+	_modal_control = null
+	_modal_layer.visible = false
+
+
+func modal_control() -> Control:
+	return _modal_control
+
+
+func has_modal() -> bool:
+	return _modal_layer != null and _modal_layer.visible
 
 
 func _build_left() -> void:
@@ -119,6 +201,9 @@ func _build_left() -> void:
 
 	_bank = UiBankColumn.new()
 	_bank.name = "BankColumn"
+	_bank.chip_clicked.connect(func(color: int) -> void: gem_chip_clicked.emit(color))
+	_bank.confirm_pressed.connect(func() -> void: confirm_pressed.emit())
+	_bank.cancel_pressed.connect(func() -> void: cancel_pressed.emit())
 	_market.add_child(_bank)
 
 	var gap := Control.new()
@@ -135,6 +220,10 @@ func _build_left() -> void:
 	_my_panel = UiMyPanel.new()
 	_my_panel.name = "MyPanel"
 	_my_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_my_panel.confirm_pressed.connect(func() -> void: confirm_pressed.emit())
+	_my_panel.cancel_pressed.connect(func() -> void: cancel_pressed.emit())
+	_my_panel.reserved_card_clicked.connect(
+			func(card_id: String) -> void: card_clicked.emit("reserved", card_id, 0))
 	_bottom_holder.add_child(_my_panel)
 
 	_build_spectator()
@@ -171,6 +260,7 @@ func _ensure_market_rows() -> void:
 		var deck := UiDeckPile.new()
 		deck.name = "Deck%d" % level
 		deck.level = level
+		deck.gui_input.connect(_on_deck_input.bind(level))
 		row.add_child(deck)
 		_deck_piles[level] = deck
 
@@ -178,6 +268,7 @@ func _ensure_market_rows() -> void:
 		for slot: int in slots:
 			var card := UiDevCard.new()
 			card.name = "Card%d_%d" % [level, slot]
+			card.gui_input.connect(_on_market_card_input.bind(card))
 			row.add_child(card)
 			cards.append(card)
 		_market_cards[level] = cards
@@ -186,6 +277,39 @@ func _ensure_market_rows() -> void:
 	_rows.custom_minimum_size.x = deck_width + 10.0 \
 			+ slots * card_width + maxf(slots - 1, 0) * 10.0
 	_market_slots_built = slots
+
+
+func _on_market_card_input(event: InputEvent, card: UiDevCard) -> void:
+	if not event is InputEventMouseButton:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse.button_index != MOUSE_BUTTON_LEFT or not mouse.pressed:
+		return
+	if card.card_id.is_empty():
+		return
+	card.accept_event()
+	card_clicked.emit("market", card.card_id, 0)
+
+
+func _on_deck_input(event: InputEvent, level: int) -> void:
+	if not event is InputEventMouseButton:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse.button_index != MOUSE_BUTTON_LEFT or not mouse.pressed:
+		return
+	var deck: UiDeckPile = _deck_piles.get(level)
+	if deck == null or deck.remaining <= 0:
+		return
+	deck.accept_event()
+	card_clicked.emit("deck", "", level)
+
+
+func _gui_input(event: InputEvent) -> void:
+	if not event is InputEventMouseButton:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
+		blank_clicked.emit()
 
 
 func _build_spectator() -> void:
@@ -259,7 +383,8 @@ func _update_columns() -> void:
 
 ## 视图是唯一真相：每次调用都按视图整桌重画。
 ## session_info 可选键：names / seat_types / log / strip / pill_text / mode /
-## flash_cards / log_limit / catalog / rules。
+## flash_cards / log_limit / catalog / rules / interactive / selection / clickable_colors /
+## selected_kind / selected_id / selected_level / popover / take_confirm_enabled。
 func render(view: Dictionary, me_seat: int, session_info: Dictionary = {}) -> void:
 	_view = view
 	_me_seat = me_seat
@@ -276,6 +401,7 @@ func render(view: Dictionary, me_seat: int, session_info: Dictionary = {}) -> vo
 	_render_bottom()
 	_render_right()
 	_update_columns()
+	_render_popover()
 
 
 func _render_hud() -> void:
@@ -306,8 +432,12 @@ func _render_hud() -> void:
 
 func _render_market() -> void:
 	_ensure_market_rows()
-	var my_turn: bool = _is_my_turn()
-	var show_for_me: bool = _me_seat >= 0 and String(_view.get("phase", "")) == "playing"
+	var phase: String = String(_view.get("phase", ""))
+	var playing_input: bool = _input_interactive() and phase == "playing"
+	var show_for_me: bool = _me_seat >= 0 and phase == "playing"
+	var selected_kind: String = String(_session.get("selected_kind", ""))
+	var selected_id: String = String(_session.get("selected_id", ""))
+	var selected_level: int = int(_session.get("selected_level", 0))
 	var boards: Dictionary = _view.get("boards", {})
 	var decks: Dictionary = _view.get("decks", {})
 	var flash_cards: Array = _session.get("flash_cards", [])
@@ -315,7 +445,11 @@ func _render_market() -> void:
 		var deck_entry: Variant = decks.get(str(level), {})
 		var deck_count: int = int((deck_entry as Dictionary).get("count", 0)) \
 				if deck_entry is Dictionary else 0
-		_deck_piles[level].remaining = deck_count
+		var deck: UiDeckPile = _deck_piles[level]
+		deck.remaining = deck_count
+		deck.selected = selected_kind == "deck" and selected_level == level
+		deck.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND \
+				if playing_input and deck_count > 0 else Control.CURSOR_ARROW
 
 		var slots: Array = boards.get(str(level), [])
 		var cards: Array = _market_cards[level]
@@ -326,9 +460,11 @@ func _render_market() -> void:
 			card.catalog = _catalog
 			card.card_back = false
 			card.blind_label = false
-			card.show_status = my_turn
-			card.selected = false
+			card.show_status = playing_input
+			card.selected = selected_kind == "market" and card_id == selected_id
 			card.flash = card_id in flash_cards
+			card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND \
+					if playing_input and not card_id.is_empty() else Control.CURSOR_ARROW
 			if card_id.is_empty():
 				var no_missing: Array[Dictionary] = []
 				var no_threats: Array[int] = []
@@ -353,7 +489,7 @@ func _render_market() -> void:
 			card.shortfall = shortfall
 			card.missing = missing
 			card.gold_can_pay = gold_can_pay
-			card.affordable = my_turn and shortfall == 0
+			card.affordable = playing_input and shortfall == 0
 			var threats: Array[int] = []
 			if show_for_me:
 				threats = _threat_seats(card_id)
@@ -385,8 +521,14 @@ func _render_bank() -> void:
 	var counts: Dictionary[int, int] = {}
 	for color: Enums.GemColor in Enums.ALL_COLORS:
 		counts[color] = int(raw.get(Enums.color_to_string(color), 0))
+	var phase: String = String(_view.get("phase", ""))
+	var playing_input: bool = _input_interactive() and phase == "playing"
 	_bank.set_counts(counts)
-	_bank.set_hint("点筹码\n选宝石" if _is_my_turn() else "")
+	_bank.set_selection(_session.get("selection", {}))
+	_bank.set_clickable_colors(_session.get("clickable_colors", []))
+	_bank.set_interactive(playing_input)
+	_bank.set_confirm_enabled(bool(_session.get("take_confirm_enabled", false)))
+	_bank.set_hint("点筹码\n选宝石" if playing_input else "")
 
 
 func _render_bottom() -> void:
@@ -411,6 +553,8 @@ func _render_bottom() -> void:
 	var player: Dictionary = UiViewMath.player(_view, _me_seat)
 	var tokens: Dictionary[int, int] = UiViewMath.tokens(_view, _me_seat)
 	var bonuses: Dictionary[int, int] = UiViewMath.bonuses(_view, _me_seat, _catalog)
+	var phase: String = String(_view.get("phase", ""))
+	var playing_input: bool = _input_interactive() and phase == "playing"
 	var raw_reserved: Array = player.get("reserved", [])
 	var reserved: Array[Dictionary] = []
 	for item: Variant in raw_reserved:
@@ -420,7 +564,7 @@ func _render_bottom() -> void:
 			"id": card_id,
 			"level": int(entry.get("level", 1)),
 			"blind": UiViewMath.is_blind(entry),
-			"affordable": _is_my_turn() and not card_id.is_empty()
+			"affordable": playing_input and not card_id.is_empty()
 					and UiViewMath.can_afford(_view, _me_seat, card_id, _catalog),
 		})
 	_my_panel.render({
@@ -437,7 +581,10 @@ func _render_bottom() -> void:
 		"max_tokens": int(_rules.max_tokens),
 		"max_reserved": int(_rules.max_reserved),
 		"catalog": _catalog,
-		"can_buy": _is_my_turn(),
+		"can_buy": playing_input,
+		"can_select_reserved": playing_input,
+		"selected_kind": String(_session.get("selected_kind", "")),
+		"selected_id": String(_session.get("selected_id", "")),
 		"strip": _strip_data(),
 	})
 
@@ -514,7 +661,65 @@ func _render_right() -> void:
 			limit, _catalog)
 
 
+# ---------------------------------------------------------------- 浮层
+
+func _render_popover() -> void:
+	var data: Variant = _session.get("popover", {})
+	if not data is Dictionary or (data as Dictionary).is_empty():
+		_popover.visible = false
+		return
+	_popover.render(data)
+	_popover.visible = true
+	_place_popover()
+	_place_popover.call_deferred()
+
+
+## 浮层出现在选中卡的右侧 14px、顶部 −12px；超出牌桌右边界时翻到左侧。
+func _place_popover() -> void:
+	if _popover == null or not _popover.visible:
+		return
+	var anchor: Control = _find_anchor()
+	if anchor == null:
+		_popover.visible = false
+		return
+	var origin: Vector2 = get_global_rect().position
+	var rect: Rect2 = anchor.get_global_rect()
+	var popover_size: Vector2 = _popover.get_combined_minimum_size()
+	var x: float = rect.end.x - origin.x + 14.0
+	var y: float = rect.position.y - origin.y - 12.0
+	if x + popover_size.x > size.x - TABLE_MARGIN:
+		x = rect.position.x - origin.x - 14.0 - popover_size.x
+	x = clampf(x, TABLE_MARGIN, maxf(size.x - popover_size.x - TABLE_MARGIN, TABLE_MARGIN))
+	y = clampf(y, HUD_HEIGHT + TABLE_MARGIN,
+			maxf(size.y - popover_size.y - TABLE_MARGIN, HUD_HEIGHT + TABLE_MARGIN))
+	_popover.position = Vector2(roundf(x), roundf(y))
+	_popover.size = popover_size
+
+
+func _find_anchor() -> Control:
+	var kind: String = String(_session.get("selected_kind", ""))
+	var selected_id: String = String(_session.get("selected_id", ""))
+	match kind:
+		"market":
+			for level: int in _market_cards:
+				for card: UiDevCard in _market_cards[level]:
+					if card.card_id == selected_id:
+						return card
+		"deck":
+			var deck: UiDeckPile = _deck_piles.get(int(_session.get("selected_level", 0)))
+			return deck
+		"reserved":
+			return _my_panel.find_reserved_card(selected_id)
+	return null
+
+
 # ---------------------------------------------------------------- 显示辅助
+
+func _input_interactive() -> bool:
+	if _session.has("interactive"):
+		return bool(_session.get("interactive", false))
+	return _is_my_turn()
+
 
 func _is_my_turn() -> bool:
 	return _me_seat >= 0 \
@@ -578,3 +783,11 @@ func bank_column() -> UiBankColumn:
 
 func right_column() -> VBoxContainer:
 	return _right
+
+
+func popover() -> UiCardPopover:
+	return _popover
+
+
+func popover_visible() -> bool:
+	return _popover != null and _popover.visible

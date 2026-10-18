@@ -112,4 +112,7 @@
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/table_preview.tscn -- --fixture g3_turn_mine
 # 牌桌截图（夹具名见 ui/dev/fixtures/；截图必须带窗口）
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
+
+# U3 临时开局入口：选人数 / 电脑难度 / 种子，人机对局（U4 正式设置界面出来后删除）
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/quick_start.tscn
 ```

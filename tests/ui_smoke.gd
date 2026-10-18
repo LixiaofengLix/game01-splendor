@@ -24,6 +24,16 @@ func _ready() -> void:
 	await _check_gallery()
 	await _check_view_math()
 	await _check_table_fixtures()
+	await _check_u3_sanitize()
+	await _check_u3_take_and_legal()
+	await _check_u3_reserve_privacy()
+	await _check_u3_purchase_payment()
+	await _check_u3_discard()
+	await _check_u3_noble()
+	await _check_u3_failure_and_result()
+	await _check_u3_result_variants()
+	await _check_u3_bot_lock()
+	await _check_u3_quick_start()
 	await _check_app()
 	if _failures == 0:
 		print("ui_smoke：%d 项全部通过。" % _checks)
@@ -132,8 +142,11 @@ func _check_component_files() -> void:
 func _check_render_layer_files() -> void:
 	var paths: Array[String] = [
 		"res://ui/screens/table/table_screen.gd",
+		"res://ui/screens/table/table_flow.gd",
+		"res://ui/screens/table/table_modals.gd",
 		"res://ui/common/view_math.gd",
 		"res://ui/common/ui_markup.gd",
+		"res://ui/common/event_text.gd",
 	]
 	for path: String in paths:
 		var text := FileAccess.get_file_as_string(path)
@@ -141,6 +154,12 @@ func _check_render_layer_files() -> void:
 		_check(not text.contains("GameState."), "%s 不引用 GameState" % path.get_file())
 		_check(not text.contains("GameController"), "%s 不引用 GameController" % path.get_file())
 		_check(not text.contains("._state"), "%s 不读 GameState 内部字段" % path.get_file())
+	var live := FileAccess.get_file_as_string("res://ui/bridge/live_backend.gd")
+	_check(live.contains("GameController") and not live.contains("._state"),
+			"LiveBackend 只用 GameController 公开接口")
+	var session_text := FileAccess.get_file_as_string("res://ui/bridge/table_session.gd")
+	_check(not session_text.contains("GameState.") and not session_text.contains("._state"),
+			"TableSession 不碰 GameState 内部")
 
 
 func _check_components() -> void:
@@ -433,6 +452,76 @@ func _check_components() -> void:
 	notice.set_content(2, "薄荷掉线了", "电脑先替它打")
 	var notice_title := notice.find_child("Title", true, false) as Label
 	_check(notice_title != null and notice_title.text == "薄荷掉线了", "提示卡标题")
+
+	# ---------------------------------------------------------------- U3：交互零件
+	var bank := UiBankColumn.new()
+	host.add_child(bank)
+	bank.set_counts({Enums.GemColor.RED: 3})
+	_check(bank.find_child("ConfirmButton", true, false) != null, "银行有确认按钮")
+	_check(bank.find_child("CancelButton", true, false) != null, "银行有取消按钮")
+	bank.set_interactive(true)
+	bank.set_clickable_colors([Enums.GemColor.RED])
+	bank.set_selection({Enums.GemColor.RED: 2})
+	var red_chip := bank.chip(Enums.GemColor.RED)
+	_check(red_chip != null and red_chip.selected_amount == 2, "银行筹码显示已选 +N")
+	_check(red_chip.mouse_filter == Control.MOUSE_FILTER_STOP, "可点筹码响应鼠标")
+	_check(bank.chip(Enums.GemColor.GOLD).mouse_filter == Control.MOUSE_FILTER_IGNORE,
+			"金币筹码不可点")
+	bank.set_confirm_enabled(true)
+	_check(not bank.confirm_button().disabled, "银行确认按钮可启用")
+	bank.queue_free()
+
+	var me_panel := UiMyPanel.new()
+	host.add_child(me_panel)
+	_check(me_panel.find_child("CancelButton", true, false) != null, "我的面板托盘有取消按钮")
+	me_panel.queue_free()
+
+	var popover := UiCardPopover.new()
+	host.add_child(popover)
+	popover.render({
+		"mode": "market",
+		"title": "二级 · 蓝 · 2 分",
+		"tag_text": "可买",
+		"tag_variant": "mint",
+		"payment": {
+			"bonus": {Enums.GemColor.BLUE: 2},
+			"gems": {Enums.GemColor.BLUE: 2},
+			"gold": 1,
+			"total": 5,
+		},
+		"affordable": true,
+		"can_buy": true,
+		"can_reserve": true,
+		"reserve_label": "预留 · +1 金",
+		"change_text": "买后：宝石 6 → 3",
+	})
+	_check(popover.custom_minimum_size.x == 272.0, "卡牌浮层宽 272")
+	_check(popover.find_child("PaymentBox", true, false).visible, "浮层显示支付预览")
+	_check(popover.find_child("BuyButton", true, false).visible, "浮层显示购买按钮")
+	_check(popover.find_child("ReserveButton", true, false).visible, "浮层显示预留按钮")
+	popover.render({
+		"mode": "deck",
+		"title": "三级牌堆 · 盲抽",
+		"affordable": true,
+		"can_reserve": true,
+		"reserve_label": "盲抽预留 · +1 金",
+		"note": "看不到是哪张",
+	})
+	_check(not popover.find_child("PaymentBox", true, false).visible, "牌堆浮层不显示支付预览")
+	_check(not popover.find_child("BuyButton", true, false).visible, "牌堆浮层没有购买按钮")
+	_check(popover.find_child("ReserveButton", true, false).visible, "牌堆浮层有预留按钮")
+	popover.render({
+		"mode": "reserved",
+		"title": "二级 · 蓝 · 2 分",
+		"affordable": true,
+		"payment": {"bonus": {}, "gems": {}, "gold": 0, "total": 5},
+		"can_buy": true,
+		"can_reserve": false,
+	})
+	_check(popover.find_child("BuyButton", true, false).visible, "预留卡浮层有购买按钮")
+	_check(not popover.find_child("ReserveButton", true, false).visible,
+			"预留卡浮层没有预留按钮")
+	popover.queue_free()
 
 	host.queue_free()
 	await get_tree().process_frame
@@ -741,6 +830,527 @@ func _count_nodes(node: Node) -> int:
 	for child in node.get_children():
 		count += _count_nodes(child)
 	return count
+
+
+# ---------------------------------------------------------------- U3：交互与真实对局
+
+func _u3_host() -> Array:
+	await get_tree().process_frame
+	var host := Control.new()
+	host.name = "UiU3Host"
+	host.theme = load(THEME_PATH)
+	host.size = Vector2(1280, 800)
+	get_tree().root.add_child(host)
+	var table: UiTableScreen = load(TABLE_SCENE).instantiate()
+	table.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.add_child(table)
+	var session := UiTableSession.new()
+	session.name = "Session"
+	host.add_child(session)
+	var flow := UiTableFlow.new()
+	flow.name = "Flow"
+	host.add_child(flow)
+	flow.setup(table, session)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	return [host, table, session, flow]
+
+
+func _u3_cleanup(parts: Array) -> void:
+	var session: UiTableSession = parts[2]
+	session.close()
+	var host: Control = parts[0]
+	host.queue_free()
+	await get_tree().process_frame
+
+
+func _u3_seats(count: int) -> Array[Dictionary]:
+	var seats: Array[Dictionary] = []
+	for seat: int in count:
+		seats.append({"name": ["小明", "薄荷", "紫晶", "橘子"][seat], "type": "human"})
+	return seats
+
+
+func _u3_start_humans(parts: Array, count: int, seed_value: int) -> bool:
+	var session: UiTableSession = parts[2]
+	return session.start_local({"count": count, "seed": seed_value, "seats": _u3_seats(count)})
+
+
+func _u3_snapshot(name: String) -> Dictionary:
+	var text := FileAccess.get_file_as_string("res://tests/scenarios/%s.json" % name)
+	var parsed: Variant = JSON.parse_string(text)
+	if not parsed is Dictionary:
+		return {}
+	return SaveFile.unwrap_snapshot(parsed)
+
+
+func _check_u3_sanitize() -> void:
+	var view := {
+		"viewer_seat": 1,
+		"players": [
+			{"reserved": [{"id": "L1-K-04", "level": 1, "blind": true}]},
+			{"reserved": [{"id": "L2-U-03", "level": 2, "blind": true}]},
+			{"reserved": [{"id": "L2-R-01", "level": 2, "blind": false}]},
+		],
+	}
+	var cache := {0: ["L1-K-04"]}
+	var mine: Dictionary = UiTableSession.sanitize_view(view, 0, cache)
+	_check(int(mine["viewer_seat"]) == 0, "隐私过滤把 viewer 改成我")
+	_check(String(((mine["players"] as Array)[0]["reserved"] as Array)[0]["id"]) == "L1-K-04",
+			"自己的盲抽从缓存补上")
+	_check(((mine["players"] as Array)[1]["reserved"] as Array)[0]["id"] == null,
+			"别人的盲抽一律隐藏")
+	_check(String(((mine["players"] as Array)[2]["reserved"] as Array)[0]["id"]) == "L2-R-01",
+			"公开预留保持可见")
+	var other: Dictionary = UiTableSession.sanitize_view(view, 1, cache)
+	_check(((other["players"] as Array)[0]["reserved"] as Array)[0]["id"] == null,
+			"换个视角时我的盲抽也隐藏")
+	_check(String(((other["players"] as Array)[1]["reserved"] as Array)[0]["id"]) == "L2-U-03",
+			"当前视角自己的盲抽可见")
+	var no_me: Dictionary = UiTableSession.sanitize_view(view, -1, {})
+	for seat: int in 2:
+		_check(((no_me["players"] as Array)[seat]["reserved"] as Array)[0]["id"] == null,
+				"观战视角不泄露座位 %d 的盲抽" % seat)
+	_check(String(((no_me["players"] as Array)[2]["reserved"] as Array)[0]["id"]) == "L2-R-01",
+			"观战视角保留公开预留")
+
+	var cache2 := {0: ["L1-W-01", "L1-K-04"]}
+	UiTableSession.update_blind_cache(cache2, 0, {
+		"type": "card_purchased", "seat": 0, "card_id": "L1-W-01", "from_reserved": true,
+	})
+	_check(cache2[0] == ["L1-K-04"], "从预留区购买后缓存移除对应位置")
+	UiTableSession.update_blind_cache(cache2, 0, {
+		"type": "card_purchased", "seat": 0, "card_id": "L2-U-03", "from_reserved": true,
+	})
+	_check(cache2[0] == ["L1-K-04"], "买掉未见过的盲抽时移除一个空位（没有空位则不动）")
+	UiTableSession.update_blind_cache(cache2, 0, {
+		"type": "card_reserved", "seat": 0, "card_id": "", "blind": true,
+	})
+	_check(cache2[0] == ["L1-K-04", ""], "盲抽预留追加一个未知位置")
+	UiTableSession.update_blind_cache(cache2, 0, {
+		"type": "card_reserved", "seat": 0, "card_id": "L1-R-02", "blind": false,
+	})
+	_check(cache2[0] == ["L1-K-04", "", "L1-R-02"], "公开预留追加卡牌 id")
+
+
+func _check_u3_take_and_legal() -> void:
+	var parts := await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	_check(_u3_start_humans(parts, 2, 20261018), "U3 2 人人类局可以开局")
+	await get_tree().process_frame
+	_check(session.me_seat() == 0, "开局时我是座位 0")
+	_check(session.is_my_turn(), "开局轮到我")
+	_check(int(session.view().get("viewer_seat", -1)) == 0, "发出的视图 viewer 是我")
+	var legal: Array[Action] = session.legal_actions()
+	_check(legal.size() > 0, "开局有合法动作")
+	var take_colors: Dictionary = {}
+	for action: Action in legal:
+		if action.type == Enums.ActionType.TAKE_THREE or action.type == Enums.ActionType.TAKE_TWO:
+			for color: Enums.GemColor in action.colors:
+				take_colors[color] = true
+		if action.type == Enums.ActionType.PURCHASE:
+			_check(flow.can_purchase(action.card_id), "购买动作 %s 有入口" % action.card_id)
+		if action.type == Enums.ActionType.RESERVE and not action.card_id.is_empty():
+			_check(flow.can_reserve(action.card_id), "预留动作 %s 有入口" % action.card_id)
+		if action.type == Enums.ActionType.RESERVE and action.card_id.is_empty():
+			_check(flow.can_reserve_blind(action.level), "%d 级盲抽预留有入口" % action.level)
+	for color: Enums.GemColor in Enums.PURCHASABLE_COLORS:
+		_check(flow.is_color_clickable(color) == take_colors.has(color),
+				"%s筹码可点状态和合法动作一致" % Enums.color_to_zh(color))
+
+	# 同色 2 枚：点两次 → 托盘 → 确认
+	var double_color: int = -1
+	for action: Action in legal:
+		if action.type == Enums.ActionType.TAKE_TWO:
+			double_color = action.colors[0]
+			break
+	_check(double_color >= 0, "开局有拿两枚同色的动作")
+	table.gem_chip_clicked.emit(double_color)
+	table.gem_chip_clicked.emit(double_color)
+	_check(int(flow.selection().get(double_color, 0)) == 2, "同色点两次选中 2 枚")
+	var strip: Dictionary = table.my_panel().get_render_data().get("strip", {})
+	_check(String(strip.get("tray_text", "")).contains("2 枚"), "托盘写同色 2 枚")
+	_check((strip.get("tray_colors", []) as Array).size() == 2, "托盘逐枚记录已选筹码")
+	var tray_chips := table.my_panel().find_child("TrayChips", true, false) as HBoxContainer
+	_check(tray_chips != null and tray_chips.get_child_count() == 2, "托盘显示两枚筹码")
+	_check(bool(strip.get("confirm_enabled", false)), "同色 2 枚可以确认")
+	var before: int = UiViewMath.token_count(session.view(), 0, double_color)
+	table.confirm_pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(UiViewMath.token_count(session.view(), 0, double_color) == before + 2,
+			"确认后拿到 2 枚")
+	_check(int(session.view().get("current_seat", -1)) == 1, "动作后轮到座位 1")
+	_check(session.me_seat() == 1, "同屏换人后我是当前人类座位")
+	_check(table.popover_visible() == false, "提交后浮层关闭")
+	var log_entries: Array[Dictionary] = session.log_entries()
+	_check(not log_entries.is_empty() and String(log_entries[0].get("text", "")).contains("拿了 2 枚"),
+			"日志写拿了两枚")
+	await _u3_cleanup(parts)
+
+
+func _check_u3_reserve_privacy() -> void:
+	var parts := await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	_check(_u3_start_humans(parts, 2, 20261021), "U3 盲抽隐私局可以开局")
+	await get_tree().process_frame
+	var blind_level: int = 0
+	for action: Action in session.legal_actions():
+		if action.type == Enums.ActionType.RESERVE and action.card_id.is_empty():
+			blind_level = action.level
+			break
+	_check(blind_level > 0, "开局可以盲抽预留")
+	table.card_clicked.emit("deck", "", blind_level)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(table.popover_visible(), "点牌堆打开浮层")
+	var data: Dictionary = flow.popover_data()
+	_check(String(data.get("mode", "")) == "deck", "牌堆浮层是盲抽模式")
+	_check(bool(data.get("can_reserve", false)), "牌堆浮层可以盲抽预留")
+	table.reserve_pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(int(session.view().get("current_seat", -1)) == 1, "盲抽后轮到座位 1")
+	var reserved0: Array = (session.view()["players"] as Array)[0]["reserved"]
+	_check(reserved0.size() == 1 and reserved0[0]["id"] == null,
+			"轮到别人时我的盲抽画牌背")
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in 3:
+		flow.click_color(colors[index])
+	flow.confirm()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(int(session.view().get("current_seat", -1)) == 0, "座位 1 动作后回到我")
+	var mine: Array = (session.view()["players"] as Array)[0]["reserved"]
+	_check(mine.size() == 1 and mine[0]["id"] != null, "轮到我时能看到自己的盲抽")
+	if mine.size() == 1 and mine[0]["id"] != null:
+		var reserved_id: String = String(mine[0]["id"])
+		table.card_clicked.emit("reserved", reserved_id, 0)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_check(flow.selected_kind() == "reserved" and flow.selected_card_id() == reserved_id,
+				"点我的预留卡可以选中")
+		_check(table.popover_visible(), "预留卡打开浮层")
+		_check(String(flow.popover_data().get("mode", "")) == "reserved",
+				"预留卡浮层是购买模式")
+		table.blank_clicked.emit()
+		await get_tree().process_frame
+	var log_entries: Array[Dictionary] = session.log_entries()
+	_check(not log_entries.is_empty() and String(log_entries[0].get("text", "")).contains("拿了"),
+			"座位 1 的动作写进日志")
+	await _u3_cleanup(parts)
+
+
+func _check_u3_purchase_payment() -> void:
+	var parts := await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	var errors: Array[String] = []
+	_check(session.load_snapshot(_u3_snapshot("endgame"), errors), "U3 终局局面可以载入")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var purchase: Action = null
+	var card: CardData = null
+	for action: Action in session.legal_actions():
+		if action.type != Enums.ActionType.PURCHASE:
+			continue
+		var candidate: CardData = session.catalog().card(action.card_id)
+		if candidate != null and candidate.points > 0:
+			purchase = action
+			card = candidate
+			break
+	_check(purchase != null, "终局局面有买得起的计分卡")
+	if purchase == null:
+		await _u3_cleanup(parts)
+		return
+	var captured: Array[Dictionary] = []
+	session.events_arrived.connect(func(events: Array[Dictionary]) -> void:
+		captured.append_array(events))
+	table.card_clicked.emit("market", purchase.card_id, 0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(table.popover_visible(), "选中卡后浮层可见")
+	var data: Dictionary = flow.popover_data()
+	_check(bool(data.get("can_buy", false)) and bool(data.get("affordable", false)),
+			"浮层里这张卡可以购买")
+	_check(String(data.get("title", "")).contains("分"), "浮层标题带分数")
+	var preview: Dictionary = data.get("payment", {})
+	var score_before: int = UiViewMath.score(session.view(), 0, session.catalog())
+	table.purchase_pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(bool(session.view().get("endgame_triggered", false)), "购买计分卡触发终局")
+	_check(UiViewMath.score(session.view(), 0, session.catalog()) == score_before + card.points,
+			"买后分数增加")
+	var purchased: Dictionary = {}
+	for event: Dictionary in captured:
+		if String(event.get("type", "")) == "card_purchased":
+			purchased = event
+			break
+	_check(not purchased.is_empty(), "收到 card_purchased 事件")
+	_check(flow.flash_cards().has(purchase.card_id), "购买后相关卡进入光晕列表")
+	if not purchased.is_empty():
+		var paid: Dictionary = purchased.get("paid", {})
+		for color: Enums.GemColor in Enums.ALL_COLORS:
+			var expected: int = int((preview.get("gems", {}) as Dictionary).get(color, 0))
+			if color == Enums.GemColor.GOLD:
+				expected += int(preview.get("gold", 0))
+			_check(int(paid.get(Enums.color_to_string(color), 0)) == expected,
+					"支付预览与事件一致：%s" % Enums.color_to_zh(color))
+	await _u3_cleanup(parts)
+
+
+func _check_u3_discard() -> void:
+	var parts := await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	var errors: Array[String] = []
+	_check(session.load_snapshot(_u3_snapshot("token_limit"), errors), "U3 持币上限局面可以载入")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(UiViewMath.token_total(session.view(), 0) == 10, "载入时持币 10 枚（上限）")
+	table.gem_chip_clicked.emit(Enums.GemColor.RED)
+	table.gem_chip_clicked.emit(Enums.GemColor.RED)
+	var strip: Dictionary = table.my_panel().get_render_data().get("strip", {})
+	_check(String(strip.get("text", "")).contains("拿后 12 枚"), "拿宝石时提前提示要弃 2 枚")
+	table.confirm_pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(String(session.view().get("phase", "")) == "discard", "超过上限进入弃宝石阶段")
+	_check(flow.modal_kind() == "discard", "弃宝石弹窗打开")
+	_check(table.modal_control() != null and table.modal_control().name == "DiscardModal",
+			"弃宝石弹窗是 DiscardModal")
+	var confirm := table.modal_control().find_child("DiscardConfirm", true, false) as Button
+	_check(confirm != null and confirm.disabled, "选够之前确认按钮禁用")
+	flow.choose_discard_color(Enums.GemColor.RED)
+	flow.choose_discard_color(Enums.GemColor.RED)
+	_check(int(flow.discard_selection().get(Enums.GemColor.RED, 0)) == 2, "弹窗里选了 2 枚红")
+	confirm = table.modal_control().find_child("DiscardConfirm", true, false) as Button
+	_check(confirm != null and not confirm.disabled, "选够之后确认按钮可用")
+	flow.confirm_discard()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(String(session.view().get("phase", "")) == "playing", "弃够后回到正常回合")
+	_check(UiViewMath.token_total(session.view(), 0) == 10, "弃后持币回到 10 枚")
+	_check(int(session.view().get("current_seat", -1)) == 1, "弃完轮到座位 1")
+	_check(flow.modal_kind().is_empty(), "弃宝石弹窗关闭")
+	var log_entries: Array[Dictionary] = session.log_entries()
+	_check(not log_entries.is_empty()
+			and String(log_entries[0].get("text", "")).count("弃回") == 1
+			and String(log_entries[0].get("text", "")).count("{gem:red}") == 2,
+			"连续弃宝石合并成一条日志")
+	await _u3_cleanup(parts)
+
+
+func _check_u3_noble() -> void:
+	var parts := await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	var errors: Array[String] = []
+	_check(session.load_snapshot(_u3_snapshot("two_nobles"), errors), "U3 双贵族局面可以载入")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in 3:
+		flow.click_color(colors[index])
+	flow.confirm()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(String(session.view().get("phase", "")) == "choose_noble", "回合末进入选贵族阶段")
+	_check(flow.modal_kind() == "noble", "选贵族弹窗打开")
+	var pending: Array = session.view().get("pending_nobles", [])
+	_check(pending.size() == 2, "同时满足两位贵族")
+	var confirm := table.modal_control().find_child("NobleConfirm", true, false) as Button
+	_check(confirm != null and confirm.disabled, "没选贵族时确认按钮禁用")
+	flow.choose_noble(String(pending[1]))
+	await get_tree().process_frame
+	confirm = table.modal_control().find_child("NobleConfirm", true, false) as Button
+	_check(confirm != null and not confirm.disabled, "选中贵族后确认按钮可用")
+	_check(confirm.text.contains("来访"), "确认按钮按位置指代贵族")
+	flow.confirm_noble()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(String(session.view().get("phase", "")) == "playing", "选完贵族回到正常回合")
+	var nobles0: Array = (session.view()["players"] as Array)[0]["nobles"]
+	_check(nobles0.has(pending[1]), "选中的贵族来到我的面板")
+	_check(flow.modal_kind().is_empty(), "选贵族弹窗关闭")
+	await _u3_cleanup(parts)
+
+
+func _check_u3_failure_and_result() -> void:
+	# 非法动作：直接提交一个买不起的购买，桥接层把 action_rejected 转成 action_failed。
+	var parts := await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	_check(_u3_start_humans(parts, 2, 20261023), "U3 失败提示局可以开局")
+	await get_tree().process_frame
+	session.submit(Action.purchase("L3-W-04"))
+	await get_tree().process_frame
+	_check(not flow.last_failure().is_empty(), "非法动作产生失败提示")
+	var strip: Dictionary = table.my_panel().get_render_data().get("strip", {})
+	_check(String(strip.get("text", "")).contains("这一步没成功"), "顶条显示失败提示")
+	await _u3_cleanup(parts)
+
+	# 结算：买下计分卡触发终局，座位 1 再走一步后结算弹窗。
+	parts = await _u3_host()
+	session = parts[2]
+	flow = parts[3]
+	table = parts[1]
+	var errors: Array[String] = []
+	_check(session.load_snapshot(_u3_snapshot("endgame"), errors), "U3 结算局面可以载入")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var purchase: Action = null
+	for action: Action in session.legal_actions():
+		if action.type != Enums.ActionType.PURCHASE:
+			continue
+		var card: CardData = session.catalog().card(action.card_id)
+		if card != null and card.points > 0:
+			purchase = action
+			break
+	if purchase != null:
+		flow.click_card("market", purchase.card_id, 0)
+		flow.purchase_selected()
+		await get_tree().process_frame
+		var legal1: Array[Action] = session.legal_actions()
+		_check(legal1.size() > 0, "终局轮里座位 1 还有动作")
+		if not legal1.is_empty():
+			session.submit(legal1[0])
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_check(String(session.view().get("phase", "")) == "finished", "所有人回合数相同后结束")
+		var result: Dictionary = flow.result()
+		_check(not result.is_empty(), "产生结算数据")
+		_check((result.get("winners", []) as Array).has(0), "座位 0 获胜")
+		_check(flow.modal_kind() == "result", "结算弹窗打开")
+		_check(table.modal_control() != null and table.modal_control().name == "ResultModal",
+				"结算弹窗是 ResultModal")
+		var title := table.modal_control().find_child("ResultTitle", true, false) as Label
+		_check(title != null and title.text.contains("获胜"), "结算标题写出胜者")
+		_check(table.modal_control().find_child("ResultSeat0", true, false) != null,
+				"结算名次表列出座位 0")
+		_check(int(result.get("scores", {}).get("0", 0)) >= 15, "结算分数达到胜利分")
+	await _u3_cleanup(parts)
+
+
+func _check_u3_result_variants() -> void:
+	await get_tree().process_frame
+	var host := Control.new()
+	host.theme = load(THEME_PATH)
+	host.size = Vector2(1280, 800)
+	get_tree().root.add_child(host)
+	await get_tree().process_frame
+	var view := {"player_count": 2}
+
+	var stalled := UiModalFrame.new()
+	host.add_child(stalled)
+	UiTableModals.populate_result(stalled, {
+		"winners": [0], "scores": {"0": 14, "1": 9}, "cards": {"0": 10, "1": 7},
+		"nobles": {"0": 1, "1": 0}, "reason": "stalled", "tiebreak": "",
+		"round": 150, "elapsed_sec": 600,
+	}, view, DataRegistry.rules(), ["小明", "薄荷"], ["human", "human"], {})
+	var stalled_title := stalled.find_child("ResultTitle", true, false) as Label
+	_check(stalled_title != null and stalled_title.text.contains("僵持"), "stalled 结算标题")
+	var stalled_footer := stalled.find_child("ResultSubtitle", true, false) as Label
+	_check(stalled_footer != null and stalled_footer.text.contains("按现有分数"),
+			"stalled 结算说明")
+
+	var tiebreak := UiModalFrame.new()
+	host.add_child(tiebreak)
+	UiTableModals.populate_result(tiebreak, {
+		"winners": [0], "scores": {"0": 16, "1": 16}, "cards": {"0": 12, "1": 14},
+		"nobles": {"0": 1, "1": 1}, "reason": "win_points", "tiebreak": "cards",
+		"round": 20, "elapsed_sec": 120,
+	}, view, DataRegistry.rules(), ["小明", "薄荷"], ["human", "human"], {})
+	var note := tiebreak.find_child("TiebreakNote", true, false)
+	_check(note != null, "破同分说明卡存在")
+	if note != null:
+		var labels := note.find_children("*", "Label", true, false)
+		_check(labels.size() > 0 and (labels[0] as Label).text.contains("12 张")
+				and (labels[0] as Label).text.contains("14 张"),
+				"破同分说明写卡牌数")
+	var tiebreak_title := tiebreak.find_child("ResultTitle", true, false) as Label
+	_check(tiebreak_title != null and tiebreak_title.text.contains("小明 获胜"),
+			"破同分后标题写胜者")
+
+	var tie := UiModalFrame.new()
+	host.add_child(tie)
+	UiTableModals.populate_result(tie, {
+		"winners": [0, 1], "scores": {"0": 16, "1": 16}, "cards": {"0": 12, "1": 12},
+		"nobles": {"0": 1, "1": 1}, "reason": "win_points", "tiebreak": "tie",
+		"round": 20, "elapsed_sec": 120,
+	}, view, DataRegistry.rules(), ["小明", "薄荷"], ["human", "human"], {})
+	var tie_title := tie.find_child("ResultTitle", true, false) as Label
+	_check(tie_title != null and tie_title.text.contains("并列获胜"), "完全平局标题")
+	host.queue_free()
+	await get_tree().process_frame
+
+
+func _check_u3_bot_lock() -> void:
+	var parts := await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	var seats: Array[Dictionary] = [
+		{"name": "小明", "type": "human"}, {"name": "薄荷", "type": "bot_easy"},
+	]
+	_check(session.start_local({"count": 2, "seed": 20261020, "seats": seats}),
+			"U3 人机局可以开局")
+	await get_tree().process_frame
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in 3:
+		flow.click_color(colors[index])
+	flow.confirm()
+	# 电脑回合：动作同步结束后立刻检查（不等它的思考计时器）。
+	_check(int(session.view().get("current_seat", -1)) == 1, "动作后轮到电脑")
+	_check(not flow.is_interactive(), "电脑回合界面锁定")
+	_check(flow.clickable_colors().is_empty(), "电脑回合没有可点颜色")
+	_check(table.bank_column().chip(Enums.GemColor.WHITE).mouse_filter
+			== Control.MOUSE_FILTER_IGNORE, "电脑回合银行筹码不可点")
+	_check(table.popover_visible() == false, "电脑回合不显示浮层")
+	var strip: Dictionary = table.my_panel().get_render_data().get("strip", {})
+	_check(String(strip.get("kind", "")) == "event"
+			or String(strip.get("text", "")).contains("等"),
+			"电脑回合顶条写事件或等待")
+	await _u3_cleanup(parts)
+
+
+func _check_u3_quick_start() -> void:
+	var scene: PackedScene = load("res://ui/dev/quick_start.tscn")
+	_check(scene != null, "U3 临时开局场景可以加载")
+	if scene == null:
+		return
+	var quick: Control = scene.instantiate()
+	get_tree().root.add_child(quick)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var setup: Control = quick.setup_root()
+	_check(setup != null, "临时入口先显示开局设置")
+	if setup != null:
+		_check(setup.find_child("CountSegment", true, false) != null, "人数分段存在")
+		_check(setup.find_child("DifficultySegment", true, false) != null, "难度分段存在")
+		_check(setup.find_child("StartButton", true, false) != null, "开始按钮存在")
+	_check(quick.start_game(3, "normal", 20261022), "临时入口可以开 3 人局")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(quick.session() != null and quick.flow() != null and quick.table() != null,
+			"临时入口创建会话、交互和牌桌")
+	_check(quick.setup_root() == null, "开局后隐藏设置")
+	_check(int(quick.session().view().get("player_count", 0)) == 3, "临时入口人数正确")
+	_check(quick.session().seat_types() == ["human", "bot_normal", "bot_normal"],
+			"临时入口座位类型正确")
+	_check(quick.table().find_child("CardPopover", true, false) != null, "牌桌有卡牌浮层")
+	_check(quick.table().find_child("ModalLayer", true, false) != null, "牌桌有弹窗层")
+	quick.queue_free()
+	await get_tree().process_frame
 
 
 func _check_app() -> void:

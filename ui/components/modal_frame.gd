@@ -19,6 +19,9 @@ var _title_label: Label
 var _tag: UiTag
 var _body: VBoxContainer
 var _actions: HBoxContainer
+## 弹窗常在加入场景树之前就设好标题 / 标签；先记下来，_ready 时再应用。
+var _tag_text: String = ""
+var _tag_variant: StringName = &"default"
 
 
 func _ready() -> void:
@@ -49,6 +52,7 @@ func _ready() -> void:
 	_tag = UiTag.new()
 	_tag.visible = false
 	header.add_child(_tag)
+	_apply_tag()
 
 	_body = VBoxContainer.new()
 	_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -76,8 +80,14 @@ func add_action(button: Control) -> void:
 
 
 func set_tag(text: String, variant: StringName = &"default") -> void:
+	_tag_text = text
+	_tag_variant = variant
+	_apply_tag()
+
+
+func _apply_tag() -> void:
 	if _tag == null:
 		return
-	_tag.text = text
-	_tag.variant = variant
-	_tag.visible = not text.is_empty()
+	_tag.text = _tag_text
+	_tag.variant = _tag_variant
+	_tag.visible = not _tag_text.is_empty()

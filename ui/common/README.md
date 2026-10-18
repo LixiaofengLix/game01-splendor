@@ -9,3 +9,5 @@
   （IR-02 的临时实现）；只读视图，不引用 `GameState`。
 - `ui_markup.gd` — `UiMarkup`：日志 / 顶条文案的简写标记 → BBCode。
   `{card:L2-R-01}` 生成带浅色底的卡牌引用，`{gem:red}` 生成 11px 彩色宝石。
+- `event_text.gd` — `UiEventText`：`GameEvent.to_dict()` → 中文日志 / 顶条文案。
+  盲抽预留只写等级（事件里本来就没有卡牌 id），贵族按要求描述，不显示 id。

@@ -36,4 +36,6 @@
   `views/*.json` 就是 `GameState.to_dict(viewer_seat)` 的格式。日志文本支持
   `{card:L2-R-01}`（卡牌引用）与 `{gem:red}`（宝石图标）。`strip` / `pill_text` / `mode` /
   `replay_label` / `flash_cards` / `log_limit` 是可选的显示覆盖项。U3 的 `FakeBackend` 可以直接复用这些文件。
-- `quick_start.tscn` — U3 的临时开局入口（尚未创建）。
+- `quick_start.tscn/.gd` — U3 的临时开局入口：选人数 / 电脑难度 / 种子，直接进入正式牌桌。
+  `$GODOT --path . ui/dev/quick_start.tscn`。开局后 HUD 的“菜单”按钮直接回到开局设置（U4 的暂停菜单之前的临时行为）。
+  这是开发入口，正式的主菜单与开局设置（02）在 U4 接入后删除。

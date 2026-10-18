@@ -138,6 +138,8 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	_content = Control.new()
 	_content.name = "Content"
+	# 内容层只是画布：不能拦截点击，否则牌桌收不到卡片上的 gui_input。
+	_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_content)
 
 	_shadow = UiAssets.nine_patch(UiAssets.frame_s("ink_fill"), BORDER)

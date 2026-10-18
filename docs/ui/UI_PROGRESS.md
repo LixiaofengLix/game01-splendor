@@ -15,7 +15,13 @@
   `UiViewMath`、牌桌场景与 6 个面板零件、9 个夹具、`build_fixtures` / `table_preview` / 截图 `--fixture`
   已就位。自动验证全部通过：`ui_smoke` **877 项**、`data_report` 通过、入口 headless 退出码 0；
   04 / 07 / 08、2 人 / 4 人、牌堆空、银行见底、观战、回放占位、1600 宽 / 900 高截图已检查。
-- 下一步：U3（牌桌交互 + 接真实对局）。
+- **U3（牌桌交互 + 接真实对局）：已完成，自动验证通过（2026-10-18）；人机试玩待你验收，验收后提交。**
+  `UiTableSession` + `UiLiveBackend`（真实对局 / 隐私过滤 / 日志 / 结算）、`UiTableFlow`（拿宝石状态机、
+  选卡浮层、弃宝石 / 选贵族 / 结算弹窗、锁定与失败提示）、`UiCardPopover`、`ui/dev/quick_start.tscn`
+  已就位；`ui_smoke` **1049 项**全部通过。自动检查覆盖拿宝石 / 购买 / 预留 / 盲抽 / 弃宝石 / 选贵族 /
+  结算 / 隐私 / 支付预览 / 电脑回合锁定；真实鼠标与键盘（1–5 / Enter / R / Esc）已用带窗口的临时脚本
+  逐项点过，未进仓库。
+- 下一步：U4（主菜单到结算的完整流程、存读档、同屏）。
   **缩放方案已拍板选 b（整数缩放），在 U9 改 `project.godot`，U0–U8 不改项目设置。**
 - 上次更新：2026-10-18
 
@@ -266,3 +272,116 @@
 ### 新登记的 IR
 
 无（`UiViewMath` 是 IR-02 的临时实现；U3 的桥接层会处理观战视图的盲抽过滤，不需要逻辑层新接口）。
+
+---
+
+## U3：牌桌交互 + 接真实对局
+
+### 已完成
+
+- `ui/bridge/`：
+  - `live_backend.gd`（`UiLiveBackend`）：包装 `GameController`，转发视图 / 事件 / 结束 / 拒绝和
+    IR-08 的大模型信号；开局、载入快照、提交动作、重置都在这里。
+  - `table_session.gd`（`UiTableSession`）：屏幕的唯一入口。`start_local` / `load_snapshot` / `close`；
+    信号 `view_updated` / `events_arrived` / `game_ended` / `action_failed` / `seat_status_changed`；
+    `legal_actions` / `submit` / `submit_sequence` / `is_my_turn` / `me_seat` / `seat_info` /
+    `rules` / `catalog` / `log_entries` / `result`。
+  - 隐私：`sanitize_view()` 把别人的盲抽 id 置空；viewer 不是“我”时 viewer 自己的盲抽也置空；
+    “我”的盲抽在别人回合用缓存补上。
+  - 日志：事件 → 中文（`UiEventText`），从新到旧；连续弃宝石合并成一条；时间在读取时算相对时间。
+  - 结算：分数 / 卡数 / 贵族数 / 破同分类型 / 轮数 / 用时，字段按 `BRIDGE_AND_REQUESTS.md` 1.2。
+- `ui/common/event_text.gd`（`UiEventText`）：事件文案，盲抽只写等级、贵族按要求描述、不显示 id。
+- `ui/components/`：
+  - 新增 `UiCardPopover`（272 宽）：支付预览三行（折扣 / 宝石 / 金币，空行写“无”）、
+    “需要 / 已有 + 差 N”、买后变化、购买 / 预留、快捷键提示；牌堆 / 预留卡模式。
+  - `UiBankColumn`：确认 / 取消按钮、点击态、可点颜色、已选 +N；`chip_clicked` / `confirm_pressed` / `cancel_pressed`。
+  - `UiMyPanel`：托盘增加取消；预留卡可点；`selected_kind/id` 高亮。
+  - `UiHud`：规则 / 菜单按钮发出信号（U3 的菜单按钮在临时入口里直接返回开局）。
+  - `UiDevCard`：内容层改为忽略鼠标（U1 遗留的可点性问题，U3 点卡时暴露）。
+  - `UiNobleTile`：内容层全部忽略鼠标，大号贵族牌可以整块点选。
+  - `UiModalFrame`：标题 / tag 可以在加入场景树之前设置，`_ready` 时再应用。
+- `ui/screens/table/`：
+  - `table_flow.gd`（`UiTableFlow`）：拿宝石状态机、选卡 / 浮层、快捷 1–5 / Enter / R / Esc、
+    弃宝石（点选顺序提交、中途被拒重开）、选贵族、结算弹窗、失败提示（3 秒）、光晕 1.5 秒、锁定。
+  - `table_modals.gd`（`UiTableModals`）：弃宝石（560）、选贵族（560，大号贵族按位置指代）、
+    结算（720，名次表 / 破同分说明 / stalled 文案）。
+  - `table_screen.gd`：浮层定位（右侧 14px、越界翻左）、牌桌自带弹窗层、点击信号；
+    `render()` 新增交互键 `interactive` / `selection` / `clickable_colors` / `selected_*` / `popover` /
+    `take_confirm_enabled`。
+- `ui/app/shortcuts.gd`（`UiShortcuts`）：12 个 `spl_` 动作的唯一定义；`app.gd` 改为调用它。
+- `ui/dev/quick_start.tscn/.gd`：U3 临时入口，人数 2/3/4、简单 / 普通 / 困难、可选种子；
+  座位 1 是人类，其余是电脑。HUD 菜单按钮直接返回开局设置。
+- `tests/ui_smoke.tscn` 扩充到 **1049 项**：
+  - 隐私过滤（自己的缓存 / 别人的盲抽 / 观战 / 公开预留）。
+  - 真实会话：拿宝石（同色 2 枚 / 三种颜色）、可点颜色与合法动作一一对应、
+    购买 / 预留 / 盲抽入口与合法动作一致、支付预览与 `card_purchased.paid` 交叉校验。
+  - `token_limit` 场景走弃宝石（弹窗、选够才能确认、日志合并）；`two_nobles` 场景走选贵族。
+  - `endgame` 场景走终局与结算弹窗；非法动作的失败提示；电脑回合所有入口锁定；
+    `quick_start` 场景结构、开局、座位类型。
+  - 零件：银行确认 / 取消、我的面板取消、浮层三种模式。
+- 带窗口的临时脚本逐项点过：真实鼠标点筹码 / 卡 / 牌堆 / 浮层 / 弃宝石筹码 / 贵族大牌 / 确认按钮，
+  以及 1–5 / Enter / R / Esc；截图检查了轮到我、选宝石、浮层（可买 / 买不起）、弃宝石、选贵族、
+  结算、电脑回合 / 事件顶条、临时入口。临时脚本未进仓库。
+- 临时脚本额外验证：全电脑观战 8 秒（`me_seat = -1`）无报错、日志持续增长；
+  3 个电脑的完整对局 29.5 秒结束（101 条日志，结算 `winners=[1]`、分数 9/15/12、轮数 30），
+  观战底栏与结算弹窗都正常。
+- 文档：`docs/tests/ui_U3.md`；本文件；各目录 README；`CLAUDE.md` 增加临时入口命令。
+
+### 与计划的偏差
+
+1. **交互逻辑单独放进 `UiTableFlow`**（计划只写了“牌桌可交互”）。牌桌继续只负责画和发点击信号，
+   `UiTableFlow` 负责本地选择状态、弹窗和快捷键；`UiTableSession` 仍然是桥接层，不认识的屏幕。
+2. **弃宝石弹窗的内容在加入场景树之后再填**（`UiModalFrame` 的 `body` 在 `_ready` 才创建）。
+   为此把 `table_modals` 的构建函数拆成“新建 → `show_modal` → populate”。
+3. **弃宝石按点击顺序提交**：`_discard_order` 记录点击顺序；弹窗每点一次重建，
+   选中的颜色和数量保持不变。中途被拒时清空重选。
+4. **浮层支付块固定三行**：没有用到的折扣 / 宝石 / 金币显示“无”，与 `VISUAL_SPEC` 6.11 一致。
+5. **新增 `UiShortcuts`**：快捷键定义从 `app.gd` 抽出来，临时入口和牌桌交互也能注册。
+6. **新增 `UiEventText`**：事件文案与桥接层分开，方便测试和以后回放复用。
+7. **U3 没有新增夹具**：弃宝石 / 选贵族直接用 `tests/scenarios/token_limit.json` 和
+   `two_nobles.json` 载入真实 `GameController` 驱动。预设局面本身是快照，`load_snapshot` 会恢复成全人类座位。
+8. **快照载入的座位名使用默认名**（小明 / 薄荷 / 紫晶 / 橘子），因为快照里没有 `ui_meta`；
+   U4 的存档会带名字。
+9. **结算弹窗按钮只有【查看牌桌】【返回开局】**；【再来一局 / 保存回放 / 看回放】按计划留给 U4 / U6。
+10. **HUD 的“规则”按钮仍是空操作**，“菜单”按钮在临时入口里直接返回开局设置；正式暂停菜单在 U4。
+11. **多人类同屏没有换人遮挡**（U4）：U3 的临时入口固定只有座位 1 是人类，所以不会遇到；
+    `me_seat` 在同屏多人类时会立即切到下一位本机座位。
+12. **“购买前确认”写死为开**（按计划）；`UiSettings` 在 U7。
+13. **真实鼠标 / 键盘验收用临时脚本完成，未进仓库**：headless 下 Godot 不做 GUI 命中测试，
+    所以自动冒烟只能直接调用交互入口；窗口下的真实点击由临时脚本覆盖。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **待你试玩**：`$GODOT --path . ui/dev/quick_start.tscn`，2 / 3 / 4 人各一局，
+  重点看 `docs/tests/ui_U3.md` 的 U3-09。
+- **IR-01 的临时方案边界**：刚盲抽预留的牌，在**别人的回合**仍画牌背，直到本机玩家的下一个回合
+  才翻正面。原因是事件里没有这张牌的 id，而下一次视图属于下一位玩家。缓存的位置用公开事件维护
+  （预留追加、从预留区购买时移除），所以不会因为买了别的预留卡而把牌面显示错位。
+  IR-01 落地后删掉 `UiTableSession._blind_cache`，改成按座位取视图。
+- **同屏多人类**：`me_seat` 会立即变成下一位本机座位，没有遮挡、没有“我是谁”的确认；
+  U4 的 09 屏接上后再处理。
+- **U4 要接的东西**：
+  - 主菜单 / 开局设置 / 读档 / 暂停菜单；删除 `ui/dev/quick_start.tscn`；
+  - `UiSaveStore`：自动存档、快速存档、结束转存、`ui_meta`；
+  - `resume` / `resume_until`：`UiTableSession` 目前只有 `load_snapshot`（全人类）；
+  - 换人遮挡（09）、结算的【再来一局 / 保存回放 / 看回放】；
+  - HUD“规则”按钮的规则速查、Esc 的暂停菜单（目前 Esc 只取消选择）。
+- **U5 要替换的东西**：`UiTableFlow` 里的 1.5 秒光晕计时器和 3 秒失败提示是简化版；
+  U5 的动效队列接管事件播放、积压快进和音效钩子。
+- **光晕的实际效果**：`flash_cards` 已经接到市场卡上，但购买 / 预留后这张卡通常已经离开场面，
+  所以 U3 里很少真的看到光晕；U5 的滑走 / 补牌动画会把它变得有意义。
+- **失败提示**：`action_failed` 的文案直接来自 `GameController.action_rejected`，
+  可能包含“座位 N 的非法动作”这类开发术语；U4 的文案复查时再统一。
+- **日志时间**：从会话开始计时，读档继续的局需要 U4 用 `ui_meta.elapsed_sec` 接上。
+- **浮层缺口条 / 已有行**：4 种缺失颜色时可能偏挤；U4 / U5 对照截图再调。
+- **快照来源的局**：`can_save_replay()` 为 false，U4 的存档按钮要写原因（IR-10）。
+- **大模型座位**：桥接层已转发 `waiting_started` / `reason_emitted` / `fallback_used`，
+  但 U3 的临时入口不提供大模型座位；U7 接 17 屏。
+- **真实对局的可复现性**：`start_local` 的 `seed = -1` 用 `randi()`；想复现就填种子。
+- **截图 / 临时脚本**：U3 的截图与真实点击脚本放在 `/tmp`，没有进仓库；以后需要时用
+  `tests/scenarios/` + `quick_start` 重新构造。
+
+### 新登记的 IR
+
+无。IR-01（按座位取视图）仍未排期；U3 的缓存方案按 `BRIDGE_AND_REQUESTS.md` 的约定实现，
+边界见上。

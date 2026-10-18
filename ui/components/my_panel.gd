@@ -3,6 +3,10 @@
 class_name UiMyPanel
 extends UiFrame
 
+signal confirm_pressed
+signal cancel_pressed
+signal reserved_card_clicked(card_id: String)
+
 const HEIGHT := 246
 const STRIP_HEIGHT := 36
 const EVENT_STRIP_HEIGHT := 40
@@ -13,7 +17,9 @@ var _strip_avatar: TextureRect
 var _bullet_holder: Control
 var _strip_text: RichTextLabel
 var _tray: HBoxContainer
+var _tray_chips: HBoxContainer
 var _tray_label: Label
+var _cancel: UiButton
 var _confirm: UiButton
 var _strip_time: Label
 var _strip_line: ColorRect
@@ -103,10 +109,25 @@ func _build_strip(column: VBoxContainer) -> void:
 	_tray.add_theme_constant_override("separation", 8)
 	_tray.alignment = BoxContainer.ALIGNMENT_CENTER
 	_strip_row.add_child(_tray)
+	_tray_chips = HBoxContainer.new()
+	_tray_chips.name = "TrayChips"
+	_tray_chips.add_theme_constant_override("separation", 2)
+	_tray_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tray.add_child(_tray_chips)
 	_tray_label = Label.new()
 	_tray_label.name = "TrayLabel"
 	_tray_label.add_theme_color_override("font_color", UiPalette.INK_3)
 	_tray.add_child(_tray_label)
+	_cancel = UiButton.new()
+	_cancel.name = "CancelButton"
+	_cancel.variant = &"ghost"
+	_cancel.size_key = &"sm"
+	_cancel.text = "取消"
+	_cancel.disabled = true
+	_cancel.focus_mode = Control.FOCUS_NONE
+	_cancel.pressed.connect(func() -> void: cancel_pressed.emit())
+	_tray.add_child(_cancel)
+
 	_confirm = UiButton.new()
 	_confirm.name = "ConfirmButton"
 	_confirm.variant = &"accent"
@@ -114,6 +135,7 @@ func _build_strip(column: VBoxContainer) -> void:
 	_confirm.text = "确认拿取"
 	_confirm.disabled = true
 	_confirm.focus_mode = Control.FOCUS_NONE
+	_confirm.pressed.connect(func() -> void: confirm_pressed.emit())
 	_tray.add_child(_confirm)
 
 	_strip_time = Label.new()
@@ -305,13 +327,16 @@ func render(data: Dictionary) -> void:
 	var reserved: Array = data.get("reserved", [])
 	var max_reserved: int = int(data["max_reserved"])
 	_reserved_label.text = "预留 %d / %d" % [reserved.size(), max_reserved]
-	_render_reserved(reserved, catalog, bool(data.get("can_buy", false)), max_reserved)
+	_render_reserved(reserved, catalog, bool(data.get("can_buy", false)),
+			bool(data.get("can_select_reserved", false)), max_reserved,
+			String(data.get("selected_kind", "")), String(data.get("selected_id", "")))
 
 	_render_strip(data.get("strip", {}), catalog)
 
 
 func _render_reserved(reserved: Array, catalog: CardCatalog, can_buy: bool,
-		max_reserved: int) -> void:
+		can_select: bool, max_reserved: int, selected_kind: String,
+		selected_id: String) -> void:
 	for child in _reserved_cards.get_children():
 		_reserved_cards.remove_child(child)
 		child.queue_free()
@@ -328,9 +353,31 @@ func _render_reserved(reserved: Array, catalog: CardCatalog, can_buy: bool,
 			card.card_id = card_id
 			card.blind_label = not card_id.is_empty() and UiViewMath.is_blind(entry)
 			card.affordable = can_buy and bool(entry.get("affordable", false))
+			card.selected = selected_kind == "reserved" and card_id == selected_id
+			if can_select and not card_id.is_empty():
+				card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+				card.gui_input.connect(_on_reserved_input.bind(card, card_id))
 		else:
 			card.empty = true
 		_reserved_cards.add_child(card)
+
+
+func _on_reserved_input(event: InputEvent, card: Control, card_id: String) -> void:
+	if not event is InputEventMouseButton:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse.button_index != MOUSE_BUTTON_LEFT or not mouse.pressed:
+		return
+	card.accept_event()
+	reserved_card_clicked.emit(card_id)
+
+
+## 牌桌浮层定位用：按卡牌 id 找我的预留卡节点。
+func find_reserved_card(card_id: String) -> UiDevCard:
+	for child in _reserved_cards.get_children():
+		if child is UiDevCard and (child as UiDevCard).card_id == card_id:
+			return child
+	return null
 
 
 func _render_strip(strip: Dictionary, catalog: CardCatalog) -> void:
@@ -364,8 +411,21 @@ func _render_strip(strip: Dictionary, catalog: CardCatalog) -> void:
 		var tray_text: String = String(strip.get("tray_text", ""))
 		_tray.visible = not tray_text.is_empty()
 		_tray_label.text = tray_text
+		for child in _tray_chips.get_children():
+			_tray_chips.remove_child(child)
+			child.queue_free()
+		var tray_colors: Array = strip.get("tray_colors", [])
+		for item: Variant in tray_colors:
+			var chip := UiGemChip.new()
+			chip.gem_color = int(item)
+			chip.count = 1
+			chip.size_key = &"sm"
+			chip.bare = true
+			_tray_chips.add_child(chip)
+		_tray_chips.visible = _tray.visible and not tray_colors.is_empty()
 		_confirm.text = String(strip.get("confirm_label", "确认拿取"))
 		_confirm.disabled = not bool(strip.get("confirm_enabled", false))
+		_cancel.disabled = not bool(strip.get("cancel_enabled", false))
 		_strip_time.visible = false
 	update_minimum_size()
 

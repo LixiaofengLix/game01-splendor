@@ -100,6 +100,15 @@ func _ready() -> void:
 	resized.connect(_layout_decor)
 	_apply_size()
 	_apply_selected()
+	_ignore_contents(self)
+
+
+## 贵族牌整体可点：内容层全部忽略鼠标，点击统一由牌本身接收。
+func _ignore_contents(node: Node) -> void:
+	for child in node.get_children():
+		if child is Control:
+			(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ignore_contents(child)
 
 
 func _make_line(color: Color) -> Panel:

@@ -3,6 +3,9 @@
 class_name UiHud
 extends Control
 
+signal rules_requested
+signal menu_requested
+
 const HEIGHT := 44
 const SIDE_MARGIN := 14
 
@@ -69,6 +72,7 @@ func _ready() -> void:
 	rules_button.size_key = &"sm"
 	rules_button.text = "规则"
 	rules_button.focus_mode = Control.FOCUS_NONE
+	rules_button.pressed.connect(func() -> void: rules_requested.emit())
 	_right.add_child(rules_button)
 
 	var menu_button := UiButton.new()
@@ -77,6 +81,7 @@ func _ready() -> void:
 	menu_button.size_key = &"sm"
 	menu_button.text = "菜单 [Esc]"
 	menu_button.focus_mode = Control.FOCUS_NONE
+	menu_button.pressed.connect(func() -> void: menu_requested.emit())
 	_right.add_child(menu_button)
 
 	resized.connect(_layout)
