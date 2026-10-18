@@ -8,6 +8,7 @@ const MAIN_MENU_SCENE: String = "res://ui/screens/main_menu/main_menu.tscn"
 const LOCAL_SETUP_SCENE: String = "res://ui/screens/local_setup/local_setup.tscn"
 const SAVE_BROWSER_SCENE: String = "res://ui/screens/save_browser/save_browser.tscn"
 const TABLE_SCENE: String = "res://ui/screens/table/table_screen.tscn"
+const REPLAY_SCENE: String = "res://ui/screens/replay/replay_screen.tscn"
 
 @onready var screen_root: Control = $ScreenRoot
 @onready var modal_root: Control = $ModalLayer/ModalRoot
@@ -17,6 +18,7 @@ var _store: UiSaveStore = null
 var _session: UiTableSession = null
 var _table: UiTableScreen = null
 var _flow: UiTableFlow = null
+var _replay: UiReplayScreen = null
 
 var _current_screen: Control = null
 ## 从牌桌打开读档时，牌桌留在栈底（隐藏），返回时恢复。
@@ -45,6 +47,8 @@ func _ready() -> void:
 func set_screen(screen: Control) -> void:
 	if _current_screen == screen:
 		return
+	if _replay == _current_screen:
+		_replay = null
 	if is_instance_valid(_current_screen):
 		_current_screen.queue_free()
 	_current_screen = screen
@@ -85,6 +89,10 @@ func _pop_screen() -> void:
 
 
 func _reset_stack() -> void:
+	# 被换掉的隐藏屏幕（例如从牌桌打开的读档列表）没有别的引用，直接释放。
+	for screen: Control in _screen_stack:
+		if is_instance_valid(screen) and screen != _current_screen:
+			screen.queue_free()
 	_screen_stack.clear()
 
 
@@ -162,6 +170,7 @@ func show_save_browser(from_table: bool) -> void:
 		else:
 			show_main_menu())
 	browser.continue_requested.connect(_on_browser_continue)
+	browser.replay_requested.connect(_on_browser_replay)
 	if from_table:
 		_push_screen(browser)
 	else:
@@ -181,6 +190,74 @@ func _on_browser_continue(entry: UiSaveEntry) -> void:
 	if _resume_entry(entry, errors):
 		return
 	_show_save_error(entry, UiSaveEntry.REASON_VERIFY_FAILED, "\n".join(errors), 0, true)
+
+
+## 读档列表的【从头看回放】（U6）。
+func _on_browser_replay(entry: UiSaveEntry) -> void:
+	if entry == null:
+		return
+	if not entry.readable():
+		_show_save_error(entry, entry.reason, entry.reason_detail, 0, true)
+		return
+	var check: Dictionary = _store.validate(entry)
+	if not bool(check.get("ok", false)):
+		_show_save_error(entry, String(check.get("reason", UiSaveEntry.REASON_VERIFY_FAILED)),
+				String(check.get("detail", "")), int(check.get("step", 0)), true)
+		return
+	show_replay(entry)
+
+
+## 打开回放屏（03 的“从头看回放”、12 的“看回放”）。失败时显示 22 并留在原屏幕。
+func show_replay(entry: UiSaveEntry) -> bool:
+	if entry == null:
+		return false
+	var screen: UiReplayScreen = load(REPLAY_SCENE).instantiate()
+	screen.name = "Replay"
+	_push_screen(screen)
+	_replay = screen
+	var errors: Array[String] = []
+	if not screen.configure(entry, errors):
+		_replay = null
+		_pop_screen()
+		_show_save_error(entry, UiSaveEntry.REASON_VERIFY_FAILED,
+				"\n".join(errors), 0, false)
+		return false
+	screen.exit_requested.connect(_close_replay)
+	screen.continue_requested.connect(_on_replay_continue)
+	return true
+
+
+func _close_replay() -> void:
+	var screen: UiReplayScreen = _replay
+	_replay = null
+	if screen == null or not is_instance_valid(screen):
+		return
+	if screen == _current_screen:
+		_pop_screen()
+	else:
+		screen.queue_free()
+
+
+## 回放屏的【从这里接着玩】：截断到当前步，开一局新的（原存档不变）。
+func _on_replay_continue(entry: UiSaveEntry, step: int) -> void:
+	var errors: Array[String] = []
+	if _resume_entry_until(entry, step, errors):
+		_replay = null
+		return
+	_show_save_error(entry, UiSaveEntry.REASON_VERIFY_FAILED, "\n".join(errors), 0, false)
+
+
+func _resume_entry_until(entry: UiSaveEntry, step: int, errors: Array[String]) -> bool:
+	_teardown_table()
+	_create_table_nodes(bool(entry.ui_meta.get("hotseat_cover", true)))
+	if not _session.resume_until(entry, step, errors):
+		_teardown_table()
+		return false
+	_show_table()
+	_flow.show_resume_notice(_session.resume_note())
+	if step > 0:
+		_table.show_toast(-1, "已读到第 %d 步为止" % step, "后面的步数没有载入", 4.0)
+	return true
 
 
 ## 读档继续：创建牌桌并恢复存档。失败时不改变当前屏幕。
@@ -214,10 +291,38 @@ func _create_table_nodes(hotseat_cover: bool) -> void:
 	_flow.leave_requested.connect(back_to_main_menu)
 	_flow.load_requested.connect(func() -> void: show_save_browser(true))
 	_flow.rematch_requested.connect(_on_rematch)
+	_flow.replay_requested.connect(_open_session_replay)
+
+
+## 结算弹窗的【看回放】：把当前会话的内存数据当成一份回放存档打开。
+func _open_session_replay() -> void:
+	if _session == null or _table == null:
+		return
+	var data: Dictionary = _session.build_save_data()
+	if data.is_empty():
+		_table.show_toast(_session.me_seat(), "看不了回放", "这局来自预设局面，没有动作序列", 3.0)
+		return
+	var entry := UiSaveEntry.new()
+	entry.kind = "replay"
+	entry.data = data
+	entry.player_count = int(data.get("player_count", 0))
+	entry.seed = int(data.get("seed", 0))
+	var raw_actions: Variant = data.get("actions", [])
+	entry.action_count = (raw_actions as Array).size() if raw_actions is Array else 0
+	entry.display_name = "本局回放"
+	entry.ui_meta = {
+		"status": UiSaveEntry.STATUS_FINISHED,
+		"names": _session.names(),
+		"seat_types": _session.original_seat_types(),
+		"hotseat_cover": _session.hotseat_cover(),
+	}
+	show_replay(entry)
 
 
 func _show_table() -> void:
 	_reset_stack()
+	if _replay == _current_screen:
+		_replay = null
 	if is_instance_valid(_current_screen) and _current_screen != _table:
 		_current_screen.queue_free()
 	_current_screen = _table
@@ -270,6 +375,13 @@ func _show_save_error(entry: UiSaveEntry, reason: String, detail: String,
 		modal.queue_free()
 		if go_to_list and not (_current_screen is UiSaveBrowser):
 			show_save_browser(false))
+	if step > 1 and entry != null and entry.kind == "replay":
+		modal.resume_until_requested.connect(func(until_step: int) -> void:
+			modal.queue_free()
+			var errors: Array[String] = []
+			if not _resume_entry_until(entry, until_step, errors):
+				_show_save_error(entry, UiSaveEntry.REASON_VERIFY_FAILED,
+						"\n".join(errors), 0, false))
 
 
 # ---------------------------------------------------------------- 测试用
@@ -304,6 +416,10 @@ func local_setup() -> UiLocalSetup:
 
 func save_browser() -> UiSaveBrowser:
 	return _current_screen as UiSaveBrowser
+
+
+func replay_screen() -> UiReplayScreen:
+	return _replay if is_instance_valid(_replay) else null
 
 
 func screen_stack_size() -> int:

@@ -115,6 +115,6 @@
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/table_preview.tscn -- --fixture g3_turn_mine
 # 牌桌截图（夹具名见 ui/dev/fixtures/；截图必须带窗口）
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
-# 正式屏幕截图：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22
+# 正式屏幕截图：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22 / replay
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 400 -- --screen main_menu --out /tmp/splendor_ui/main_menu.png --width 1280 --height 800 --wait 10
 ```

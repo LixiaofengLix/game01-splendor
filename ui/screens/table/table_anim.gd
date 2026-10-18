@@ -58,6 +58,11 @@ func last_visual_count() -> int:
 	return _last_visuals
 
 
+## 调用方直接落视图（回放跳转 / 换视角）时同步动画的起点，保证补牌翻面对比的是正确的前一帧。
+func sync_view(view: Dictionary) -> void:
+	_last_view = view.duplicate(true)
+
+
 # ---------------------------------------------------------------- 队列
 
 ## 一批 = 同一视图对应的全部事件。调用方保证事件先于视图、视图已经过滤过隐私。

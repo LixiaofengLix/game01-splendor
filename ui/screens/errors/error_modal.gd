@@ -5,9 +5,12 @@ extends Control
 
 signal closed
 signal exit_requested
+## 22 的【读到第 N 步为止】（U6）：参数是从头读到的步数。
+signal resume_until_requested(step: int)
 
 var _frame: UiModalFrame
 var _errors_text: String = ""
+var _resume_until_button: UiButton = null
 
 
 func _ready() -> void:
@@ -104,7 +107,7 @@ func setup_data_errors(errors: Array[String]) -> void:
 
 
 ## 22：存档读不了。reason 取 UiSaveEntry.REASON_*；detail 是原始错误，放在“详细信息”里。
-## fail_step 只在回放校验失败时使用（IR-03 落地前不显示“读到第 N 步为止”）。
+## fail_step 是重放失败的那一步；大于 1 时提供【读到第 N-1 步为止】。
 func setup_save_error(reason: String, detail: String = "", fail_step: int = 0) -> void:
 	_frame.title = "这个存档读不了"
 	var reason_text: String = "无法读取"
@@ -159,6 +162,16 @@ func setup_save_error(reason: String, detail: String = "", fail_step: int = 0) -
 			toggle.text = "收起详细信息" if detail_label.visible else "详细信息")
 		_frame.add_action(toggle)
 
+	if reason == UiSaveEntry.REASON_VERIFY_FAILED and fail_step > 1:
+		_resume_until_button = UiButton.new()
+		_resume_until_button.name = "SaveErrorResumeUntil"
+		_resume_until_button.variant = &"ghost"
+		_resume_until_button.text = "读到第 %d 步为止" % (fail_step - 1)
+		_resume_until_button.focus_mode = Control.FOCUS_NONE
+		_resume_until_button.pressed.connect(
+				func() -> void: resume_until_requested.emit(fail_step - 1))
+		_frame.add_action(_resume_until_button)
+
 	var back := UiButton.new()
 	back.name = "SaveErrorBack"
 	back.variant = &"ghost"
@@ -166,6 +179,10 @@ func setup_save_error(reason: String, detail: String = "", fail_step: int = 0) -
 	back.focus_mode = Control.FOCUS_NONE
 	back.pressed.connect(func() -> void: closed.emit())
 	_frame.add_action(back)
+
+
+func resume_until_button() -> UiButton:
+	return _resume_until_button
 
 
 func frame() -> UiModalFrame:

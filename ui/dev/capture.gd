@@ -4,7 +4,7 @@
 ##   godot --path . ui/dev/capture.tscn -- --out /tmp/splendor_ui/g_1280.png --width 1280 --height 800 --scale fractional
 ## 整页模式用放大的 SubViewport 一次拍下全部零件：
 ##   godot --path . ui/dev/capture.tscn -- --full --out /tmp/splendor_ui/gallery_full.png --width 1280
-## 屏幕模式（U4 起）：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22
+## 屏幕模式（U4 起）：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22 / replay
 ##   godot --path . ui/dev/capture.tscn --quit-after 300 -- --screen main_menu --out /tmp/splendor_ui/main_menu.png --width 1280 --height 800 --wait 10
 extends Node
 
@@ -124,6 +124,8 @@ func _capture_screen(screen_name: String, width: int, height: int,
 			host.add_child(cover)
 		"pause":
 			await _capture_pause_scene(host)
+		"replay":
+			await _capture_replay_scene(host)
 		"error21":
 			var data_modal := UiErrorModal.new()
 			host.add_child(data_modal)
@@ -150,6 +152,29 @@ func _capture_screen(screen_name: String, width: int, height: int,
 	print("capture：屏幕 %s，窗口 %s，保存到 %s" % [screen_name, str(window.size), out_path])
 	cleanup.call()
 	_finish(error, out_path)
+
+
+func _capture_replay_scene(host: Control) -> void:
+	var data := _capture_replay_data(28, 4)
+	var names: Array = ["小明", "薄荷", "紫晶", "橘子"]
+	var types: Array = ["human", "human", "human", "human"]
+	var entry := UiSaveEntry.new()
+	entry.kind = "replay"
+	entry.data = data
+	entry.player_count = int(data.get("player_count", 2))
+	entry.seed = int(data.get("seed", 0))
+	var raw_actions: Variant = data.get("actions", [])
+	entry.action_count = (raw_actions as Array).size() if raw_actions is Array else 0
+	entry.display_name = "自动存档"
+	entry.ui_meta = {"names": names.slice(0, entry.player_count), "seat_types": types.slice(0, entry.player_count)}
+	var replay: UiReplayScreen = load("res://ui/screens/replay/replay_screen.tscn").instantiate()
+	host.add_child(replay)
+	await get_tree().process_frame
+	var errors: Array[String] = []
+	if not replay.configure(entry, errors):
+		printerr("截图失败：回放打不开（%s）" % "\n".join(errors))
+		return
+	replay.seek(mini(24, replay.step_count()))
 
 
 func _capture_pause_scene(host: Control) -> void:
@@ -192,19 +217,25 @@ func _capture_store() -> UiSaveStore:
 	return store
 
 
-func _capture_replay_data() -> Dictionary:
+func _capture_replay_data(min_steps: int = 4, count: int = 2) -> Dictionary:
 	var host := Node.new()
 	add_child(host)
 	var session := UiTableSession.new()
 	host.add_child(session)
-	session.start_local({"count": 2, "seed": 20261018, "seats": [
-		{"name": "小明", "type": "human"}, {"name": "薄荷", "type": "human"},
-	]})
-	for _i in 4:
+	var seats: Array[Dictionary] = []
+	var seat_names: Array[String] = ["小明", "薄荷", "紫晶", "橘子"]
+	for seat: int in count:
+		seats.append({"name": seat_names[seat], "type": "human"})
+	session.start_local({"count": count, "seed": 20261018, "seats": seats})
+	var index: int = 0
+	while index < mini(min_steps, 600) \
+			and String(session.view().get("phase", "")) != "finished":
 		var actions: Array[Action] = session.legal_actions()
 		if actions.is_empty():
 			break
-		session.submit(actions[0])
+		# 固定步进取合法动作里靠后的几种，让截图局面有购买和预留。
+		session.submit(actions[(index * 7 + 3) % actions.size()])
+		index += 1
 	var data: Dictionary = session.build_save_data()
 	session.close()
 	host.queue_free()

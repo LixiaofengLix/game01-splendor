@@ -5,6 +5,7 @@ extends Control
 
 signal back_requested
 signal continue_requested(entry: UiSaveEntry)
+signal replay_requested(entry: UiSaveEntry)
 
 var _store: UiSaveStore = null
 var _back_label: String = "‹ 主菜单"
@@ -435,7 +436,10 @@ func _rebuild_buttons(entry: UiSaveEntry) -> void:
 	replay.variant = &"ghost"
 	replay.text = "从头看回放"
 	replay.focus_mode = Control.FOCUS_NONE
-	replay.visible = false
+	replay.visible = entry.kind == "replay"
+	replay.pressed.connect(func() -> void:
+		if _selected != null:
+			replay_requested.emit(_selected))
 	row.add_child(replay)
 
 	var continue_button := UiButton.new()
@@ -521,6 +525,11 @@ func delete_button() -> UiButton:
 
 func continue_button() -> UiButton:
 	var button := find_child("ContinueButton", true, false) as UiButton
+	return button
+
+
+func replay_button() -> UiButton:
+	var button := find_child("ReplayButton", true, false) as UiButton
 	return button
 
 

@@ -7,6 +7,8 @@ extends Node
 signal leave_requested
 signal load_requested
 signal rematch_requested(setup: Dictionary)
+## 结算弹窗的【看回放】（U6）。
+signal replay_requested
 
 const FLASH_SECONDS := 1.5
 const FAILURE_SECONDS := 3.0
@@ -817,6 +819,7 @@ func _show_result_modal() -> void:
 	var callbacks: Dictionary = {
 		"close": func() -> void: dismiss_result(),
 		"main_menu": func() -> void: leave_requested.emit(),
+		"replay": func() -> void: replay_requested.emit(),
 		"save_replay": func() -> void: save_result_replay(),
 		"rematch": func() -> void: rematch_requested.emit(_session.rematch_setup()),
 	}
@@ -1127,6 +1130,9 @@ func show_resume_notice(text: String) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _session == null or _view.is_empty():
+		return
+	# 牌桌被别的屏幕盖住（读档列表、回放）时不再响应快捷键。
+	if _screen == null or not _screen.is_visible_in_tree():
 		return
 	if _anim != null and _anim.is_playing() and _is_action_key(event) \
 			and _pause == null and _rules_overlay == null and _cover == null:

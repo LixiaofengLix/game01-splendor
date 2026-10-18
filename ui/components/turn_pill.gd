@@ -84,6 +84,10 @@ func configure_text(text: String, waiting_style: bool = false) -> void:
 	_update_size()
 
 
+func text() -> String:
+	return _label.text
+
+
 func _update_size() -> void:
 	content.reset_size()
 	reset_size()

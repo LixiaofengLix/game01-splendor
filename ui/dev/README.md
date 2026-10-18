@@ -13,6 +13,7 @@
   $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
   # 正式屏幕（U4）：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22
   $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --screen main_menu --out /tmp/splendor_ui/main_menu.png --width 1280 --height 800 --wait 10
+  $GODOT --path . ui/dev/capture.tscn --quit-after 500 -- --screen replay --out /tmp/splendor_ui/replay.png --width 1280 --height 800 --wait 20
   ```
   `--scale` 可取 `fractional` / `integer`；`--scroll` 指定窗口截图的滚动位置。
   屏幕模式用临时 `user://capture_saves/` 生成读档数据，截图后清理。

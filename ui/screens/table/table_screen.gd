@@ -15,6 +15,9 @@ signal purchase_pressed
 signal reserve_pressed
 signal menu_requested
 signal rules_requested
+## 回放模式的顶栏按钮（U6）。
+signal replay_continue_requested
+signal replay_exit_requested
 
 const TABLE_MARGIN := 14
 const HUD_HEIGHT := 44
@@ -99,6 +102,9 @@ func _build_hud() -> void:
 	_hud.offset_bottom = HUD_HEIGHT
 	_hud.menu_requested.connect(func() -> void: menu_requested.emit())
 	_hud.rules_requested.connect(func() -> void: rules_requested.emit())
+	_hud.replay_continue_requested.connect(
+			func() -> void: replay_continue_requested.emit())
+	_hud.replay_exit_requested.connect(func() -> void: replay_exit_requested.emit())
 	add_child(_hud)
 
 
@@ -524,6 +530,7 @@ func _render_hud() -> void:
 		"round": UiViewMath.round_number(_view),
 		"endgame_remaining": UiViewMath.endgame_remaining(_view).size(),
 		"pill": pill,
+		"mode": String(_session.get("hud_mode", "default")),
 	})
 
 
@@ -592,6 +599,9 @@ func _render_market() -> void:
 			var threats: Array[int] = []
 			if show_for_me:
 				threats = _threat_seats(card_id)
+			elif _me_seat < 0:
+				# 观战 / 回放：所有买得起的人都标出来（INTERACTION.md 第 3 节）。
+				threats = UiViewMath.affordable_by(_view, card_id, _catalog)
 			card.threat_seats = threats
 
 
@@ -636,20 +646,22 @@ func _render_bank() -> void:
 func _render_bottom() -> void:
 	var spectator: bool = _me_seat < 0
 	_my_panel.visible = not spectator
-	_spectator.visible = spectator
+	# 回放屏在同一个位置放播放条；这时不显示观战占位框。
+	_spectator.visible = spectator and not bool(_session.get("bottom_custom", false))
 	if spectator:
-		var mode: String = String(_session.get("mode", "spectate"))
-		var current: int = int(_view.get("current_seat", 0))
-		var replay: bool = mode == "replay"
-		_spectator_hint.visible = replay
-		if replay:
-			_spectator_title.text = "回放"
-			_spectator_detail.text = String(_session.get("replay_label", "逐步回放"))
-		else:
-			_spectator_title.text = "观战"
-			_spectator_detail.text = "全部 %d 位玩家在右栏 · 当前轮到 %s" % [
-				int(_view.get("player_count", 2)), _name(current),
-			]
+		if _spectator.visible:
+			var mode: String = String(_session.get("mode", "spectate"))
+			var current: int = int(_view.get("current_seat", 0))
+			var replay: bool = mode == "replay"
+			_spectator_hint.visible = replay
+			if replay:
+				_spectator_title.text = "回放"
+				_spectator_detail.text = String(_session.get("replay_label", "逐步回放"))
+			else:
+				_spectator_title.text = "观战"
+				_spectator_detail.text = "全部 %d 位玩家在右栏 · 当前轮到 %s" % [
+					int(_view.get("player_count", 2)), _name(current),
+				]
 		return
 
 	var player: Dictionary = UiViewMath.player(_view, _me_seat)
@@ -974,8 +986,17 @@ func opponent_panel(seat: int) -> UiOpponentPanel:
 	return _opponent_panels.get(seat)
 
 
+func hud() -> UiHud:
+	return _hud
+
+
 func my_panel() -> UiMyPanel:
 	return _my_panel
+
+
+## 左栏底部区域（高 246）：回放屏把播放条挂在这里，和“我的面板”同位置。
+func bottom_holder() -> Control:
+	return _bottom_holder
 
 
 func log_panel() -> UiLogPanel:

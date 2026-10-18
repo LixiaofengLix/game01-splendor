@@ -5,6 +5,9 @@ extends Control
 
 signal rules_requested
 signal menu_requested
+## 回放模式（U6）：右侧换成【从这里接着玩】【退出回放】。
+signal replay_continue_requested
+signal replay_exit_requested
 
 const HEIGHT := 44
 const SIDE_MARGIN := 14
@@ -15,6 +18,10 @@ var _endgame_tag: UiTag
 var _center: CenterContainer
 var _pill: UiTurnPill
 var _right: HBoxContainer
+var _rules_button: UiButton
+var _menu_button: UiButton
+var _replay_continue: UiButton
+var _replay_exit: UiButton
 
 
 func _ready() -> void:
@@ -66,23 +73,43 @@ func _ready() -> void:
 	_right.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(_right)
 
-	var rules_button := UiButton.new()
-	rules_button.name = "RulesButton"
-	rules_button.variant = &"hud"
-	rules_button.size_key = &"sm"
-	rules_button.text = "规则"
-	rules_button.focus_mode = Control.FOCUS_NONE
-	rules_button.pressed.connect(func() -> void: rules_requested.emit())
-	_right.add_child(rules_button)
+	_rules_button = UiButton.new()
+	_rules_button.name = "RulesButton"
+	_rules_button.variant = &"hud"
+	_rules_button.size_key = &"sm"
+	_rules_button.text = "规则"
+	_rules_button.focus_mode = Control.FOCUS_NONE
+	_rules_button.pressed.connect(func() -> void: rules_requested.emit())
+	_right.add_child(_rules_button)
 
-	var menu_button := UiButton.new()
-	menu_button.name = "MenuButton"
-	menu_button.variant = &"hud"
-	menu_button.size_key = &"sm"
-	menu_button.text = "菜单 [Esc]"
-	menu_button.focus_mode = Control.FOCUS_NONE
-	menu_button.pressed.connect(func() -> void: menu_requested.emit())
-	_right.add_child(menu_button)
+	_menu_button = UiButton.new()
+	_menu_button.name = "MenuButton"
+	_menu_button.variant = &"hud"
+	_menu_button.size_key = &"sm"
+	_menu_button.text = "菜单 [Esc]"
+	_menu_button.focus_mode = Control.FOCUS_NONE
+	_menu_button.pressed.connect(func() -> void: menu_requested.emit())
+	_right.add_child(_menu_button)
+
+	_replay_continue = UiButton.new()
+	_replay_continue.name = "ReplayContinueButton"
+	_replay_continue.variant = &"accent"
+	_replay_continue.size_key = &"sm"
+	_replay_continue.text = "从这里接着玩"
+	_replay_continue.focus_mode = Control.FOCUS_NONE
+	_replay_continue.visible = false
+	_replay_continue.pressed.connect(func() -> void: replay_continue_requested.emit())
+	_right.add_child(_replay_continue)
+
+	_replay_exit = UiButton.new()
+	_replay_exit.name = "ReplayExitButton"
+	_replay_exit.variant = &"hud"
+	_replay_exit.size_key = &"sm"
+	_replay_exit.text = "退出回放"
+	_replay_exit.focus_mode = Control.FOCUS_NONE
+	_replay_exit.visible = false
+	_replay_exit.pressed.connect(func() -> void: replay_exit_requested.emit())
+	_right.add_child(_replay_exit)
 
 	resized.connect(_layout)
 	_layout()
@@ -97,6 +124,12 @@ func render(info: Dictionary) -> void:
 	var remaining: int = int(info.get("endgame_remaining", 0))
 	_endgame_tag.visible = remaining > 0
 	_endgame_tag.text = "终局轮 · 还剩 %d 人" % remaining
+
+	var replay_mode: bool = String(info.get("mode", "default")) == "replay"
+	_rules_button.visible = not replay_mode
+	_menu_button.visible = not replay_mode
+	_replay_continue.visible = replay_mode
+	_replay_exit.visible = replay_mode
 
 	var pill: Dictionary = info.get("pill", {})
 	match String(pill.get("kind", "text")):
@@ -116,6 +149,10 @@ func render(info: Dictionary) -> void:
 ## 终局轮标签（动效里跳动用）；不在终局时也不可见。
 func endgame_tag_control() -> Control:
 	return _endgame_tag
+
+
+func pill_text() -> String:
+	return _pill.text() if _pill != null else ""
 
 
 func _layout() -> void:

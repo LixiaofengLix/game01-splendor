@@ -308,6 +308,22 @@ static func populate_result(modal: UiModalFrame, result: Dictionary, view: Dicti
 			callback.call())
 	modal.add_action(main_menu)
 
+	var replay := UiButton.new()
+	replay.name = "ResultReplay"
+	replay.variant = &"ghost"
+	replay.focus_mode = Control.FOCUS_NONE
+	if can_save:
+		replay.text = "看回放"
+	else:
+		replay.text = "看回放（不可用）"
+		replay.disabled = true
+		replay.tooltip_text = "这局来自预设局面，没有种子和动作序列"
+	replay.pressed.connect(func() -> void:
+		var callback: Callable = callbacks.get("replay", Callable())
+		if callback.is_valid():
+			callback.call())
+	modal.add_action(replay)
+
 	var save_replay := UiButton.new()
 	save_replay.name = "ResultSaveReplay"
 	save_replay.variant = &"ghost"

@@ -24,11 +24,15 @@
   - 显示：`names`、`seat_types`、`log`、`strip`、`pill_text`、`mode`（`spectate` / `replay`）、
     `replay_label`、`flash_cards`（卡牌 id）、`flash_slots`（`Vector2i(level, slot)`，补牌卡位）、
     `log_limit`、`catalog`、`rules`。
+  - 回放（U6）：`hud_mode = "replay"` 把顶栏右侧换成【从这里接着玩】【退出回放】；
+    `bottom_custom = true` 隐藏观战占位框，回放屏通过 `bottom_holder()` 把播放条挂到同一块 246 高的区域。
   - 交互：`interactive`、`selection`（颜色 → 枚数）、`clickable_colors`、
     `selected_kind`（`market` / `deck` / `reserved`）、`selected_id`、`selected_level`、
     `popover`（`UiCardPopover` 的数据）、`take_confirm_enabled`。
 - 牌桌发出的信号：`gem_chip_clicked`、`confirm_pressed`、`cancel_pressed`、`card_clicked`、
-  `blank_clicked`、`purchase_pressed`、`reserve_pressed`、`menu_requested`、`rules_requested`。
+  `blank_clicked`、`purchase_pressed`、`reserve_pressed`、`menu_requested`、`rules_requested`、
+  `replay_continue_requested`、`replay_exit_requested`。
+- 回放模式没有“我”：右栏列出全部玩家，市场卡上标出所有买得起的人（`affordable_by`）。
 - 浮层：选中卡的右侧 14px、顶部 −12px，超出右边界翻到左侧（`UiCardPopover`）。
 - 弹窗层：牌桌自带的 `ModalLayer`（遮罩 + 居中框），回合内用 `show_modal()` / `hide_modal()`。
   弃宝石 / 选贵族 / 结算的构建在 `table_modals.gd`（`UiTableModals`）。
@@ -50,6 +54,8 @@
   - 动画速度来自 `UiSettings.anim_speed`（slow ×1.5 / normal ×1 / fast ×0.5）；
     `UiSettings.animations_enabled = false` 时事件和视图同步落地，供测试与 U7 设置页使用。
   - 音效在事件播放时调用 `UiSfx.play_events()`；素材为空，只有调用点与开关。
+  - `sync_view(view)`：调用方直接落视图（回放跳转 / 换视角）时同步动画起点，
+    保证补牌翻面对比的是正确的前一帧。
 - 同屏换人遮挡：`UiTableFlow` 按 `INTERACTION.md` 第 5 节判断，牌桌不渲染私密信息直到玩家点按钮。
   遮挡前会先把积压动效直接落完（盖屏期间不播）。
 - 存读档：`UiTableFlow` 在视图落地后写自动存档（`turn_ended` 触发），暂停菜单写快速存档，

@@ -26,6 +26,17 @@ UI 与逻辑层之间的唯一接触面。屏幕和零件只认这一层；`ui/`
   U5 只有 `anim_speed`（`slow` / `normal` / `fast`，倍率 1.5 / 1 / 0.5）、`animations_enabled`、
   `sfx_enabled`、`confirm_before_buy`；`reset_defaults()` 供测试用。
   持久化（`user://ui_settings.json`）按计划在 U7 做。
+- `replay_source.gd` — `UiReplaySource`（Node）：14 回放屏的数据源。
+  - `open(entry, errors)` / `open_data(data, ui_meta, player_count, errors)`；打开时载入最后一步并
+    比对存档指纹，失败原因写进 errors。
+  - 查询：`step_count()` / `view(step, viewer_seat)` / `public_view(step)` / `actor_at(step)` /
+    `round_at(step)` / `action_at(step)` / `step_text(step)` / `events_at(step)` /
+    `log_entries(step)` / `fingerprint()`。
+  - `events_at(step)` 在 IR-03 前合成动效事件（拿 / 预留 / 购买 / 弃 / 选贵族 / 终局），
+    购买支付和预留拿金从前后视图的筹码差算；回放屏把它交给 `UiTableAnim` 播飞行动效。
+  - IR-03 落地前的临时实现：用截断存档 + 单独的 `GameController.load_replay` 按需载入每一步，
+    **只有当前行动者视角**；指定其他座位时返回“全部公开”视图（所有盲抽 id 置空），不会泄露。
+    视图和步骤说明按步缓存；时间轴颜色由回放屏在后台逐帧补齐。
 - `save_store.gd` — `UiSaveStore`（Node）：管理 `user://saves/`。
   - `list()` / `autosave_entry()` / `autosave_summary()` / `validate(entry)` / `delete_entry(entry)`。
   - `save_autosave(data, meta)`（每回合结束）/ `save_quick(data, meta)`（暂停菜单）/ `transfer_finished(data, meta)`

@@ -56,6 +56,11 @@ func _ready() -> void:
 	await _check_u5_skip_and_speed()
 	await _check_u5_bot_spectator()
 	await _check_u5_endgame()
+	await _check_u6_source()
+	await _check_u6_replay_screen()
+	await _check_u6_error_modal()
+	await _check_u6_result_replay()
+	await _check_u6_app_replay()
 	UiSettings.reset_defaults()
 	UiSettings.set_animations_enabled(false)
 	UiSettings.set_sfx_enabled(false)
@@ -2463,3 +2468,572 @@ func _check_app() -> void:
 		_check(InputMap.has_action(action), "快捷键动作 %s" % action)
 	_check(DataRegistry.is_valid(), "数据层校验通过")
 	app.queue_free()
+
+
+# ---------------------------------------------------------------- U6：回放
+
+const U6_REPLAY_PATH: String = "res://ui/screens/replay/replay_screen.tscn"
+
+
+## 按固定策略跑一局（优先盲抽预留 / 购买，其余走合法列表），记录每一步之后的公开视图。
+func _u6_play(seed_value: int = 20261101, count: int = 2,
+		max_steps: int = 160) -> Dictionary:
+	var host := Node.new()
+	get_tree().root.add_child(host)
+	var session := UiTableSession.new()
+	host.add_child(session)
+	var seats: Array[Dictionary] = []
+	for seat: int in count:
+		seats.append({"name": ["小明", "薄荷", "紫晶", "橘子"][seat], "type": "human"})
+	var ok: bool = session.start_local({"count": count, "seed": seed_value, "seats": seats})
+	var views: Array[Dictionary] = []
+	views.append(UiTableSession.sanitize_view(session.view(), -1, {}))
+	var steps: int = 0
+	while ok and steps < max_steps and String(session.view().get("phase", "")) != "finished":
+		var legal: Array[Action] = session.legal_actions()
+		if legal.is_empty():
+			break
+		var action: Action = _u6_pick(legal, steps)
+		if not session.submit(action):
+			break
+		steps += 1
+		views.append(UiTableSession.sanitize_view(session.view(), -1, {}))
+	var data: Dictionary = session.build_save_data()
+	var fingerprint: String = session.fingerprint()
+	var names: Array[String] = session.names()
+	var types: Array[String] = session.original_seat_types()
+	session.close()
+	host.queue_free()
+	return {
+		"data": data, "views": views, "fingerprint": fingerprint,
+		"names": names, "types": types,
+	}
+
+
+func _u6_pick(legal: Array[Action], step: int) -> Action:
+	if step % 4 == 0:
+		for action: Action in legal:
+			if action.type == Enums.ActionType.RESERVE and action.card_id.is_empty():
+				return action
+	if step % 4 == 1:
+		for action: Action in legal:
+			if action.type == Enums.ActionType.PURCHASE:
+				return action
+	for action: Action in legal:
+		if action.type == Enums.ActionType.RESERVE:
+			return action
+	for action: Action in legal:
+		if action.type == Enums.ActionType.PURCHASE:
+			return action
+	return legal[step % legal.size()]
+
+
+func _u6_make_entry(game: Dictionary) -> UiSaveEntry:
+	var data: Dictionary = game["data"]
+	var entry := UiSaveEntry.new()
+	entry.kind = "replay"
+	entry.data = data
+	entry.player_count = int(data.get("player_count", 0))
+	entry.seed = int(data.get("seed", 0))
+	var actions: Variant = data.get("actions", [])
+	entry.action_count = (actions as Array).size() if actions is Array else 0
+	entry.display_name = "测试回放"
+	entry.ui_meta = {
+		"names": game["names"], "seat_types": game["types"],
+	}
+	return entry
+
+
+func _u6_view_has_blind(view: Dictionary, seat: int) -> bool:
+	var players: Array = view.get("players", [])
+	if seat < 0 or seat >= players.size():
+		return false
+	var player: Dictionary = players[seat] if players[seat] is Dictionary else {}
+	for item: Variant in player.get("reserved", []):
+		if item is Dictionary and bool((item as Dictionary).get("blind", false)) \
+				and (item as Dictionary).get("id") != null:
+			return true
+	return false
+
+
+func _u6_any_blind(view: Dictionary) -> bool:
+	var players: Array = view.get("players", [])
+	for seat: int in players.size():
+		if _u6_view_has_blind(view, seat):
+			return true
+	return false
+
+
+func _u6_market_ids(view: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	var boards: Dictionary = view.get("boards", {})
+	for level: int in [1, 2, 3]:
+		var ids: Array[String] = []
+		for item: Variant in boards.get(str(level), []):
+			if item != null:
+				ids.append(String(item))
+		result[level] = ids
+	return result
+
+
+func _u6_bank_counts(view: Dictionary) -> Dictionary[int, int]:
+	var result: Dictionary[int, int] = {}
+	var bank: Dictionary = view.get("bank", {})
+	for color: Enums.GemColor in Enums.ALL_COLORS:
+		result[color] = int(bank.get(Enums.color_to_string(color), 0))
+	return result
+
+
+func _check_u6_source() -> void:
+	var game: Dictionary = _u6_play()
+	var views: Array = game["views"]
+	_check(not game["data"].is_empty(), "U6 能跑出一局可回放数据")
+	_check(views.size() >= 8, "U6 测试局有足够的步数")
+	var entry: UiSaveEntry = _u6_make_entry(game)
+	var host := Node.new()
+	get_tree().root.add_child(host)
+	var source := UiReplaySource.new()
+	host.add_child(source)
+	var errors: Array[String] = []
+	_check(source.open(entry, errors), "U6 回放数据源能打开")
+	_check(source.step_count() == views.size() - 1, "U6 步数等于动作数")
+	_check(source.fingerprint() == String(game["fingerprint"]), "U6 最终指纹与原局一致")
+
+	var all_match: bool = true
+	var privacy_ok: bool = true
+	for step: int in views.size():
+		var public_view: Dictionary = source.public_view(step)
+		if public_view != views[step]:
+			all_match = false
+		if _u6_any_blind(public_view):
+			privacy_ok = false
+	_check(all_match, "U6 每一步的公开视图和对局时记录的一致")
+	_check(privacy_ok, "U6 全部公开视图不泄露任何盲抽")
+
+	var revealed_step: int = -1
+	var revealed_seat: int = -1
+	for step: int in range(1, source.step_count() + 1):
+		for seat: int in source.player_count():
+			if source.blind_visible(step, seat):
+				revealed_step = step
+				revealed_seat = seat
+				break
+		if revealed_step >= 0:
+			break
+	_check(revealed_step >= 0, "U6 测试局里有可见的盲抽预留（覆盖隐私分支）")
+	if revealed_step >= 0:
+		_check(_u6_view_has_blind(source.view(revealed_step, revealed_seat), revealed_seat),
+				"U6 行动者视角能看到自己的盲抽")
+		var others_ok: bool = true
+		for seat: int in source.player_count():
+			if seat == revealed_seat:
+				continue
+			if _u6_view_has_blind(source.view(revealed_step, seat), seat):
+				others_ok = false
+		_check(others_ok, "U6 其他视角看不到该玩家的盲抽")
+		var actor_view: Dictionary = source.view(revealed_step, revealed_seat)
+		var others_hidden: bool = true
+		for seat: int in source.player_count():
+			if seat != revealed_seat and _u6_view_has_blind(actor_view, seat):
+				others_hidden = false
+		_check(others_hidden, "U6 行动者视角仍然隐藏其他人的盲抽")
+
+	var texts_ok: bool = true
+	for step: int in range(1, source.step_count() + 1):
+		if source.step_text(step).is_empty():
+			texts_ok = false
+	_check(texts_ok, "U6 每一步都有中文说明")
+	_check(source.actor_at(1) == int(views[0].get("current_seat", -1)),
+			"U6 第一步的行动者与开局视图一致")
+	_check(source.round_at(1) >= 1, "U6 步骤说明带轮次")
+	var logs: Array[Dictionary] = source.log_entries(source.step_count())
+	_check(not logs.is_empty() and String(logs[0].get("time", "")) == "#%d" % source.step_count(),
+			"U6 日志按步编号且最新一条是当前步")
+
+	# 动效事件：由动作 + 前后视图合成，类型与动作一致；购买支付与筹码差一致。
+	var events_ok: bool = true
+	var paid_ok: bool = true
+	for step: int in range(1, source.step_count() + 1):
+		var events: Array[Dictionary] = source.events_at(step)
+		if events.is_empty():
+			events_ok = false
+			continue
+		var action: Action = source.action_at(step)
+		var first: Dictionary = events[0]
+		var event_type: String = String(first.get("type", ""))
+		match action.type:
+			Enums.ActionType.TAKE_THREE:
+				events_ok = events_ok and event_type == "gems_taken"
+				var gems: Dictionary = first.get("gems", {})
+				var total: int = 0
+				for value: Variant in gems.values():
+					total += int(value)
+				events_ok = events_ok and total == action.colors.size()
+			Enums.ActionType.TAKE_TWO:
+				events_ok = events_ok and event_type == "gems_taken"
+				var gems2: Dictionary = first.get("gems", {})
+				events_ok = events_ok and int(gems2.values()[0]) == 2
+			Enums.ActionType.RESERVE:
+				events_ok = events_ok and event_type == "card_reserved"
+				events_ok = events_ok \
+						and bool(first.get("blind", false)) == action.card_id.is_empty()
+			Enums.ActionType.PURCHASE:
+				events_ok = events_ok and event_type == "card_purchased"
+				events_ok = events_ok and String(first.get("card_id", "")) == action.card_id
+				var before: Dictionary = source.public_view(step - 1)
+				var after: Dictionary = source.public_view(step)
+				var actor: int = source.actor_at(step)
+				var paid: Dictionary = first.get("paid", {})
+				for color: Enums.GemColor in Enums.ALL_COLORS:
+					var expected: int = UiViewMath.token_count(before, actor, color) \
+							- UiViewMath.token_count(after, actor, color)
+					if int(paid.get(Enums.color_to_string(color), 0)) != expected:
+						paid_ok = false
+			Enums.ActionType.DISCARD:
+				events_ok = events_ok and event_type == "gems_discarded"
+			Enums.ActionType.CHOOSE_NOBLE:
+				events_ok = events_ok and event_type == "noble_visited"
+	_check(events_ok, "U6 每一步都能合成正确的动效事件")
+	_check(paid_ok, "U6 购买事件的支付与前后视图一致")
+	_check(source.events_at(0).is_empty(), "U6 开局没有动效事件")
+	source.close()
+	host.queue_free()
+
+
+func _check_u6_replay_screen() -> void:
+	var game: Dictionary = _u6_play(20261102, 2, 120)
+	var entry: UiSaveEntry = _u6_make_entry(game)
+	var host := Node.new()
+	get_tree().root.add_child(host)
+	var screen: UiReplayScreen = load(U6_REPLAY_PATH).instantiate()
+	host.add_child(screen)
+	await get_tree().process_frame
+	var errors: Array[String] = []
+	_check(screen.configure(entry, errors), "U6 回放屏能打开")
+	_check(screen.step() == 0, "U6 打开时停在第 0 步")
+	_check(screen.table() != null and screen.bar() != null, "U6 回放屏复用牌桌并带播放条")
+	_check(screen.table().hud().pill_text().contains("回放"), "U6 顶栏胶囊写回放")
+	_check(screen.bar().step_label_text().contains("第 0 /"), "U6 播放条显示步数")
+	_check(screen.bar().legend_text().contains("小明") and screen.bar().legend_text().contains("薄荷"),
+			"U6 时间轴图例列出每个玩家")
+
+	var total: int = screen.step_count()
+	var mid: int = mini(6, total)
+	screen.seek(mid)
+	_check(screen.step() == mid, "U6 能跳转到指定步")
+	var expected: Dictionary = screen.source().public_view(mid)
+	_check(screen.table().market_card_ids() == _u6_market_ids(expected), "U6 跳转后市场卡牌与视图一致")
+	_check(screen.table().bank_column().get_counts() == _u6_bank_counts(expected),
+			"U6 跳转后银行数字与视图一致")
+	_check(screen.table().hud().pill_text().contains("第 %d / %d 步" % [mid, total]),
+			"U6 胶囊显示当前步 / 总步数")
+	_check(screen.bar().step_label_text().contains("第 %d / %d 步" % [mid, total]),
+			"U6 播放条显示当前步 / 总步数")
+	var timeline: UiReplayTimeline = screen.bar().timeline()
+	timeline.size = Vector2(1000, 28)
+	_check(timeline.step_at_x(0.0) == 0 and timeline.step_at_x(999.0) == total,
+			"U6 时间轴点击能映射到步数")
+
+	# 视角：找一个能看到盲抽的步与座位。
+	var revealed_step: int = -1
+	var revealed_seat: int = -1
+	for step: int in range(1, total + 1):
+		for seat: int in screen.source().player_count():
+			if screen.source().blind_visible(step, seat):
+				revealed_step = step
+				revealed_seat = seat
+				break
+		if revealed_step >= 0:
+			break
+	if revealed_step >= 0:
+		screen.seek(revealed_step)
+		screen.set_viewer_seat(revealed_seat)
+		_check(screen.viewer_seat() == revealed_seat, "U6 能切换视角")
+		var panel: UiOpponentPanel = screen.table().opponent_panel(revealed_seat)
+		_check(panel != null, "U6 视角对应的玩家面板存在")
+		if panel != null:
+			var reserved: Array = panel.get_render_data().get("reserved", [])
+			var found_blind: bool = false
+			for item: Variant in reserved:
+				if item is Dictionary and bool((item as Dictionary).get("blind", false)):
+					found_blind = (item as Dictionary).get("id") != null
+			_check(found_blind, "U6 选中该座位时能显示他自己的盲抽")
+		screen.set_viewer_seat(-1)
+		if panel != null:
+			var public_reserved: Array = panel.get_render_data().get("reserved", [])
+			var leaked: bool = false
+			for item: Variant in public_reserved:
+				if item is Dictionary and bool((item as Dictionary).get("blind", false)) \
+						and (item as Dictionary).get("id") != null:
+					leaked = true
+			_check(not leaked, "U6 全部公开时不显示盲抽")
+
+	# 播放与速度。
+	screen.seek(0)
+	screen.toggle_play()
+	_check(screen.is_playing(), "U6 能开始自动播放")
+	await get_tree().create_timer(1.0).timeout
+	_check(screen.step() >= 1, "U6 自动播放会推进步数")
+	screen.toggle_play()
+	_check(not screen.is_playing(), "U6 能暂停自动播放")
+	screen.set_speed(2.0)
+	_check(screen.speed_multiplier() == 2.0, "U6 能切换回放速度")
+	screen.set_speed(1.0)
+
+	# 键盘：← / → / 空格。
+	screen.seek(2)
+	var next_event := InputEventAction.new()
+	next_event.action = "spl_replay_next"
+	next_event.pressed = true
+	screen._unhandled_input(next_event)
+	_check(screen.step() == 3, "U6 右方向键走下一步")
+	var prev_event := InputEventAction.new()
+	prev_event.action = "spl_replay_prev"
+	prev_event.pressed = true
+	screen._unhandled_input(prev_event)
+	_check(screen.step() == 2, "U6 左方向键回上一步")
+	var play_event := InputEventAction.new()
+	play_event.action = "spl_replay_play"
+	play_event.pressed = true
+	screen._unhandled_input(play_event)
+	_check(screen.is_playing(), "U6 空格开始播放")
+	screen.toggle_play()
+
+	# 动效：下一步先播，播完再落视图；关掉动效时同步落地。
+	UiSettings.set_animations_enabled(true)
+	UiSettings.set_anim_speed(UiSettings.SPEED_FAST)
+	screen.seek(1)
+	var old_market: Dictionary = screen.table().market_card_ids()
+	var old_bank: Dictionary = screen.table().bank_column().get_counts()
+	screen.advance_animated()
+	_check(screen.step() == 2, "U6 下一步推进步数")
+	_check(screen.is_animating(), "U6 回放下一步会播动效")
+	_check(screen.table().market_card_ids() == old_market
+			and screen.table().bank_column().get_counts() == old_bank,
+			"U6 动效播放期间牌桌停在起点")
+	var deadline: int = Time.get_ticks_msec() + 5000
+	while screen.is_animating() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	_check(not screen.is_animating(), "U6 回放动效会播完")
+	var anim_target: Dictionary = screen.source().public_view(screen.step())
+	_check(screen.table().market_card_ids() == _u6_market_ids(anim_target)
+			and screen.table().bank_column().get_counts() == _u6_bank_counts(anim_target),
+			"U6 动效播完后落到目标视图")
+	UiSettings.set_animations_enabled(false)
+	screen.seek(2)
+	screen.advance_animated()
+	var sync_target: Dictionary = screen.source().public_view(3)
+	_check(not screen.is_animating(), "U6 关掉动效后不播")
+	_check(screen.table().market_card_ids() == _u6_market_ids(sync_target)
+			and screen.table().bank_column().get_counts() == _u6_bank_counts(sync_target),
+			"U6 关掉动效后同步落地")
+	UiSettings.set_anim_speed(UiSettings.SPEED_NORMAL)
+
+	# 从这里接着玩：确认框说明丢弃步数。
+	screen.seek(4)
+	var got_entry: Array[UiSaveEntry] = [null]
+	var got_step: Array[int] = [-1]
+	screen.continue_requested.connect(func(value: UiSaveEntry, step: int) -> void:
+		got_entry[0] = value
+		got_step[0] = step)
+	screen.request_continue()
+	_check(screen.confirm_visible(), "U6 从这里接着玩有确认框")
+	_check(screen.confirm_message().contains("后面的"), "U6 确认框说明丢弃后面的步数")
+	screen.confirm_continue()
+	_check(got_entry[0] == entry and got_step[0] == 4, "U6 确认后发出截断步数")
+
+	var exit_pressed: Array[bool] = [false]
+	screen.exit_requested.connect(func() -> void: exit_pressed[0] = true)
+	var exit_button := screen.table().find_child("ReplayExitButton", true, false) as Button
+	_check(exit_button != null, "U6 顶栏有退出回放按钮")
+	if exit_button != null:
+		exit_button.pressed.emit()
+		_check(exit_pressed[0], "U6 退出回放发出信号")
+
+	host.queue_free()
+	await get_tree().process_frame
+
+
+func _check_u6_error_modal() -> void:
+	var modal := UiErrorModal.new()
+	add_child(modal)
+	await get_tree().process_frame
+	modal.setup_save_error(UiSaveEntry.REASON_VERIFY_FAILED, "第 7 步失败", 7)
+	var button: UiButton = modal.resume_until_button()
+	_check(button != null, "U6 校验失败提供读到第 N 步为止")
+	if button != null:
+		_check(button.text.contains("第 6 步"), "U6 按钮写到失败前一步")
+		var requested: Array[int] = [-1]
+		modal.resume_until_requested.connect(func(step: int) -> void: requested[0] = step)
+		button.pressed.emit()
+		_check(requested[0] == 6, "U6 读到第 N 步为止发出步数")
+	modal.queue_free()
+	await get_tree().process_frame
+
+	var modal2 := UiErrorModal.new()
+	add_child(modal2)
+	await get_tree().process_frame
+	modal2.setup_save_error(UiSaveEntry.REASON_VERIFY_FAILED, "", 0)
+	_check(modal2.resume_until_button() == null, "U6 不知道失败步数时不显示按钮")
+	modal2.queue_free()
+	await get_tree().process_frame
+
+
+func _check_u6_result_replay() -> void:
+	var host := Control.new()
+	host.theme = load(THEME_PATH)
+	host.size = Vector2(1280, 800)
+	get_tree().root.add_child(host)
+	await get_tree().process_frame
+	var view := {"player_count": 2}
+	var clicks: Array[bool] = [false]
+	var modal := UiModalFrame.new()
+	host.add_child(modal)
+	UiTableModals.populate_result(modal, {
+		"winners": [0], "scores": {"0": 16, "1": 9}, "cards": {"0": 10, "1": 7},
+		"nobles": {"0": 1, "1": 0}, "reason": "win_points", "tiebreak": "",
+		"round": 20, "elapsed_sec": 120,
+	}, view, DataRegistry.rules(), ["小明", "薄荷"], ["human", "human"],
+			{"replay": func() -> void: clicks[0] = true})
+	var replay_button := modal.find_child("ResultReplay", true, false) as UiButton
+	_check(replay_button != null and not replay_button.disabled, "U6 结算弹窗有看回放")
+	if replay_button != null:
+		replay_button.pressed.emit()
+		_check(clicks[0], "U6 看回放按钮触发回调")
+
+	var snapshot_modal := UiModalFrame.new()
+	host.add_child(snapshot_modal)
+	UiTableModals.populate_result(snapshot_modal, {
+		"winners": [0], "scores": {"0": 16, "1": 9}, "cards": {"0": 10, "1": 7},
+		"nobles": {"0": 1, "1": 0}, "reason": "win_points", "tiebreak": "",
+		"round": 20, "elapsed_sec": 120,
+	}, view, DataRegistry.rules(), ["小明", "薄荷"], ["human", "human"], {}, false)
+	var disabled := snapshot_modal.find_child("ResultReplay", true, false) as UiButton
+	_check(disabled == null or disabled.disabled, "U6 快照局看回放不可用")
+	host.queue_free()
+	await get_tree().process_frame
+
+
+func _check_u6_app_replay() -> void:
+	var game: Dictionary = _u6_play(20261103, 2, 120)
+	_check((game["data"].get("actions", []) as Array).size() >= 8, "U6 流程测试局步数足够")
+	UiSaveStore.root_override = U4_SAVE_ROOT
+	var store: UiSaveStore = _u4_new_store()
+	var meta: Dictionary = UiSaveStore.make_meta("finished", game["names"], game["types"],
+			false, 300, UiSaveStore.make_summary(1, 0, [0, 0], []))
+	_check(store.save_quick(game["data"], meta), "U6 回放存档可以写入")
+	var quick_path: String = U4_SAVE_ROOT.path_join("quick.json")
+
+	var app: Control = load(APP_PATH).instantiate()
+	get_tree().root.add_child(app)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	app.show_save_browser(false)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var browser: UiSaveBrowser = app.save_browser()
+	_check(browser != null, "U6 能从主菜单打开读档")
+	if browser == null:
+		app.queue_free()
+		await get_tree().process_frame
+		UiSaveStore.root_override = ""
+		_u4_wipe(U4_SAVE_ROOT)
+		return
+	browser.select_path(quick_path)
+	var replay_button: UiButton = browser.replay_button()
+	_check(replay_button != null and replay_button.visible, "U6 回放存档显示从头看回放")
+	if replay_button != null:
+		replay_button.pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var replay: UiReplayScreen = app.replay_screen()
+	_check(replay != null and app.current_screen() == replay, "U6 从头看回放进入回放屏")
+	if replay != null:
+		var mid: int = mini(5, replay.step_count())
+		replay.seek(mid)
+		var expected: Dictionary = replay.source().public_view(mid)
+		var exit_button := replay.table().find_child("ReplayExitButton", true, false) as Button
+		if exit_button != null:
+			exit_button.pressed.emit()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_check(app.save_browser() != null, "U6 退出回放回到读档列表")
+		_check(app.replay_screen() == null, "U6 退出后释放回放屏")
+
+		# 再开一次，从当前步接着玩。
+		browser = app.save_browser()
+		if browser != null:
+			browser.select_path(quick_path)
+			var again: UiButton = browser.replay_button()
+			if again != null:
+				again.pressed.emit()
+			await get_tree().process_frame
+			await get_tree().process_frame
+		replay = app.replay_screen()
+		_check(replay != null, "U6 再次打开回放")
+		if replay != null:
+			replay.seek(mid)
+			replay.request_continue()
+			replay.confirm_continue()
+			await get_tree().process_frame
+			await get_tree().process_frame
+			_check(app.session() != null and app.current_screen() == app.table(),
+					"U6 从这里接着玩进入牌桌")
+			if app.session() != null:
+				var actual: Dictionary = UiTableSession.sanitize_view(
+						app.session().view(), -1, {})
+				_check(actual == expected, "U6 接着玩的局面和回放当前步一致")
+
+		# 结算弹窗的看回放：会话内存数据直接打开回放屏。
+		if app.session() != null:
+			app.flow().replay_requested.emit()
+			await get_tree().process_frame
+			await get_tree().process_frame
+			_check(app.replay_screen() != null, "U6 结算弹窗能打开本局回放")
+			if app.replay_screen() != null:
+				app.replay_screen().exit_requested.emit()
+				await get_tree().process_frame
+				await get_tree().process_frame
+				_check(app.current_screen() == app.table(), "U6 从结算回放回到牌桌")
+
+	# 22：坏动作的回放，读到失败前一步。
+	var bad: Dictionary = game["data"].duplicate(true)
+	var actions: Array = bad.get("actions", [])
+	actions[5] = Action.purchase("L3-R-99").to_dict()
+	bad["actions"] = actions
+	bad["fingerprint"] = ""
+	_check(store.save_quick(bad, meta), "U6 坏动作回放可以写入")
+	app.show_save_browser(true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var bad_browser: UiSaveBrowser = app.save_browser()
+	_check(bad_browser != null, "U6 能从牌桌打开读档")
+	if bad_browser != null:
+		bad_browser.select_path(quick_path)
+		var continue_button: UiButton = bad_browser.continue_button()
+		if continue_button != null:
+			continue_button.pressed.emit()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var modal := app.find_child("SaveErrorModal", true, false) as UiErrorModal
+		_check(modal != null, "U6 坏动作回放显示 22")
+		if modal != null:
+			var until: UiButton = modal.resume_until_button()
+			_check(until != null and until.text.contains("第 5 步"), "U6 22 提供读到第 5 步为止")
+			if until != null:
+				until.pressed.emit()
+				await get_tree().process_frame
+				await get_tree().process_frame
+				_check(app.session() != null and app.current_screen() == app.table(),
+						"U6 读到第 5 步为止进入牌桌")
+				if app.session() != null:
+					var actual: Dictionary = UiTableSession.sanitize_view(
+							app.session().view(), -1, {})
+					_check(actual == game["views"][5], "U6 读到的局面等于原局第 5 步")
+
+	app.queue_free()
+	await get_tree().process_frame
+	store.queue_free()
+	await get_tree().process_frame
+	UiSaveStore.root_override = ""
+	_u4_wipe(U4_SAVE_ROOT)

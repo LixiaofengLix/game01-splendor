@@ -28,7 +28,12 @@
   贵族来访、分数 / 折扣两帧跳动、终局标签、音效钩子与 `UiSettings.anim_speed` 已就位；
   标准速度按试玩反馈放慢约 30%（3 色筹码一批约 0.59s）。`ui_smoke` **1282 项**全部通过；
   `u5_anim_preview` 的 15 张带窗口截图已逐张检查。
-- 下一步：U6（回放）。U3 的试玩验收和 U4 的人工走流程仍可补做。
+- **U6（回放）：已完成并提交（2026-10-18）。**
+  `UiReplaySource`（IR-03 前的临时实现）、14 回放屏 + 播放条 / 时间轴、03 的“从头看回放”、
+  12 的“看回放”、22 的“读到第 N 步为止”、从这里接着玩已就位；`ui_smoke` **1360 项**全部通过。
+  回放打开约 0.06 秒（4 人 188 步），时间轴颜色在后台逐帧补齐；下一步 / 播放会复用 U5 的飞行动效
+  （事件由动作 + 前后视图合成）。时间轴颜色和四个吉祥物一致，并有一行图例。
+- 下一步：U7（设置 + 大模型界面）。U3 的试玩验收、U4 的人工走流程、U6 的回放手感仍可补做。
   **缩放方案已拍板选 b（整数缩放），在 U9 改 `project.godot`，U0–U8 不改项目设置。**
 - 上次更新：2026-10-18
 
@@ -602,3 +607,109 @@
 
 无。IR-12（暂停冻结电脑）仍待排期；U5 的动效队列还没有接暂停冻结，
 等逻辑层提供真正的 `GameController.set_paused()` 后，在 `UiTableFlow` 里暂停 / 恢复队列即可。
+
+---
+
+## U6：回放
+
+### 已完成
+
+- `ui/bridge/replay_source.gd`（`UiReplaySource`，IR-03 前的临时实现）：
+  - `open(entry, errors)` / `open_data(data, ui_meta, player_count, errors)`；打开时载入最后一步并
+    手动比对存档指纹（截断载入会清空指纹，不能依赖 `load_replay` 的比对）。
+  - 查询：`step_count()` / `view(step, viewer_seat)` / `public_view(step)` / `actor_at(step)` /
+    `round_at(step)` / `action_at(step)` / `step_text(step)` / `events_at(step)` /
+    `log_entries(step)` / `fingerprint()`。
+  - 实现：单独一个 `GameController`，对截断到第 N 步的存档反复 `load_replay`；视图按步缓存。
+  - “全部公开”视图把所有盲抽预留 id 置空；指定座位时只有该座位正好是当前行动者才保留其盲抽正面。
+    其他情况一律返回公开视图，不会泄露。
+  - 步骤说明由动作 + 卡表拼：购买付了多少从前后视图的筹码差算；预留拿金同理；
+    贵族按要求描述；不显示卡牌 / 贵族 id。日志取最近 8 步，时间列写 `#步号`。
+  - `events_at(step)`：IR-03 前没有真实事件，按动作类型 + 前后视图合成 `gems_taken` /
+    `card_reserved` / `card_purchased`（含 `paid`、`from_reserved`）/ `gems_discarded` /
+    `noble_visited` / `endgame_triggered`，供 `UiTableAnim` 在回放里播飞行动效。
+- `ui/screens/replay/`：
+  - `replay_screen.tscn/.gd`（`UiReplayScreen`）：复用 `table_screen.tscn`，`me_seat = -1`；
+    播放条挂在牌桌的 `bottom_holder()`（246 高）。`configure(entry, errors)`、
+    `seek(step)` / `advance_animated()` / `toggle_play()` / `set_speed(0.5|1|2)` /
+    `set_viewer_seat(-1..N)`。1x 每步 0.9 秒；← / → / 空格 / Esc。
+    【下一步】、右方向键和自动播放走 `advance_animated()`：复用 `UiTableAnim` 播该步的飞行动效，
+    播完才落视图；时间轴 / 上一步 / 开头 / 结尾是直接跳转（`seek`，先 `finish_now`）。
+  - `replay_bar.gd`（`UiReplayBar`）：当前步头像 + “第 N / M 步 · 第 R 轮” + 说明；
+    视角分段（全部公开 + 每个玩家名）；一行时间轴图例“每格 = 一步 · 颜色 = 行动者”+ 玩家色块；
+    时间轴；开头 / 上一步 / 播放 / 下一步 / 结尾；速度 0.5x / 1x / 2x。
+  - `replay_timeline.gd`（`UiReplayTimeline`）：每一步一格（最左是开局），已播放的按行动座位着色，
+    颜色和四个吉祥物一致（深棕 / 薄荷 / 紫 / 橙）；未播放灰色，当前步加高 + 橙框；点击跳转。
+  - 【从这里接着玩】：确认框写明会丢弃后面的 N 步（原存档不变），确认后发 `continue_requested(entry, step)`。
+- 牌桌：
+  - `UiTableScreen` 新增回放键：`hud_mode = "replay"`（顶栏换成【从这里接着玩】【退出回放】）、
+    `bottom_custom = true`（隐藏观战占位框）、`bottom_holder()` 访问器、两个回放信号。
+  - 观战 / 回放时市场卡标出**所有**买得起的人（`affordable_by`），不再只算“我”。
+- `UiHud`：回放模式右侧两个按钮，隐藏规则 / 菜单。
+- 入口：
+  - 03 读档详情的【从头看回放】（只对 replay 显示）→ `app.show_replay(entry)`；
+    回放屏压在当前屏幕之上，退出后回到读档列表 / 牌桌。
+  - 12 结算弹窗的【看回放】（`can_save` 为 false 时禁用）→ 用会话内存里的回放数据直接打开。
+  - 22 的【读到第 N-1 步为止】→ `resume_until` 截断后开一局。
+  - 应用入口：`_resume_entry_until()`；`_reset_stack()` 现在会释放被换掉的隐藏屏幕。
+- 输入：`UiTableFlow._unhandled_input` 在牌桌不可见时直接返回，避免回放 / 读档屏盖住牌桌时
+  快捷键仍触发暂停菜单。
+- `ui/dev/capture.tscn` 新增 `--screen replay`（跑一局 4 人 28 步回放并停在第 24 步）。
+- `tests/ui_smoke.tscn` 从 1282 项扩到 **1360 项**：
+  - 回放数据源逐步视图与原局记录一致、最终指纹一致、公开视图无盲抽、行动者视角边界；
+  - 每步合成事件与动作类型一致、购买支付与前后筹码差一致；
+  - 回放屏跳转后的市场 / 银行 / 胶囊 / 播放条、视角隐私、自动播放与暂停、速度、键盘、
+    时间轴图例、下一步动效（播放期间停在起点、播完落目标）、关掉动效同步落地；
+  - 从这里接着玩的确认框与信号；结算看回放按钮（可用 / 快照禁用）；
+  - 22 的读到第 N 步为止；应用入口：读档列表看回放 → 退出 → 再开 → 接着玩 → 结算看回放 →
+    坏动作回放读到第 5 步。
+- 文档：`docs/tests/ui_U6.md`；本文件；`ui/bridge/`、`ui/screens/`、`ui/screens/replay/`、
+  `ui/screens/save_browser/`、`ui/screens/table/`、`ui/app/`、`ui/dev/` 的 README；
+  `CLAUDE.md` 的截图屏幕列表；`BRIDGE_AND_REQUESTS.md` 的 IR-03 状态。
+
+### 与计划的偏差
+
+1. **临时回放只有“当前行动者视角”**（计划允许）。选其他座位时显示全部公开视图，
+   看不到该座位自己的盲抽；切视角不会泄露任何该视角看不到的牌。
+2. **回放动效的事件是合成的**：IR-03 才有真实 `events_at(step)`。U6 用动作 + 前后视图生成
+   `gems_taken` / `card_reserved` / `card_purchased` / `gems_discarded` / `noble_visited` /
+   `endgame_triggered`，能复用 U5 的飞行动效和补牌翻面；但没有真实事件里的回合边界，
+   顶栏 / 日志仍然是动作说明而不是事件文案。
+3. **动效速度用 U5 的设置，播放条速度只管步间隔**：1x / 0.5x 时动效能播完；2x 时
+   （0.45 秒 / 步）如果上一拍还没播完，会先 `finish_now` 落到该步再播下一步，视觉上会快进。
+4. **时间轴颜色后台补齐**：每一步的行动者需要载入截断存档才能知道。打开时只算当前步，
+   其余颜色每帧补 2 步（已播放格子先中性色、随后换座位色），避免 4 人长局打开卡 2 秒。
+   实测 4 人 188 步：打开 0.06 秒，直接跳到结尾 0.2 秒。
+4. **日志窗口 8 条**：不载入全部历史，牌桌最多显示 7 条；完整日志浮层（L）仍未做。
+5. **22 的“读到第 N 步为止”提前打开**。SCREENS 写的是 IR-03 落地后显示，但 `resume_until`
+   在 U4 就已经实现并且能工作，所以 U6 直接接上；失败步数 > 1 才显示。
+6. **结算【看回放】不落盘**：用 `build_save_data()` 的内存数据 + `ui_meta` 构造临时 `UiSaveEntry`，
+   打完自动转存过的局也能看；快照来源的局禁用。
+7. **回放速度只影响自动播放间隔**（0.9s / 步 ÷ 倍率），不复用 `UiSettings.anim_speed`；
+   与 INTERACTION 第 7 节“回放另有自己的速度”一致。
+8. **`UiReplaySource` 手动比对指纹**：因为截断载入时清空 `fingerprint`，不能依赖
+   `GameController.load_replay` 的比对。
+9. **回放的对手面板 `reserved` 标记**：选中“全部公开”时不显示盲抽正面；选中行动者座位时，
+   该玩家面板可能显示他自己的盲抽颜色（这是该视角本来就能看到的信息）。
+10. **`UiTableFlow` 不可见时忽略快捷键**：这是 U6 修的一个既有问题（读档列表盖住牌桌时 Esc 也会开暂停）。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **人工验收**：`docs/tests/ui_U6.md` 的 U6-05（回放手感）和 U6-06（截图对照）。
+- **IR-03 落地时要换的地方**：只换 `ui/bridge/replay_source.gd` 的内部实现；
+  `UiReplayScreen` 的接口（`step_count` / `view(step, viewer)` / `actor_at` / `round_at` /
+  `step_text` / `log_entries`）保持不变。落地后：
+  - 可以删掉 `_load_view` 的截断重放和回放屏的后台补色（直接用 `seat_at(step)`）；
+  - 可以按需把 `step_text` 换成事件文案，并在回放里接 `UiTableAnim`；
+  - “其他座位只能看公开视图”的限制解除，视角分段才真正完整。
+- **IR-04 仍待排期**：从这里接着玩出来的局同样把电脑座位恢复成人类；会显示 `resume_note()`。
+- **完整日志浮层（L）**仍未实现；回放右栏只显示最近 7 条（数据源取 8 条）。
+- **回放屏的 `_fill_seat_colors` 是协程**：屏幕被释放时靠 `_bar == null` / `_source == null` 退出；
+  以后加新的后台任务时保持同样的守卫。
+- **回放中市场卡标出所有买得起的人**：4 人局一张卡可能挂 3 个头像，U7 / U9 截图时留意是否拥挤。
+- **U7 要接的地方**：`UiSettings` 落盘、设置页（动画速度 / 购买前确认 / 音效）、主菜单与暂停菜单的
+  “设置”解除禁用；大模型界面先用假后端。
+
+### 新登记的 IR
+
+无。IR-03 仍是待排期状态，U6 用 `UiReplaySource` 临时实现跑通；IR 落地后只需替换桥接层内部。
