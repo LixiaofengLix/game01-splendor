@@ -19,8 +19,12 @@ var _game: GameController
 var _view: Dictionary = {}
 var _legal: Array[Action] = []
 var _scenario_names: Array[String] = []
-## 当前座位是人类时才接受点击；电脑回合所有动作按钮禁用。
+## 当前座位是人类时才接受点击；电脑 / 大模型回合所有动作按钮禁用。
 var _accepts_input: bool = false
+## 大模型等待计时：收到 waiting_started 后每 0.2 秒刷新顶栏的“已等 N 秒”。
+var _llm_waiting_since_ms: int = -1
+var _llm_waiting_limit_sec: float = 0.0
+var _status_timer: Timer = null
 
 var _status_label: Label
 var _bank_box: HBoxContainer
@@ -44,16 +48,25 @@ func _ready() -> void:
 	_game.events_emitted.connect(_on_events_emitted)
 	_game.game_finished.connect(_on_game_finished)
 	_game.action_rejected.connect(_on_action_rejected)
+	_game.waiting_started.connect(_on_llm_waiting_started)
+	_game.reason_emitted.connect(_on_llm_reason)
+	_game.fallback_used.connect(_on_llm_fallback)
+	_status_timer = Timer.new()
+	_status_timer.wait_time = 0.2
+	_status_timer.timeout.connect(_on_status_tick)
+	add_child(_status_timer)
 	_fill_scenarios()
 
 # ---------------------------------------------------------------- 对外接口
 
 ## 由主界面调用。成功后界面会通过 state_changed 自动刷新。
-func start_new_game(player_count: int, seed: int, seat_types: Array[String]) -> bool:
+## seat_options 与座位一一对应，大模型座位用它指定配置档。
+func start_new_game(player_count: int, seed: int, seat_types: Array[String],
+		seat_options: Array[Dictionary] = []) -> bool:
 	_log.clear()
 	_overlay.visible = false
 	_log_line("新对局：%d 人局，种子 %d" % [player_count, seed])
-	var ok: bool = _game.start_new_game(player_count, seed, seat_types)
+	var ok: bool = _game.start_new_game(player_count, seed, seat_types, seat_options)
 	if not ok:
 		_log_line("✗ 开局失败（数据问题见 output 面板）")
 		return false
@@ -78,6 +91,10 @@ func reset() -> void:
 	_view = {}
 	_legal.clear()
 	_accepts_input = false
+	_llm_waiting_since_ms = -1
+	_llm_waiting_limit_sec = 0.0
+	if _status_timer != null:
+		_status_timer.stop()
 	_log.clear()
 	_clear(_overlay_buttons)
 	_overlay.visible = false
@@ -202,6 +219,10 @@ func _on_state_changed(view: Dictionary) -> void:
 	_view = view
 	_legal = Rules.get_legal_actions(view, DataRegistry.card_catalog(), DataRegistry.rules())
 	_accepts_input = _game.is_current_human()
+	_llm_waiting_since_ms = -1
+	_llm_waiting_limit_sec = 0.0
+	if _status_timer != null:
+		_status_timer.stop()
 	_refresh()
 
 func _on_events_emitted(events: Array[GameEvent]) -> void:
@@ -209,6 +230,9 @@ func _on_events_emitted(events: Array[GameEvent]) -> void:
 		_log_line(event.describe())
 
 func _on_game_finished(winners: Array[int], _scores: Dictionary) -> void:
+	_llm_waiting_since_ms = -1
+	if _status_timer != null:
+		_status_timer.stop()
 	var seats: Array[String] = []
 	for seat: int in winners:
 		seats.append("座位 %d" % seat)
@@ -216,6 +240,43 @@ func _on_game_finished(winners: Array[int], _scores: Dictionary) -> void:
 
 func _on_action_rejected(message: String) -> void:
 	_log_line("✗ %s" % message)
+
+func _on_llm_waiting_started(seat: int, profile: String, attempt: int, limit_sec: float) -> void:
+	_llm_waiting_since_ms = Time.get_ticks_msec()
+	_llm_waiting_limit_sec = limit_sec
+	if _status_timer != null:
+		_status_timer.start()
+	_log_line("… 座位 %d 的大模型（%s）第 %d 次请求" % [seat, profile, attempt])
+	_refresh_status()
+
+func _on_llm_reason(seat: int, text: String) -> void:
+	_log_line("◇ 座位 %d 的大模型理由：%s" % [seat, text])
+
+func _on_llm_fallback(seat: int, reason: String, bot_type: String) -> void:
+	var reason_text: String = reason
+	match reason:
+		LlmController.FALLBACK_PARSE:
+			reason_text = "回复无法解析"
+		LlmController.FALLBACK_TIMEOUT:
+			reason_text = "超时"
+		LlmController.FALLBACK_NETWORK:
+			reason_text = "网络 / 接口错误"
+	var bot_text: String = bot_type
+	match bot_type:
+		"bot_easy":
+			bot_text = "简单电脑"
+		"bot_normal":
+			bot_text = "普通电脑"
+		"bot_hard":
+			bot_text = "困难电脑"
+	_log_line("⚠ 座位 %d 的大模型%s，这一步由%s代打。" % [seat, reason_text, bot_text])
+
+func _on_status_tick() -> void:
+	if _llm_waiting_since_ms < 0:
+		if _status_timer != null:
+			_status_timer.stop()
+		return
+	_refresh_status()
 
 # ---------------------------------------------------------------- 刷新
 
@@ -246,7 +307,16 @@ func _refresh_status() -> void:
 	if bool(_view.get("endgame_triggered", false)) and phase != "finished":
 		text += " · 终局已触发（本轮打完结算）"
 	if phase != "finished" and not _accepts_input:
-		text += " · 电脑思考中…"
+		if _game.is_current_llm():
+			var elapsed: float = 0.0
+			if _llm_waiting_since_ms >= 0:
+				elapsed = float(Time.get_ticks_msec() - _llm_waiting_since_ms) / 1000.0
+			if _llm_waiting_limit_sec > 0.0:
+				text += " · 大模型思考中… 已等 %.1f / %.0f 秒" % [elapsed, _llm_waiting_limit_sec]
+			else:
+				text += " · 大模型思考中… 已等 %.1f 秒" % elapsed
+		else:
+			text += " · 电脑思考中…"
 	_status_label.text = text
 
 func _refresh_bank() -> void:
@@ -277,11 +347,15 @@ func _refresh_actions() -> void:
 		"discard":
 			if _accepts_input:
 				_actions_label.text = "弃宝石（也可以在上方选择框里操作）"
+			elif _game.is_current_llm():
+				_actions_label.text = "大模型正在弃宝石…"
 			else:
 				_actions_label.text = "电脑正在弃宝石…"
 		"choose_noble":
 			if _accepts_input:
 				_actions_label.text = "选贵族（也可以在上方选择框里操作）"
+			elif _game.is_current_llm():
+				_actions_label.text = "大模型正在选贵族…"
 			else:
 				_actions_label.text = "电脑正在选贵族…"
 		"finished":

@@ -86,6 +86,9 @@
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/ai_sim.tscn -- --sim 100 easy normal
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/ai_sim.tscn -- --sim 100 normal hard
 
+# 大模型自检（本地模拟 HTTP 服务器，不依赖外网；改完 llm/ 或 autoload/app_config.gd 必跑）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/llm_selfcheck.tscn
+
 # 重新生成 tests/scenarios/ 的预设局面（改完卡表或规则后）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/scenarios/build_scenarios.tscn
 ```

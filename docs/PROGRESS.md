@@ -9,9 +9,138 @@
 - **阶段 3（对局流程、座位控制器与最小可视化界面）：已验收并提交**（2026-10-17；用户确认提交）。
 - **阶段 4（程序 AI）：已验收并提交（2026-10-18；用户确认提交）**。
   三档电脑座位、人机对战、批量模拟和自动自检都已就位；完整 3/4 人局现在可以由 AI 补座位试玩。
+- **阶段 5（大模型 AI）：已验收并提交（2026-10-18；用户确认提交）**。
+  大模型座位、配置档、提示词、重试 / 兜底、调试界面和本地模拟服务器自检都已就位；
+  真实服务 / 本地 Ollama 建议按 `docs/tests/phase_5.md` 各跑一次（需要你填 Key / 安装）。
 - 人工验收的分工与结果：规则解释 ✓；阶段 3 界面已验收；阶段 4 用户 2026-10-18 确认提交；
+  阶段 5 用户 2026-10-18 确认提交（真实服务 / Ollama 为后续可选验收）；
   卡表对照实体卡仍是可选待办。
 - 上次更新：2026-10-18
+
+---
+
+## 阶段 5：大模型 AI
+
+### 已完成
+
+- `autoload/app_config.gd`（新 autoload）：读写 `user://config.json`，首次运行从
+  `data/llm/llm_config.example.json` 复制；配置档的增删改查、激活配置档、逐条校验错误。
+  API Key 只存在用户目录，不进仓库、存档和日志。
+- `llm/`：
+  - `llm_profile.gd` — 配置档类型化对象与校验（base_url / model / 温度 / 超时 / 预算 /
+    重试 / 结构化输出 / 兜底难度 / 性格）。
+  - `llm_client.gd` — OpenAI 兼容 `/chat/completions`：超时、HTTP、网络、空回复归类，
+    token 统计，`response_format` / `format` 不支持时自动退回纯文本，`test_connection()`。
+  - `state_describer.gd` — 过滤视图转中文文本、合法动作编号（从 1 开始）、
+    `privacy_problems()` 隐藏信息检查。
+  - `prompt_library.gd` — 系统 / 回合 / 性格模板加载与占位符替换。
+  - `llm_controller.gd` — 解析 `{"action": 编号, "reason": "..."}`，重试，程序 AI 兜底；
+    信号 `waiting_started` / `reason_emitted` / `fallback_used`（IR-08）。
+- `data/llm/`：示例配置（DeepSeek / Ollama 两个配置档）、系统提示、回合提示、四种性格模板、README。
+- `game/game_controller.gd`：
+  - 新座位类型 `llm`；
+  - `start_new_game(player_count, seed, seat_types, seat_options := [])`，大模型座位用
+    `{"llm_profile": "id"}` 指定配置档（用户确认的接口，阶段 6 远程座位复用同一数组）；
+  - 转发 IR-08 三个信号；新增 `is_current_llm()`。
+- `debug_ui/setup/`：大模型座位选项启用；每个座位可选配置档；「大模型设置…」面板。
+- `debug_ui/llm_settings/`（新）：配置档增删改、连接参数、思考预算、重试、兜底、性格、
+  测试连接；保存到 `user://config.json`。
+- `debug_ui/board/`：大模型回合禁用动作按钮；顶栏显示“已等 N / 预算 秒”；日志显示
+  每次请求、模型理由和兜底原因；和电脑一样遮蔽当前座位自己盲抽预留的牌。
+- `tests/llm_selfcheck.gd/.tscn` + `tests/mock_llm_server.gd`：本地模拟 HTTP 服务器，
+  覆盖正常回复、结构化输出回退、HTTP 401/500、断网、超时、乱回复、越界编号、取消、
+  完整 LLM vs 程序 AI 对局、`start_new_game` 的 llm 座位、调试棋盘与配置面板。
+- `tests/board_smoke.gd` 更新：大模型座位选项启用、配置档下拉框、seat_options 传递。
+- 各目录 README、`docs/UI_INTEGRATION.md`、`docs/ui/BRIDGE_AND_REQUESTS.md`（IR-08 状态）、
+  `CLAUDE.md` 常用命令已更新。
+
+### 自动验证结果（2026-10-18）
+
+- `tests/llm_selfcheck.tscn`：**120 项检查全部通过，约 5.8 秒**。
+  - 配置解析、AppConfig 读写 / 增删改 / 坏 JSON、局面描述与隐藏信息断言、提示词与性格。
+  - `LlmClient`：正常回复（120 tokens）、结构化输出不支持时自动回退（2 次请求）、
+    HTTP 401、断网（network）、超时（timeout）、测试连接。
+  - `LlmController`：正常 JSON、代码块 + 前后解释、越界编号重试后 parse_failed 兜底、
+    HTTP 500 重试后 network 兜底、超时预算内 timeout 兜底、`cancel_pending()` 后不再发动作。
+  - 完整对局（第 0 座大模型 + 第 1 座简单电脑，模拟服务器）：**34 次请求 / 4080 tokens /
+    win_points 正常结束 / 0 次兜底 / 回合数相同**。
+  - `start_new_game` 的 `llm` 座位实际推进；不存在的配置档被拒绝（测试里会打印一条预期的
+    `GameController：座位 0 的类型 "llm" 在本阶段不可用`，不是失败）；
+    两个大模型座位分别使用两个配置档时，请求里的 `model` 各不相同。
+  - 调试棋盘日志出现“大模型”等待和“理由”；配置面板能加载配置档。
+- `tests/board_smoke.tscn`：101 项检查通过，约 0.5 秒。
+- `tests/flow_selfcheck.tscn`：8647 项检查通过，约 3.3 秒。
+- `tests/ai_selfcheck.tscn`：149 项检查通过，约 5.7 秒。
+- `tests/data_report.tscn`：通过。
+- `tests/rules_selfcheck.tscn -- 2000`：523273 项检查通过，137.3 秒；
+  2000 局 / 284679 步，最长 273 步（与阶段 4 基线一致，`core/` 未改动）。
+  运行中的非法动作 ERROR 日志是“非法动作被拒绝”用例的预期输出。
+- 主场景 headless 启动 120 帧：退出码 0。
+
+### 与计划的偏差 / 本阶段定的约定
+
+1. **座位配置接口**（用户确认）：保留 `seat_types`，新增可选 `seat_options: Array[Dictionary]`；
+   大模型座位用 `{"llm_profile": "id"}`。阶段 6 的远程座位可以在同一数组里加其他字段。
+2. **IR-08 一次落地**（用户确认）：`GameController` 转发 `waiting_started` / `reason_emitted` /
+   `fallback_used`；`AppConfig` 提供配置档 CRUD；`LlmClient.test_connection(profile, timeout_ms)`
+   发 `test_finished(ok, message, elapsed_ms)`。正式 UI 不用再等假后端。
+3. **兜底用 `AIEvaluator` 当场算**，不创建 `BotController` 节点：少一层异步和延迟，
+   兜底步骤的随机种子由开局种子派生（`LLM_SEED_SALT`），与程序 AI 一样可复现。
+4. **重试语义**：`max_retries` 是“第一次请求失败后的重试次数”（总请求数最多
+   `max_retries + 1`）；模型回复允许 markdown 代码块和前后解释，动作编号从 1 开始；
+   编号越界按解析失败处理。
+5. **思考预算**：`think_budget_ms` 覆盖整次决策（含重试），0 = 不限；
+   单次请求超时取 `min(request_timeout_ms, 剩余预算)`。
+6. **结构化输出**：`structured_output` 取值 `auto` / `json_object` / `ollama_format` / `none`；
+   服务返回 400/422 且正文提到 `response_format` / `format` 不支持时，自动去掉结构化参数重试一次，
+   不消耗上层重试次数。Ollama 示例用 `auto`，避免不同版本对 `format` 的兼容差异。
+7. **配置档字段**：见 `data/llm/README.md`；界面可改显示的显示名、BASE URL、Key、模型、温度、
+   `max_tokens`、单次超时、思考预算、重试、结构化输出、兜底难度、性格。配置档 id 由程序生成
+   （`profile_N`），界面只改显示名。
+8. **示例配置**：`deepseek`（api.deepseek.com/v1，deepseek-chat）和
+   `ollama`（127.0.0.1:11434/v1，qwen2.5:7b）；Key 为空，需用户自己填。模型名是示例值。
+9. **提示词语言为中文**；系统提示里的规则数值用 `{{win_points}}` / `{{max_tokens}}` /
+   `{{max_reserved}}` / `{{take_two_min_remaining}}` 从 `rules.json` 替换，不在提示词里写死。
+10. **隐藏信息断言**：`LlmController` 在调试构建里发送前调用
+    `StateDescriber.privacy_problems(view, text)`；测试再用完整视图检查文本不含牌堆卡牌 id
+    和对手盲抽预留 id。发布构建不做断言。
+11. **大模型座位的界面细节**：顶栏显示的预算是 `think_budget_ms`；每次尝试都会在日志里写
+    “第 N 次请求”；理由截断到 200 字；兜底原因映射为中文。界面不显示 token 用量，
+    但 `LlmController.token_usage()` 可取。
+12. **AppConfig 坏配置不阻塞游戏启动**：只在选择大模型座位时才会失败；没有配置档时
+    设置界面的“大模型”选项自动置灰，并提示去「大模型设置」新建。
+13. **测试使用本地 HTTP 服务器**（`tests/mock_llm_server.gd`），不依赖外网；HTTP 解析按字节处理，
+    因为请求正文含中文（按字符比较长度会少读 UTF-8 字节）。
+14. **本阶段没有做**：正式 UI 的设置页（并行 UI 线的第 16 屏）；联网时把 LLM 等待 / 理由
+    同步给客户端（阶段 6）；真实服务自动化测试（需要 Key / Ollama）。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **真实服务手工验收**：本机没有 OpenAI 兼容 Key，也没有安装 Ollama；真实连接、
+  错误 Key、断网、超时的手工步骤见 `docs/tests/phase_5.md`（自动测试已用模拟服务器覆盖同样分支）。
+- **阶段 6 联网**：
+  - 大模型座位只在主机上运行；主机需要把 `waiting_started` / `reason_emitted` / `fallback_used`
+    作为公开事件转发给客户端（理由是模型基于公开视图写的，可以下发）。
+  - 客户端不能拿到主机的完整状态；LLM 座位的视图由主机用 `to_dict(seat)` 生成，和远程玩家一样。
+  - `seat_options` 可以继续扩展（远程座位加 nickname / token 等），不要把 LLM 配置档 id
+    和远程座位信息塞进 `seat_types` 字符串。
+  - 掉线玩家的座位由程序 AI 接管时，如果原座位是 LLM，建议直接换 `BotController`（阶段 4 的兜底策略）。
+- **重放 / 存档**：对局存档仍是“种子 + 动作序列”，大模型调用不进入存档；重放时只要有动作序列
+  就能复现局面，不会重新请求模型。`load_snapshot` / `load_replay` 仍重建为人类控制器（IR-04 未做）。
+- **模型输出不确定性**：同一局面两次请求可能给出不同动作；这不影响存档 / 重放（动作已记录），
+  但同一局不能靠“重跑请求”复现。LLM 座位的对局不适合做严格的可复现性对比。
+- **配置安全**：`user://config.json` 是明文；这是单机工具的正常做法。不要把真实 Key 写进
+  `data/llm/llm_config.example.json` 或任何仓库文件。调试面板用密码框显示 Key。
+- **Ollama 版本差异**：`ollama` 示例用 `structured_output: "auto"`；如果某个版本对
+  `response_format` 报错，客户端会自动退回纯文本。模型名 `qwen2.5:7b` 只是示例，
+  拉取哪个模型由你决定。
+- **提示词长度**：局面文本含所有可见卡牌、贵族、玩家面板和合法动作，4 人局较长；
+  当前 `max_tokens` 默认 300 只限制回复，不限制输入。如果某家服务有上下文上限，
+  需要换成更大的模型或精简描述（未做）。
+- **阶段 7 导出**：`data/llm/llm_config.example.json` 和 `data/llm/prompts/**` 是运行时读取的文件，
+  导出时要确保被打进包里（和 `data/ai/*.json` 一样）；否则首次运行复制示例会失败，
+  提示词也读不到。
+- 卡表对照实体卡仍是阶段 1 的可选待办。
 
 ---
 

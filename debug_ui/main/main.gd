@@ -9,8 +9,9 @@ func _ready() -> void:
 	_board.back_to_setup.connect(_on_back_to_setup)
 	_show_setup()
 
-func _on_start_requested(player_count: int, seed: int, seat_types: Array[String]) -> void:
-	if _board.start_new_game(player_count, seed, seat_types):
+func _on_start_requested(player_count: int, seed: int, seat_types: Array[String],
+		seat_options: Array[Dictionary]) -> void:
+	if _board.start_new_game(player_count, seed, seat_types, seat_options):
 		_setup.hide()
 		_board.show()
 	else:

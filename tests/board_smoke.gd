@@ -11,6 +11,7 @@ var _checks: int = 0
 var _setup_player_count: int = -1
 var _setup_seed: int = -1
 var _setup_types: Array[String] = []
+var _setup_options: Array[Dictionary] = []
 
 func _ready() -> void:
 	if not DataRegistry.is_valid():
@@ -197,27 +198,66 @@ func _check_setup_screen() -> void:
 	setup.start_requested.connect(_on_setup_start)
 	var start_button: Button = _find_button_by_text(setup, "开始游戏")
 	_check(start_button != null, "设置界面有开始按钮")
-	var bot_enabled: bool = false
-	var llm_disabled: bool = false
-	for node: Node in _all_nodes(setup):
-		if node is OptionButton and (node as OptionButton).item_count == 6:
-			bot_enabled = not (node as OptionButton).is_item_disabled(1)
-			llm_disabled = (node as OptionButton).is_item_disabled(4)
-			break
-	_check(bot_enabled, "电脑座位选项应启用（阶段 4）")
-	_check(llm_disabled, "大模型座位选项应继续置灰")
+	_check(_find_button_by_text(setup, "大模型设置…") != null, "设置界面有大模型设置按钮")
+	var seat_type_option: OptionButton = _find_option_by_role(setup, "seat_type", 0)
+	_check(seat_type_option != null, "设置界面有座位类型下拉框")
+	if seat_type_option != null:
+		var llm_enabled: bool = not seat_type_option.is_item_disabled(4)
+		_check(not seat_type_option.is_item_disabled(1), "电脑座位选项应启用（阶段 4）")
+		_check(llm_enabled == AppConfig.has_llm_profiles(),
+				"大模型座位选项的启用状态应与配置档数量一致（阶段 5）")
+		_check(seat_type_option.is_item_disabled(5), "远程座位选项应继续置灰（阶段 6）")
 	if start_button != null:
 		start_button.pressed.emit()
 		_check(_setup_player_count == 2, "默认人数应为 2")
 		_check(_setup_types.size() == 2 and _setup_types[0] == "human"
 				and _setup_types[1] == "bot_normal", "默认座位 0 人类、座位 1 普通电脑")
+		_check(_setup_options.size() == 2 and _setup_options[0].is_empty()
+				and _setup_options[1].is_empty(), "默认座位没有额外选项")
 		_check(_setup_seed >= 0, "默认种子应为整数")
+		# 有大模型配置档时，把座位 1 改成大模型，检查座位选项里带配置档 id。
+		var seat_one_option: OptionButton = _find_option_by_role(setup, "seat_type", 1)
+		if AppConfig.has_llm_profiles() and seat_one_option != null:
+			_setup_types.clear()
+			_setup_options.clear()
+			_select_option_metadata(seat_one_option, "llm")
+			var profile_option: OptionButton = _find_option_by_role(setup, "llm_profile", 1)
+			_check(profile_option != null and profile_option.visible,
+					"选择大模型后应显示配置档下拉框")
+			start_button.pressed.emit()
+			_check(_setup_types.size() == 2 and _setup_types[1] == "llm",
+					"座位 1 可以选为大模型")
+			_check(_setup_options.size() == 2 and _setup_options[1].has("llm_profile"),
+					"大模型座位应带上配置档 id")
+			_check(String(_setup_options[1].get("llm_profile", ""))
+					== AppConfig.active_llm_profile_id(), "默认选中当前激活的配置档")
 	setup.queue_free()
 
-func _on_setup_start(player_count: int, seed: int, seat_types: Array[String]) -> void:
+func _on_setup_start(player_count: int, seed: int, seat_types: Array[String],
+		seat_options: Array[Dictionary]) -> void:
 	_setup_player_count = player_count
 	_setup_seed = seed
 	_setup_types = seat_types
+	_setup_options = seat_options
+
+func _select_option_metadata(option: OptionButton, value: String) -> void:
+	for index: int in option.item_count:
+		if String(option.get_item_metadata(index)) == value:
+			option.select(index)
+			option.item_selected.emit(index)
+			return
+
+func _find_option_by_role(node: Node, role: String, seat: int = -1) -> OptionButton:
+	for child: Node in _all_nodes(node):
+		if not child is OptionButton:
+			continue
+		var option := child as OptionButton
+		if String(option.get_meta("role", "")) != role:
+			continue
+		if seat >= 0 and int(option.get_meta("seat", -1)) != seat:
+			continue
+		return option
+	return null
 
 # ---------------------------------------------------------------- 人类 vs 电脑
 

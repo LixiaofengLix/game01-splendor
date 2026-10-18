@@ -8,6 +8,11 @@
 - `board_smoke.gd` / `.tscn` — 阶段 3：实例化设置界面和棋盘，按按钮走拿宝石 / 预留 / 弃宝石 / 选贵族 / 终局 / 存读档流程；阶段 4 增加人类 vs 电脑的回合切换检查。失败时退出码非 0。
 - `ai_selfcheck.gd` / `.tscn` — 阶段 4：三档 AI 配置校验、全 AI 对局（2/3/4 人）、同种子可复现、预设局面的弃宝石 / 选贵族决策、困难 AI 思考耗时。失败时退出码非 0。
 - `ai_sim.gd` / `.tscn` — 阶段 4：AI 批量模拟（难度互打），每个种子镜像交换座位，输出胜率 / 平均分 / 回合数 / 思考耗时。参数见文件头。
+- `llm_selfcheck.gd` / `.tscn` — 阶段 5：大模型配置、AppConfig、局面描述与隐藏信息、提示词、
+  `LlmClient`（正常 / 结构化回退 / HTTP / 断网 / 超时 / 测试连接）、`LlmController`
+  （JSON / 代码块 / 解析失败 / 网络 / 超时 / 取消）、LLM vs 程序 AI 完整对局、`start_new_game`
+  的 llm 座位、调试棋盘与配置面板。使用 `mock_llm_server.gd` 的本地 HTTP 服务器，不依赖外网。
+- `mock_llm_server.gd` — 测试用最小 HTTP 服务器（OpenAI 兼容），只被 `llm_selfcheck` 使用。
 - `scenarios/` — 手工测试用的预设局面 JSON + 生成脚本，见该目录 README。
 
 ```bash
@@ -19,4 +24,5 @@ $GODOT --headless --path . tests/board_smoke.tscn
 $GODOT --headless --path . tests/ai_selfcheck.tscn
 $GODOT --headless --path . tests/ai_sim.tscn -- --sim 100 easy normal
 $GODOT --headless --path . tests/ai_sim.tscn -- --sim 100 normal hard
+$GODOT --headless --path . tests/llm_selfcheck.tscn
 ```

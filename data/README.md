@@ -6,7 +6,9 @@
 - `nobles.json` — 10 位贵族：`id`、`points`、`requirement`（按卡牌折扣数计，只写非零项）。
 - `rules.json` — 规则参数与开关，见下表。
 - `ai/*.json` — 三档程序 AI 的配置（阶段 4），见下文。
-- `llm/prompts/` — 大模型提示词模板（阶段 5）。
+- `llm/llm_config.example.json` — 用户配置示例（阶段 5）：首次运行自动复制到 `user://config.json`，
+  真实 API Key 只填在用户目录。
+- `llm/prompts/` — 大模型提示词模板（系统 / 回合 / 性格）。字段与占位符见 `llm/README.md`。
 
 ## rules.json 各项
 

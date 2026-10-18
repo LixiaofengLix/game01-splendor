@@ -10,13 +10,22 @@ signal game_finished(winners: Array[int], scores: Dictionary)
 ## 控制器交来非法动作 / 不在自己回合的动作时发出（界面用来提示，不改动对局）。
 signal action_rejected(message: String)
 
+## 大模型座位的界面信号（IR-08）：等待开始 / 模型给出的理由 / 兜底。
+## profile 是配置档显示名；reason 取值 parse_failed / timeout / network；bot_type 形如 bot_hard。
+signal waiting_started(seat: int, profile: String, attempt: int, limit_sec: float)
+signal reason_emitted(seat: int, text: String)
+signal fallback_used(seat: int, reason: String, bot_type: String)
+
 const ORIGIN_NEW: String = "replay"
 const ORIGIN_SNAPSHOT: String = "snapshot"
-## 座位类型。阶段 4 增加三档电脑；阶段 5 / 6 再增加大模型与远程。
+## 座位类型。阶段 4 增加三档电脑；阶段 5 增加大模型；阶段 6 再加远程。
 const SEAT_TYPE_HUMAN: String = "human"
 const SEAT_TYPE_BOT_EASY: String = "bot_easy"
 const SEAT_TYPE_BOT_NORMAL: String = "bot_normal"
 const SEAT_TYPE_BOT_HARD: String = "bot_hard"
+const SEAT_TYPE_LLM: String = "llm"
+## 大模型座位兜底 AI 的随机种子盐（模型本身不确定，兜底步骤保持可复现）。
+const LLM_SEED_SALT: int = 5505
 ## 同步控制器连续提交非法动作时，最多重试这么多次就停下（防止死循环）。
 const MAX_REJECT_STREAK: int = 8
 
@@ -36,18 +45,30 @@ var _reject_streak: int = 0
 # ---------------------------------------------------------------- 开局 / 载入
 
 ## 按座位类型开局。seat_types 的元素见 SEAT_TYPE_* 常量。
-func start_new_game(player_count: int, seed: int, seat_types: Array[String]) -> bool:
+## seat_options 与座位一一对应，可为空（全部用默认值）；目前大模型座位用
+## {"llm_profile": "配置档 id"} 指定配置档，阶段 6 的远程座位可以复用同一个数组。
+func start_new_game(player_count: int, seed: int, seat_types: Array[String],
+		seat_options: Array[Dictionary] = []) -> bool:
 	if seat_types.size() != player_count:
 		_fail_start("座位类型数量 %d 与人数 %d 不一致" % [seat_types.size(), player_count])
 		return false
+	var options: Array[Dictionary] = []
+	if seat_options.is_empty():
+		for seat: int in player_count:
+			options.append({})
+	else:
+		if seat_options.size() != player_count:
+			_fail_start("座位选项数量 %d 与人数 %d 不一致" % [seat_options.size(), player_count])
+			return false
+		options.assign(seat_options)
 	# 先整体校验，避免创建到一半失败留下半套控制器。
-	for seat: int in seat_types.size():
-		if not _is_supported_seat_type(seat_types[seat]):
+	for seat: int in player_count:
+		if not _is_supported_seat_type(seat_types[seat], options[seat]):
 			_fail_start("座位 %d 的类型 \"%s\" 在本阶段不可用" % [seat, seat_types[seat]])
 			return false
 	var controllers: Array[PlayerController] = []
 	for seat: int in player_count:
-		var controller: PlayerController = _create_controller(seat, seat_types[seat], seed)
+		var controller: PlayerController = _create_controller(seat, seat_types[seat], seed, options[seat])
 		if controller == null:
 			return false
 		controllers.append(controller)
@@ -176,6 +197,15 @@ func is_current_human() -> bool:
 		return false
 	return _controllers[seat] is HumanController
 
+## 当前行动座位是否由大模型控制（界面用来显示等待时间 / 隐藏私密信息）。
+func is_current_llm() -> bool:
+	if _state == null or _state.is_finished():
+		return false
+	var seat: int = _state.current_seat
+	if seat < 0 or seat >= _controllers.size():
+		return false
+	return _controllers[seat] is LlmController
+
 ## 这局是否来自"种子 + 动作序列"（新开局或重放存档），可以再存成重放文件。
 func can_save_replay() -> bool:
 	return _state != null and _origin == ORIGIN_NEW
@@ -293,10 +323,13 @@ func _emit_finished() -> void:
 	winners.assign(_state.winners)
 	game_finished.emit(winners, scores)
 
-func _create_controller(seat: int, seat_type: String, seed: int) -> PlayerController:
+func _create_controller(seat: int, seat_type: String, seed: int,
+		option: Dictionary) -> PlayerController:
 	match seat_type:
 		SEAT_TYPE_HUMAN:
 			return HumanController.new()
+		SEAT_TYPE_LLM:
+			return _create_llm_controller(seat, seed, option)
 	var profile_id: String = _bot_profile_id(seat_type)
 	if profile_id.is_empty():
 		push_error("GameController：座位 %d 的类型 \"%s\" 在本阶段不可用" % [seat, seat_type])
@@ -312,9 +345,35 @@ func _create_controller(seat: int, seat_type: String, seed: int) -> PlayerContro
 			BotController.derive_seed(seed, seat, profile.seed_salt))
 	return bot
 
-func _is_supported_seat_type(seat_type: String) -> bool:
+func _create_llm_controller(seat: int, seed: int, option: Dictionary) -> PlayerController:
+	var llm_profile: LlmProfile = _resolve_llm_profile(option)
+	if llm_profile == null:
+		var requested: String = String(option.get("llm_profile", "")).strip_edges()
+		push_error("GameController：座位 %d 的大模型配置档 \"%s\" 不可用" % [seat, requested])
+		action_rejected.emit("座位 %d 的大模型配置档不可用（见大模型设置）" % seat)
+		return null
+	var fallback: AIProfile = DataRegistry.ai_profile(llm_profile.fallback_difficulty)
+	if fallback == null:
+		push_error("GameController：大模型兜底 AI 配置 \"%s\" 不可用"
+				% llm_profile.fallback_difficulty)
+		action_rejected.emit("座位 %d 的大模型兜底 AI 不可用" % seat)
+		return null
+	var controller := LlmController.new()
+	controller.configure(llm_profile, DataRegistry.card_catalog(), DataRegistry.rules(),
+			BotController.derive_seed(seed, seat, LLM_SEED_SALT), fallback)
+	return controller
+
+func _resolve_llm_profile(option: Dictionary) -> LlmProfile:
+	var profile_id: String = String(option.get("llm_profile", "")).strip_edges()
+	if profile_id.is_empty():
+		profile_id = AppConfig.active_llm_profile_id()
+	return AppConfig.llm_profile(profile_id)
+
+func _is_supported_seat_type(seat_type: String, option: Dictionary) -> bool:
 	if seat_type == SEAT_TYPE_HUMAN:
 		return true
+	if seat_type == SEAT_TYPE_LLM:
+		return _resolve_llm_profile(option) != null
 	var profile_id: String = _bot_profile_id(seat_type)
 	return not profile_id.is_empty() and DataRegistry.ai_profile(profile_id) != null
 
@@ -333,6 +392,14 @@ func _add_controller(seat: int, controller: PlayerController) -> void:
 	controller.name = "Seat%dController" % seat
 	add_child(controller)
 	controller.action_decided.connect(_on_action_decided.bind(seat))
+	if controller is LlmController:
+		var llm := controller as LlmController
+		llm.waiting_started.connect(func(profile_name: String, attempt: int, limit_sec: float) -> void:
+			waiting_started.emit(seat, profile_name, attempt, limit_sec))
+		llm.reason_emitted.connect(func(text: String) -> void:
+			reason_emitted.emit(seat, text))
+		llm.fallback_used.connect(func(reason: String, bot_type: String) -> void:
+			fallback_used.emit(seat, reason, bot_type))
 	_controllers.append(controller)
 
 func _ensure_human_controllers(count: int) -> void:
