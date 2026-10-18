@@ -1,0 +1,580 @@
+## 牌桌静态渲染（U2）：按视图整桌重画，暂不响应点击。
+## 唯一入口 render(view, me_seat, session_info)；重复调用是幂等的，不累积节点。
+## 几何按 docs/ui/SCREENS.md：顶栏 44 + 左栏 906（市场 470 / 我的面板 246）+ 右栏 330。
+class_name UiTableScreen
+extends Control
+
+const TABLE_MARGIN := 14
+const HUD_HEIGHT := 44
+const LEFT_WIDTH := 906
+const COLUMN_GAP := 16
+const RIGHT_MIN_WIDTH := 330
+const RIGHT_MAX_WIDTH := 420
+const MARKET_HEIGHT := 470
+const MARKET_ROW_HEIGHT := 150
+const MARKET_ROW_GAP := 10
+const MY_PANEL_HEIGHT := 246
+
+var _hud: UiHud
+var _content: MarginContainer
+var _columns: HBoxContainer
+var _left: VBoxContainer
+var _market: HBoxContainer
+var _nobles: VBoxContainer
+var _rows: VBoxContainer
+var _bank: UiBankColumn
+var _bottom_holder: Control
+var _my_panel: UiMyPanel
+var _spectator: UiFrame
+var _spectator_title: Label
+var _spectator_detail: Label
+var _spectator_hint: Label
+var _right: VBoxContainer
+var _opponents: VBoxContainer
+var _log: UiLogPanel
+
+var _deck_piles: Dictionary[int, UiDeckPile] = {}
+var _market_cards: Dictionary[int, Array] = {}
+var _opponent_panels: Dictionary[int, UiOpponentPanel] = {}
+## 已按哪套规则搭过市场行；规则里的卡位数变了就重建。
+var _market_slots_built: int = -1
+
+var _view: Dictionary = {}
+var _me_seat: int = -1
+var _session: Dictionary = {}
+var _catalog: CardCatalog = null
+var _rules: RulesConfig = null
+
+
+func _ready() -> void:
+	_build_background()
+	_build_hud()
+	_build_content()
+	resized.connect(_update_columns)
+	_update_columns()
+
+
+func _build_background() -> void:
+	var wood := UiAssets.tiled(UiAssets.texture("tile_wood.png"))
+	wood.name = "Wood"
+	wood.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(wood)
+
+
+func _build_hud() -> void:
+	_hud = UiHud.new()
+	_hud.name = "Hud"
+	_hud.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_hud.offset_bottom = HUD_HEIGHT
+	add_child(_hud)
+
+
+func _build_content() -> void:
+	_content = MarginContainer.new()
+	_content.name = "Content"
+	_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_content.offset_top = HUD_HEIGHT
+	_content.add_theme_constant_override("margin_left", TABLE_MARGIN)
+	_content.add_theme_constant_override("margin_top", TABLE_MARGIN)
+	_content.add_theme_constant_override("margin_right", TABLE_MARGIN)
+	_content.add_theme_constant_override("margin_bottom", TABLE_MARGIN)
+	add_child(_content)
+
+	_columns = HBoxContainer.new()
+	_columns.name = "Columns"
+	_columns.alignment = BoxContainer.ALIGNMENT_CENTER
+	_columns.add_theme_constant_override("separation", COLUMN_GAP)
+	_content.add_child(_columns)
+
+	_build_left()
+	_build_right()
+
+
+func _build_left() -> void:
+	_left = VBoxContainer.new()
+	_left.name = "Left"
+	_left.custom_minimum_size.x = LEFT_WIDTH
+	_left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_left.add_theme_constant_override("separation", 0)
+	_columns.add_child(_left)
+
+	_market = HBoxContainer.new()
+	_market.name = "Market"
+	_market.custom_minimum_size = Vector2(0, MARKET_HEIGHT)
+	_market.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_market.add_theme_constant_override("separation", 14)
+	_left.add_child(_market)
+
+	_nobles = VBoxContainer.new()
+	_nobles.name = "Nobles"
+	_nobles.custom_minimum_size.x = 100
+	_nobles.add_theme_constant_override("separation", 10)
+	_market.add_child(_nobles)
+
+	_rows = VBoxContainer.new()
+	_rows.name = "Rows"
+	_rows.custom_minimum_size.x = 648
+	_rows.add_theme_constant_override("separation", MARKET_ROW_GAP)
+	_market.add_child(_rows)
+
+	_bank = UiBankColumn.new()
+	_bank.name = "BankColumn"
+	_market.add_child(_bank)
+
+	var gap := Control.new()
+	gap.name = "PanelGap"
+	gap.custom_minimum_size.y = 12
+	_left.add_child(gap)
+
+	_bottom_holder = Control.new()
+	_bottom_holder.name = "Bottom"
+	_bottom_holder.custom_minimum_size.y = MY_PANEL_HEIGHT
+	_bottom_holder.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_left.add_child(_bottom_holder)
+
+	_my_panel = UiMyPanel.new()
+	_my_panel.name = "MyPanel"
+	_my_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_bottom_holder.add_child(_my_panel)
+
+	_build_spectator()
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_left.add_child(spacer)
+
+
+## 卡位数来自 RulesConfig.board_slots_per_level；规则变了就重建三行。
+func _ensure_market_rows() -> void:
+	if _rules == null:
+		push_error("UiTableScreen：渲染前没有 RulesConfig")
+		return
+	var slots: int = int(_rules.board_slots_per_level)
+	if slots <= 0:
+		push_error("UiTableScreen：RulesConfig.board_slots_per_level 必须为正数")
+		return
+	if slots == _market_slots_built:
+		return
+	for child in _rows.get_children():
+		_rows.remove_child(child)
+		child.queue_free()
+	_deck_piles.clear()
+	_market_cards.clear()
+	for level: int in [3, 2, 1]:
+		var row := HBoxContainer.new()
+		row.name = "Row%d" % level
+		row.custom_minimum_size.y = MARKET_ROW_HEIGHT
+		row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		row.add_theme_constant_override("separation", 10)
+		_rows.add_child(row)
+
+		var deck := UiDeckPile.new()
+		deck.name = "Deck%d" % level
+		deck.level = level
+		row.add_child(deck)
+		_deck_piles[level] = deck
+
+		var cards: Array[UiDevCard] = []
+		for slot: int in slots:
+			var card := UiDevCard.new()
+			card.name = "Card%d_%d" % [level, slot]
+			row.add_child(card)
+			cards.append(card)
+		_market_cards[level] = cards
+	var deck_width: float = UiDeckPile.SIZE.x
+	var card_width: float = UiDevCard.MARKET_SIZE.x
+	_rows.custom_minimum_size.x = deck_width + 10.0 \
+			+ slots * card_width + maxf(slots - 1, 0) * 10.0
+	_market_slots_built = slots
+
+
+func _build_spectator() -> void:
+	_spectator = UiFrame.new()
+	_spectator.name = "Spectator"
+	_spectator.frame_texture = UiAssets.frame_l("ink")
+	_spectator.frame_border = 4
+	_spectator.background_color = UiPalette.CARD
+	_spectator.content_padding = Vector4i(24, 18, 24, 18)
+	_spectator.shadow_enabled = true
+	_spectator.shadow_offset = Vector2i(0, 4)
+	_spectator.top_highlight = true
+	_spectator.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_bottom_holder.add_child(_spectator)
+
+	var column := VBoxContainer.new()
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 10)
+	_spectator.content.add_child(column)
+
+	_spectator_title = Label.new()
+	_spectator_title.name = "Title"
+	_spectator_title.theme_type_variation = &"UiTitle"
+	_spectator_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(_spectator_title)
+
+	_spectator_detail = Label.new()
+	_spectator_detail.name = "Detail"
+	_spectator_detail.add_theme_color_override("font_color", UiPalette.INK_2)
+	_spectator_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_spectator_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_spectator_detail)
+
+	_spectator_hint = Label.new()
+	_spectator_hint.name = "Hint"
+	_spectator_hint.text = "回放播放条将在 U6 实现"
+	_spectator_hint.add_theme_color_override("font_color", UiPalette.INK_3)
+	_spectator_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(_spectator_hint)
+
+
+func _build_right() -> void:
+	_right = VBoxContainer.new()
+	_right.name = "Right"
+	_right.custom_minimum_size.x = RIGHT_MIN_WIDTH
+	_right.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_right.add_theme_constant_override("separation", 8)
+	_columns.add_child(_right)
+
+	_opponents = VBoxContainer.new()
+	_opponents.name = "Opponents"
+	_opponents.add_theme_constant_override("separation", 8)
+	_right.add_child(_opponents)
+
+	_log = UiLogPanel.new()
+	_log.name = "LogPanel"
+	_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_right.add_child(_log)
+
+
+func _update_columns() -> void:
+	if _right == null:
+		return
+	var available: float = size.x - TABLE_MARGIN * 2.0
+	var right_width: float = clampf(
+			available - LEFT_WIDTH - COLUMN_GAP, 300.0, float(RIGHT_MAX_WIDTH))
+	_right.custom_minimum_size.x = right_width
+
+
+# ---------------------------------------------------------------- 渲染入口
+
+## 视图是唯一真相：每次调用都按视图整桌重画。
+## session_info 可选键：names / seat_types / log / strip / pill_text / mode /
+## flash_cards / log_limit / catalog / rules。
+func render(view: Dictionary, me_seat: int, session_info: Dictionary = {}) -> void:
+	_view = view
+	_me_seat = me_seat
+	_session = session_info
+	var session_catalog: Variant = session_info.get("catalog")
+	_catalog = session_catalog if session_catalog is CardCatalog else DataRegistry.card_catalog()
+	var session_rules: Variant = session_info.get("rules")
+	_rules = session_rules if session_rules is RulesConfig else DataRegistry.rules()
+
+	_render_hud()
+	_render_market()
+	_render_nobles()
+	_render_bank()
+	_render_bottom()
+	_render_right()
+	_update_columns()
+
+
+func _render_hud() -> void:
+	var pill: Dictionary
+	var pill_text: String = String(_session.get("pill_text", ""))
+	var current: int = int(_view.get("current_seat", 0))
+	var phase: String = String(_view.get("phase", "playing"))
+	if not pill_text.is_empty():
+		pill = {"kind": "text", "text": pill_text}
+	elif phase == "finished":
+		pill = {"kind": "text", "text": "对局结束"}
+	elif _is_my_turn():
+		pill = {"kind": "mine", "seat": _me_seat, "name": _name(_me_seat)}
+	else:
+		var seat_type: String = _seat_type(current)
+		pill = {
+			"kind": "waiting", "seat": current, "name": _name(current),
+			"type_label": UiViewMath.seat_type_label(seat_type),
+			"thinking": seat_type != "human",
+		}
+	_hud.render({
+		"player_count": int(_view.get("player_count", 2)),
+		"round": UiViewMath.round_number(_view),
+		"endgame_remaining": UiViewMath.endgame_remaining(_view).size(),
+		"pill": pill,
+	})
+
+
+func _render_market() -> void:
+	_ensure_market_rows()
+	var my_turn: bool = _is_my_turn()
+	var show_for_me: bool = _me_seat >= 0 and String(_view.get("phase", "")) == "playing"
+	var boards: Dictionary = _view.get("boards", {})
+	var decks: Dictionary = _view.get("decks", {})
+	var flash_cards: Array = _session.get("flash_cards", [])
+	for level: int in [3, 2, 1]:
+		var deck_entry: Variant = decks.get(str(level), {})
+		var deck_count: int = int((deck_entry as Dictionary).get("count", 0)) \
+				if deck_entry is Dictionary else 0
+		_deck_piles[level].remaining = deck_count
+
+		var slots: Array = boards.get(str(level), [])
+		var cards: Array = _market_cards[level]
+		for index: int in cards.size():
+			var card: UiDevCard = cards[index]
+			var raw_id: Variant = slots[index] if index < slots.size() else null
+			var card_id: String = String(raw_id) if raw_id != null else ""
+			card.catalog = _catalog
+			card.card_back = false
+			card.blind_label = false
+			card.show_status = my_turn
+			card.selected = false
+			card.flash = card_id in flash_cards
+			if card_id.is_empty():
+				var no_missing: Array[Dictionary] = []
+				var no_threats: Array[int] = []
+				card.card_id = ""
+				card.empty = true
+				card.affordable = false
+				card.shortfall = 0
+				card.missing = no_missing
+				card.gold_can_pay = 0
+				card.threat_seats = no_threats
+				continue
+			card.empty = false
+			card.card_id = card_id
+			var shortfall: int = 0
+			var missing: Array[Dictionary] = []
+			var gold_can_pay: int = 0
+			if show_for_me:
+				shortfall = UiViewMath.shortfall(_view, _me_seat, card_id, _catalog)
+				if shortfall > 0:
+					missing = UiViewMath.missing_by_color(_view, _me_seat, card_id, _catalog)
+					gold_can_pay = UiViewMath.gold_can_pay(_view, _me_seat, card_id, _catalog)
+			card.shortfall = shortfall
+			card.missing = missing
+			card.gold_can_pay = gold_can_pay
+			card.affordable = my_turn and shortfall == 0
+			var threats: Array[int] = []
+			if show_for_me:
+				threats = _threat_seats(card_id)
+			card.threat_seats = threats
+
+
+func _threat_seats(card_id: String) -> Array[int]:
+	var result: Array[int] = []
+	for seat: int in UiViewMath.affordable_by(_view, card_id, _catalog):
+		if seat != _me_seat:
+			result.append(seat)
+	return result
+
+
+func _render_nobles() -> void:
+	for child in _nobles.get_children():
+		_nobles.remove_child(child)
+		child.queue_free()
+	var noble_ids: Array = _view.get("nobles", [])
+	for item: Variant in noble_ids:
+		var tile := UiNobleTile.new()
+		tile.catalog = _catalog
+		tile.noble_id = String(item)
+		_nobles.add_child(tile)
+
+
+func _render_bank() -> void:
+	var raw: Dictionary = _view.get("bank", {})
+	var counts: Dictionary[int, int] = {}
+	for color: Enums.GemColor in Enums.ALL_COLORS:
+		counts[color] = int(raw.get(Enums.color_to_string(color), 0))
+	_bank.set_counts(counts)
+	_bank.set_hint("点筹码\n选宝石" if _is_my_turn() else "")
+
+
+func _render_bottom() -> void:
+	var spectator: bool = _me_seat < 0
+	_my_panel.visible = not spectator
+	_spectator.visible = spectator
+	if spectator:
+		var mode: String = String(_session.get("mode", "spectate"))
+		var current: int = int(_view.get("current_seat", 0))
+		var replay: bool = mode == "replay"
+		_spectator_hint.visible = replay
+		if replay:
+			_spectator_title.text = "回放"
+			_spectator_detail.text = String(_session.get("replay_label", "逐步回放"))
+		else:
+			_spectator_title.text = "观战"
+			_spectator_detail.text = "全部 %d 位玩家在右栏 · 当前轮到 %s" % [
+				int(_view.get("player_count", 2)), _name(current),
+			]
+		return
+
+	var player: Dictionary = UiViewMath.player(_view, _me_seat)
+	var tokens: Dictionary[int, int] = UiViewMath.tokens(_view, _me_seat)
+	var bonuses: Dictionary[int, int] = UiViewMath.bonuses(_view, _me_seat, _catalog)
+	var raw_reserved: Array = player.get("reserved", [])
+	var reserved: Array[Dictionary] = []
+	for item: Variant in raw_reserved:
+		var entry: Dictionary = item if item is Dictionary else {}
+		var card_id: String = UiViewMath.reserved_card_id(entry)
+		reserved.append({
+			"id": card_id,
+			"level": int(entry.get("level", 1)),
+			"blind": UiViewMath.is_blind(entry),
+			"affordable": _is_my_turn() and not card_id.is_empty()
+					and UiViewMath.can_afford(_view, _me_seat, card_id, _catalog),
+		})
+	_my_panel.render({
+		"seat": _me_seat,
+		"name": _name(_me_seat),
+		"seat_type": _seat_type(_me_seat),
+		"score": UiViewMath.score(_view, _me_seat, _catalog),
+		"win_points": int(_rules.win_points),
+		"card_count": UiViewMath.card_count(_view, _me_seat),
+		"noble_count": UiViewMath.noble_count(_view, _me_seat),
+		"tokens": tokens,
+		"bonuses": bonuses,
+		"reserved": reserved,
+		"max_tokens": int(_rules.max_tokens),
+		"max_reserved": int(_rules.max_reserved),
+		"catalog": _catalog,
+		"can_buy": _is_my_turn(),
+		"strip": _strip_data(),
+	})
+
+
+func _strip_data() -> Dictionary:
+	var strip_override: Variant = _session.get("strip")
+	if strip_override is Dictionary and not (strip_override as Dictionary).is_empty():
+		return strip_override
+	if _is_my_turn():
+		return {
+			"kind": "note",
+			"text": "轮到你：点银行拿宝石，或点一张卡购买 / 预留",
+			"tray_text": "还没选宝石",
+			"confirm_label": "确认拿取",
+			"confirm_enabled": false,
+		}
+	if String(_view.get("phase", "")) == "discard" \
+			and int(_view.get("current_seat", -1)) == _me_seat:
+		return {"kind": "note", "text": "持币超过上限，先弃回银行"}
+	return {
+		"kind": "note",
+		"text": "等 %s 出手…你可以先看看场面" % _name(int(_view.get("current_seat", 0))),
+	}
+
+
+func _render_right() -> void:
+	var seats: Array[int] = []
+	var current: int = int(_view.get("current_seat", 0))
+	var player_count: int = int(_view.get("player_count", 0))
+	for seat: int in player_count:
+		if _me_seat < 0 or seat != _me_seat:
+			seats.append(seat)
+
+	for seat: int in _opponent_panels.keys():
+		if seat in seats:
+			continue
+		var stale: UiOpponentPanel = _opponent_panels[seat]
+		_opponents.remove_child(stale)
+		stale.queue_free()
+		_opponent_panels.erase(seat)
+
+	for index: int in seats.size():
+		var seat: int = seats[index]
+		var panel: UiOpponentPanel = _opponent_panels.get(seat)
+		if panel == null:
+			panel = UiOpponentPanel.new()
+			panel.name = "Opponent%d" % seat
+			_opponents.add_child(panel)
+			_opponent_panels[seat] = panel
+		_opponents.move_child(panel, index)
+		var seat_type: String = _seat_type(seat)
+		var replay: bool = String(_session.get("mode", "")) == "replay"
+		panel.render({
+			"seat": seat,
+			"name": _name(seat),
+			"seat_type": seat_type,
+			"score": UiViewMath.score(_view, seat, _catalog),
+			"win_points": int(_rules.win_points),
+			"tokens": UiViewMath.tokens(_view, seat),
+			"bonuses": UiViewMath.bonuses(_view, seat, _catalog),
+			"noble_count": UiViewMath.noble_count(_view, seat),
+			"reserved": UiViewMath.player(_view, seat).get("reserved", []),
+			"max_tokens": int(_rules.max_tokens),
+			"catalog": _catalog,
+			"active": seat == current,
+			"thinking": seat == current and seat_type != "human" and not replay,
+		})
+
+	var entries: Variant = _session.get("log", [])
+	var requested_limit: int = int(_session.get("log_limit", 0))
+	var default_limit: int = 4 if seats.size() >= 3 else 7
+	var limit: int = requested_limit if requested_limit > 0 else default_limit
+	_log.render(entries if entries is Array else [], UiViewMath.round_number(_view),
+			limit, _catalog)
+
+
+# ---------------------------------------------------------------- 显示辅助
+
+func _is_my_turn() -> bool:
+	return _me_seat >= 0 \
+			and String(_view.get("phase", "")) == "playing" \
+			and int(_view.get("current_seat", -1)) == _me_seat
+
+
+func _name(seat: int) -> String:
+	var names: Variant = _session.get("names", [])
+	if names is Array and seat >= 0 and seat < (names as Array).size():
+		var value: String = String((names as Array)[seat])
+		if not value.is_empty():
+			return value
+	return "座位 %d" % (seat + 1)
+
+
+func _seat_type(seat: int) -> String:
+	var types: Variant = _session.get("seat_types", [])
+	if types is Array and seat >= 0 and seat < (types as Array).size():
+		var value: String = String((types as Array)[seat])
+		if not value.is_empty():
+			return value
+	return "human"
+
+
+# ---------------------------------------------------------------- 测试 / 调试用
+
+func market_card_ids() -> Dictionary[int, Array]:
+	var result: Dictionary[int, Array] = {}
+	for level: int in _market_cards:
+		var ids: Array[String] = []
+		for card: UiDevCard in _market_cards[level]:
+			if not card.card_id.is_empty():
+				ids.append(card.card_id)
+		result[level] = ids
+	return result
+
+
+func deck_counts() -> Dictionary[int, int]:
+	var result: Dictionary[int, int] = {}
+	for level: int in _deck_piles:
+		result[level] = _deck_piles[level].remaining
+	return result
+
+
+func opponent_panel(seat: int) -> UiOpponentPanel:
+	return _opponent_panels.get(seat)
+
+
+func my_panel() -> UiMyPanel:
+	return _my_panel
+
+
+func log_panel() -> UiLogPanel:
+	return _log
+
+
+func bank_column() -> UiBankColumn:
+	return _bank
+
+
+func right_column() -> VBoxContainer:
+	return _right

@@ -1,0 +1,62 @@
+{
+  "log": [
+    {
+      "seat": 0,
+      "text": "小明 购买 {card:L2-W-04}，到达 15 分，触发终局",
+      "time": "刚刚"
+    },
+    {
+      "seat": 0,
+      "text": "一位贵族来拜访小明（+3 分）",
+      "time": "刚刚"
+    },
+    {
+      "seat": 3,
+      "text": "橘子 拿了 {gem:blue}{gem:green}{gem:black}",
+      "time": "30 秒"
+    },
+    {
+      "seat": 2,
+      "text": "紫晶 购买 {card:L1-U-03}",
+      "time": "1 分钟"
+    },
+    {
+      "seat": 1,
+      "text": "薄荷 购买 {card:L3-G-01}",
+      "time": "1 分钟"
+    }
+  ],
+  "me_seat": 0,
+  "name": "g4_endgame",
+  "schema_version": 1,
+  "seats": [
+    {
+      "name": "小明",
+      "type": "human"
+    },
+    {
+      "name": "薄荷",
+      "type": "bot_hard"
+    },
+    {
+      "name": "紫晶",
+      "type": "bot_normal"
+    },
+    {
+      "name": "橘子",
+      "type": "llm"
+    }
+  ],
+  "steps": [
+    {
+      "at_ms": 0,
+      "view": "views/g4_endgame.json"
+    }
+  ],
+  "strip": {
+    "kind": "event",
+    "right": "终局轮",
+    "seat": 0,
+    "text": "小明 到 15 分了！终局轮：薄荷、紫晶、橘子各还有一回合，之后结算"
+  }
+}

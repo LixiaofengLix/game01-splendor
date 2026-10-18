@@ -105,4 +105,11 @@
 /Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 300 -- --out /tmp/splendor_ui/g.png --width 1440 --height 900 --scale fractional --wait 8
 # 重新生成像素贴图（改点阵定义后；结果写入 ui/assets/pixel/）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . ui/tools/build_pixel_assets.tscn
+
+# 牌桌夹具（改完卡表 / 规则 / 样张局面后；结果写入 ui/dev/fixtures/）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . ui/dev/build_fixtures.tscn
+# 单张夹具的牌桌预览（带窗口）
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/table_preview.tscn -- --fixture g3_turn_mine
+# 牌桌截图（夹具名见 ui/dev/fixtures/；截图必须带窗口）
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
 ```

@@ -1,0 +1,137 @@
+{
+  "bank": {
+    "black": 1,
+    "blue": 0,
+    "gold": 0,
+    "green": 2,
+    "red": 3,
+    "white": 5
+  },
+  "boards": {
+    "1": [
+      "L1-W-08",
+      "L1-G-07",
+      "L1-U-08",
+      "L1-U-03"
+    ],
+    "2": [
+      "L2-K-05",
+      "L2-R-05",
+      "L2-R-02",
+      "L2-U-04"
+    ],
+    "3": [
+      "L3-U-03",
+      "L3-K-04",
+      "L3-W-04",
+      "L3-W-03"
+    ]
+  },
+  "current_seat": 0,
+  "decks": {
+    "1": {
+      "count": 33
+    },
+    "2": {
+      "count": 24
+    },
+    "3": {
+      "count": 14
+    }
+  },
+  "endgame_triggered": false,
+  "finished_reason": "",
+  "nobles": [
+    "N-08",
+    "N-01",
+    "N-05",
+    "N-07"
+  ],
+  "pending_nobles": [],
+  "phase": "playing",
+  "player_count": 3,
+  "players": [
+    {
+      "nobles": [],
+      "purchased": [],
+      "reserved": [
+        {
+          "blind": false,
+          "id": "L1-U-06",
+          "level": 1
+        }
+      ],
+      "seat": 0,
+      "tokens": {
+        "black": 3,
+        "blue": 2,
+        "gold": 1,
+        "green": 3,
+        "red": 1
+      }
+    },
+    {
+      "nobles": [],
+      "purchased": [],
+      "reserved": [
+        {
+          "blind": true,
+          "id": null,
+          "level": 3
+        },
+        {
+          "blind": false,
+          "id": "L2-W-02",
+          "level": 2
+        },
+        {
+          "blind": false,
+          "id": "L3-K-03",
+          "level": 3
+        }
+      ],
+      "seat": 1,
+      "tokens": {
+        "blue": 2,
+        "gold": 2
+      }
+    },
+    {
+      "nobles": [],
+      "purchased": [],
+      "reserved": [
+        {
+          "blind": false,
+          "id": "L1-G-04",
+          "level": 1
+        },
+        {
+          "blind": false,
+          "id": "L1-K-05",
+          "level": 1
+        },
+        {
+          "blind": false,
+          "id": "L2-R-03",
+          "level": 2
+        }
+      ],
+      "seat": 2,
+      "tokens": {
+        "black": 1,
+        "blue": 1,
+        "gold": 2,
+        "red": 1
+      }
+    }
+  ],
+  "schema_version": 1,
+  "trigger_seat": -1,
+  "turn_counts": [
+    4,
+    4,
+    4
+  ],
+  "viewer_seat": 0,
+  "winners": []
+}

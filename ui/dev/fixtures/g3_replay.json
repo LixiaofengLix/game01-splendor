@@ -1,0 +1,65 @@
+{
+  "log": [
+    {
+      "seat": 2,
+      "text": "紫晶 拿了 {gem:white}{gem:green}{gem:black} 各 1 枚",
+      "time": "刚刚"
+    },
+    {
+      "seat": 1,
+      "text": "薄荷 盲抽预留了三级牌堆顶（没有金币了）",
+      "time": "20 秒"
+    },
+    {
+      "seat": 0,
+      "text": "小明 购买 {card:L1-W-02}，付 {gem:red}×1",
+      "time": "1 分钟"
+    },
+    {
+      "seat": 2,
+      "text": "紫晶 预留 {card:L2-W-03}，拿到 1 枚 {gem:gold}",
+      "time": "1 分钟"
+    },
+    {
+      "seat": 1,
+      "text": "薄荷 购买 {card:L2-G-03}",
+      "time": "2 分钟"
+    },
+    {
+      "seat": 0,
+      "text": "小明 拿了 {gem:blue}{gem:blue} 2 枚",
+      "time": "2 分钟"
+    },
+    {
+      "seat": 2,
+      "text": "紫晶 拿了 {gem:white}{gem:red}{gem:gold}…",
+      "time": "3 分钟"
+    }
+  ],
+  "me_seat": -1,
+  "mode": "replay",
+  "name": "g3_replay",
+  "pill_text": "回放 · 第 37 / 74 步",
+  "replay_label": "第 37 步 · 第 13 轮 · 薄荷 盲抽预留了三级牌堆顶",
+  "schema_version": 1,
+  "seats": [
+    {
+      "name": "小明",
+      "type": "human"
+    },
+    {
+      "name": "薄荷",
+      "type": "bot_hard"
+    },
+    {
+      "name": "紫晶",
+      "type": "bot_normal"
+    }
+  ],
+  "steps": [
+    {
+      "at_ms": 0,
+      "view": "views/g3_replay.json"
+    }
+  ]
+}

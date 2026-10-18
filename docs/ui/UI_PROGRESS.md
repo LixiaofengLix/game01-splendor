@@ -7,11 +7,16 @@
 
 - **U0（工程骨架与素材）：已完成，随 U1 一起提交（2026-10-18）。**
   `ui/` 目录树、字体、44 张像素贴图、调色板、初版 Theme、入口空壳与 `tests/ui_smoke.tscn` 已就位。
-- **U1（零件库 + 陈列场景）：已完成并提交（2026-10-18）；视觉验收与缩放方案仍待拍板。**
+- **U1（零件库 + 陈列场景）：已完成并提交（2026-10-18）；视觉验收待看，缩放方案已定为 b。**
   21 个零件脚本、共享 `UiFrame`、陈列场景、整页截图工具和 U1 冒烟检查已就位。
   自动验证全部通过：`ui_smoke` **234 项**、陈列场景 headless 无报错、`data_report` 通过、
   正式入口 headless 退出码 0；整页截图 1280×4128 已人工检查。
-- 下一步：U2（牌桌静态渲染）；U1 的两个待拍板项见下方“遗留问题”。
+- **U2（牌桌静态渲染）：已完成并提交（2026-10-18）。**
+  `UiViewMath`、牌桌场景与 6 个面板零件、9 个夹具、`build_fixtures` / `table_preview` / 截图 `--fixture`
+  已就位。自动验证全部通过：`ui_smoke` **877 项**、`data_report` 通过、入口 headless 退出码 0；
+  04 / 07 / 08、2 人 / 4 人、牌堆空、银行见底、观战、回放占位、1600 宽 / 900 高截图已检查。
+- 下一步：U3（牌桌交互 + 接真实对局）。
+  **缩放方案已拍板选 b（整数缩放），在 U9 改 `project.godot`，U0–U8 不改项目设置。**
 - 上次更新：2026-10-18
 
 ---
@@ -136,14 +141,15 @@
 10. **`UiCardPopover` 没做**。计划 U1 的 1–3 条没有列它，U3 第 3 条才做“选卡与浮层”；
     支付预览的数据结构建议等 U2 的 `ViewMath` 定下来再做，避免返工。
     银行 / 我的面板 / 对手面板 / 日志 / 顶栏等 6.6–6.10 的面板按计划留给 U2。
-11. **缩放方案还没拍板**：当前保持 `project.godot` 原样（分数缩放）。U1 只提供两种模式的截图命令，
-    不修改项目设置。
+11. **缩放方案已拍板选 b（整数缩放）**：U9 在 `project.godot` 设
+    `window/stretch/scale_mode = "integer"`；U0–U8 保持原样（分数缩放），U1 只提供两种模式的截图命令。
 
 ### 遗留问题 / 下一阶段需要知道的事
 
-- **待你拍板**：缩放方案选 a（分数缩放，推荐）还是 b（整数缩放、留边、U9 改项目设置）。
-  结论出来后写进这里；在选择之前，U2 一律按 1280×800 逻辑尺寸排版。
-- **待你视觉验收**：`docs/tests/ui_U1.md` 的 U1-06 / U1-07。机器验证已全部通过。
+- **缩放方案（已拍板 2026-10-18）**：选 **b（整数缩放）**。U9 在 `project.godot` 设
+  `window/stretch/scale_mode = "integer"`；届时非整数窗口会居中留边，逻辑画布保持 1280×800。
+  U0–U8 不改项目设置；U2 起仍按 1280×800 逻辑尺寸排版，窗口更宽 / 更高的自适应分支保留作为兜底。
+- **待你视觉验收**：`docs/tests/ui_U1.md` 的 U1-06。机器验证已全部通过；U1-07 已拍板。
 - **零件接口约定**：
   - 只接收显示数据：`card_id` + `CardCatalog`、颜色、数字、状态布尔值；不认识视图字典。
   - 发展卡状态属性：`affordable`、`shortfall`、`missing`、`gold_can_pay`、`selected`、`flash`、
@@ -163,8 +169,8 @@
   ```
   截图必须带窗口；`--headless` 会直接退出。整页截图当前为 1280×4128。
 - **已知小问题（不阻塞 U1）**：
-  - 在 1440×900（1.125 倍）下，美术像素会出现 2px / 3px 交替；这是分数缩放的固有现象，
-    等缩放方案拍板后再决定是否处理。
+  - U9 应用整数缩放后，1440×900 这类窗口会按 1× 居中留边，美术像素不再出现 2px / 3px 交替；
+    代价是界面相对窗口变小。U9 截图时再确认。
   - `UiDevCard` 的缺口条目前是单行，4 种缺失颜色时可能挤；U3 的完整支付信息在卡牌浮层里，
     缺口条只做悬停提示，必要时再改成两行。
   - 陈列场景整页较长，截图工具用 SubViewport 一次拍完；U2 的牌桌截图仍按窗口尺寸拍。
@@ -172,3 +178,91 @@
 ### 新登记的 IR
 
 无。
+
+---
+
+## U2：牌桌静态渲染
+
+### 已完成
+
+- `ui/common/view_math.gd`（`UiViewMath`）：分数、折扣、持币总数、缺口明细、金币可抵、支付预览、
+  买得起的座位、轮数、终局剩余人数、座位类型文案。买得起 / 支付拆分与 `core/rules.gd`
+  的 `_can_afford` / `_payment` 同一算法（IR-02 的临时实现）。
+- `ui/common/ui_markup.gd`（`UiMarkup`）：日志 / 顶条文案的 `{card:id}` / `{gem:color}` 简写 → BBCode。
+- 6 个牌桌零件：
+  - `UiHud`（顶栏：标题、人数轮数、终局标签、回合胶囊、规则 / 菜单按钮）
+  - `UiTurnPill`（轮到我 / 等别人 + 转圈 / 纯文字）
+  - `UiBankColumn`（银行列：6 枚 lg 筹码 + 操作提示）
+  - `UiMyPanel`（状态条 + 身份 / 资源 / 预留三列；事件态顶条）
+  - `UiOpponentPanel`（分数进度条 + 6 列折扣 / 宝石网格 + 预留标记 + 思考中）
+  - `UiLogPanel`（最新一条高亮、卡牌引用 / 宝石内联、全部记录 L）
+- `ui/screens/table/table_screen.tscn/.gd`（`UiTableScreen`）：`render(view, me_seat, session_info)`
+  唯一入口；按 `SCREENS.md` 的几何搭牌桌；没有“我”时右栏列全部玩家、底部换成观战 / 回放占位；
+  窗口更宽时右栏扩展到 420 后整组居中，更高时多出的高度给日志。
+- 夹具与工具：
+  - `ui/dev/build_fixtures.tscn/.gd`：生成 9 个夹具（G3 轮到我 / 电脑回合 / 观战 / 回放、G4 终局、
+    2 人银行见底、4 人牌堆已空、3 人 / 4 人种子跑局）。
+  - `ui/dev/fixture_loader.gd`、`ui/dev/table_preview.tscn`。
+  - `ui/dev/capture.tscn` 新增 `--fixture <name>` 牌桌截图。
+- `tests/ui_smoke.tscn` 扩充到 **877 项**：ViewMath 数值、逐个夹具渲染、卡牌 id / 银行 / 玩家数字 /
+  分数与视图一致、三级顺序、4 人右栏不溢出、重复 render 节点数不变、盲抽隐私、宝石守恒、
+  观战 / 回放底部布局。
+- 文档：`docs/tests/ui_U2.md`；本文件；`ui/common/`、`ui/components/`、`ui/screens/table/`、
+  `ui/dev/`、`ui/theme/` 的 README；`CLAUDE.md` 常用命令补 U2 的生成 / 预览 / 截图命令。
+
+### 与计划的偏差
+
+1. **市场卡位数改为运行时从 `RulesConfig.board_slots_per_level` 读**。三行市场在第一次 `render`
+   时按规则搭好；规则里的卡位数变化会重建。我的面板预留位也按 `max_reserved` 生成，不再写死 3。
+2. **G3 / G4 是“脚本里的手写常量”**：牌面、宝石、日志照样张录入 `build_fixtures.gd`，
+   由工具写成 JSON 并提交。这样改样张时只改一处，也能保证重复生成一致。
+3. **预设局面夹具（银行见底 / 牌堆已空）的日志为空**。快照本身没有动作历史，手写日志会和
+   局面数字矛盾（例如日志说拿了绿宝石但银行 / 手牌里没有），所以只显示“还没有记录”。
+4. **牌桌直接读 `DataRegistry` 的静态数据作为兜底**：`session_info` 可以注入 `catalog` / `rules`，
+   不注入时用 `DataRegistry`。这不涉及 `GameController`；U3 的桥接层会统一提供视图、动作与数据。
+5. **观战 / 回放底部先用占位框**：观战写“全部 N 位玩家在右栏”，回放写步骤说明 +
+   “回放播放条将在 U6 实现”。回放夹具里当前行动者仍显示橙框，但不显示“思考中”。
+6. **日志用 RichTextLabel + BBCode**（卡牌引用 = 浅色底 + 宝石图标），没有把 `UiCardRef`
+   塞进日志行。`UiCardRef` 仍保留给后续需要独立零件的地方。
+7. **小型零件扩展**：`UiFrame.side_bar`（我的面板 / 当前行动者左侧橙条）、
+   `UiDevCard.show_status`（不是我的回合时仍可悬停看缺口，但不显示“差 N”）、
+   `UiTag.in_hud`（顶栏深底标签配色）、`UiButton` 新增 `hud` 变体、
+   `UiPalette.PROGRESS_FILL`（对手进度条的灰色填充）。
+8. **`build_fixtures` 的种子跑局用随机合法动作控制器**（不是程序 AI），只用于取“真实对局中途视图”；
+   两只夹具分别在第 12 步截取，避免等 AI 思考延迟。G3 / G4 仍覆盖主要视觉状态。
+9. **HUD 的“规则 / 菜单”按钮在 U2 只有外观**，点击行为分别留到 U3 / U4。
+10. **截图工具的 `--fixture` 与陈列的 `--full` 互斥**；牌桌截图固定用窗口模式（headless 没有渲染）。
+11. **`tests/ui_smoke` 的检查数从 234 增加到 877**；U2 起每次 UI 改动都要跑它。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **缩放方案（U1 遗留，已拍板）**：选 **b（整数缩放）**，U9 落地。
+  U2 仍按 1280×800 逻辑尺寸排版；窗口更宽 / 更高时的布局已实测（1600×800、1280×900），
+  但 U9 应用整数缩放后，非整数窗口会居中留边、逻辑画布保持 1280×800，这两条自适应分支主要作为兜底保留。
+- **视觉验收**：截图与逐项观察点见 `docs/tests/ui_U2.md` 的 U2-05 至 U2-11
+  （04 / 07 / 08、2 人、牌堆空、观战、回放）；已确认提交。后续如发现视觉问题，优先在 U3 前修。
+- **牌桌入口契约**：`render(view, me_seat, session_info)`；`me_seat = -1` 表示观战 / 回放。
+  `session_info` 键见 `ui/screens/table/README.md`（`names` / `seat_types` / `log` / `strip` /
+  `pill_text` / `mode` / `replay_label` / `flash_cards` / `log_limit` / `catalog` / `rules`）。
+- **U3 要接的东西**：`UiTableSession` + `LiveBackend`；点击状态机、卡牌浮层、弃宝石 / 选贵族弹窗、
+  动效、`action_failed`。牌桌已经只认视图，桥接层把这些数据喂进来即可。
+- **U3 隐私注意**：全电脑观战时，`GameController.state_changed` 发出的是当前电脑的视图，
+  里面可能有它自己的盲抽 id。桥接层在生成观战视图时应把所有盲抽 id 置空（U2 的 `g3_spectator`
+  夹具就是这么做的）。UI 现在只画对手面板的罗马数字标记，不会显示卡面，但桥接层仍应做这层过滤。
+- **同一块牌桌连续切换 `me_seat`**（例如观战 ↔ 玩家）时，隐藏的我的面板会保留上一次的预留卡节点。
+  它们不可见、不影响布局；U3 接真实会话时在 `me_seat` 变化时清空一次即可。
+- **日志条数**：3 个对手时 4 条，否则 7 条；`session_info.log_limit` 可覆盖。
+- **回放 / 观战夹具**：`g3_replay` 的 `turn_counts` 设为 `[12,12,12]`（第 37 步 = 第 13 轮），
+  与底部说明一致；`g3_spectator` 把三家的盲抽 id 都置空。
+- **截图与预览**：
+  ```bash
+  $GODOT --headless --path . ui/dev/build_fixtures.tscn
+  $GODOT --path . ui/dev/table_preview.tscn -- --fixture g3_turn_mine
+  $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
+  ```
+- **已知非问题**：`g3_turn_mine` 有一条日志在 330 宽右栏折成两行；截图退出时的 RID / ObjectDB
+  `leaked` 警告来自 `--quit-after` 强制退出，不影响结果。
+
+### 新登记的 IR
+
+无（`UiViewMath` 是 IR-02 的临时实现；U3 的桥接层会处理观战视图的盲抽过滤，不需要逻辑层新接口）。

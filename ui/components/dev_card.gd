@@ -93,6 +93,12 @@ var force_need: bool = false:
 		force_need = value
 		_refresh()
 
+## 牌桌用：不是我的回合时仍然计算缺口（悬停可看），但不显示“差 N”状态标签。
+var show_status: bool = true:
+	set(value):
+		show_status = value
+		_refresh()
+
 var _content: Control
 var _shadow: NinePatchRect
 var _back_tex: TextureRect
@@ -491,7 +497,7 @@ func _refresh() -> void:
 	_threat.visible = not mini and not threat_seats.is_empty()
 
 	_blind_tag.visible = blind_label
-	_status.visible = affordable or shortfall > 0
+	_status.visible = show_status and (affordable or shortfall > 0)
 	if affordable:
 		_status.add_theme_stylebox_override("panel", _ok_style)
 		_status_label.text = "可买"

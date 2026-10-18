@@ -24,15 +24,16 @@ func _ready() -> void:
 		return
 	_ensure_dir(out_path)
 
-	if args.has("full"):
+	if args.has("fixture"):
+		await _capture_table(String(args["fixture"]), width, height, out_path, wait_frames)
+	elif args.has("full"):
 		await _capture_full(width, out_path, wait_frames)
 	else:
 		await _capture_window(width, height, String(args.get("scale", "fractional")),
 				int(args.get("scroll", "0")), out_path, wait_frames)
 
 
-func _capture_window(width: int, height: int, scale_mode: String, scroll: int,
-		out_path: String, wait_frames: int) -> void:
+func _prepare_window(width: int, height: int, scale_mode: String) -> Window:
 	var window := get_window()
 	window.content_scale_size = Vector2i(1280, 800)
 	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
@@ -42,6 +43,39 @@ func _capture_window(width: int, height: int, scale_mode: String, scroll: int,
 			else Window.CONTENT_SCALE_STRETCH_FRACTIONAL)
 	window.size = Vector2i(width, height)
 	DisplayServer.window_set_size(Vector2i(width, height))
+	return window
+
+
+func _capture_table(fixture_name: String, width: int, height: int, out_path: String,
+		wait_frames: int) -> void:
+	var fixture := UiFixtureLoader.load_fixture(fixture_name)
+	if fixture.is_empty():
+		printerr("截图失败：夹具 %s 加载不了" % fixture_name)
+		get_tree().quit(1)
+		return
+	var window := _prepare_window(width, height, "fractional")
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var table: UiTableScreen = load("res://ui/screens/table/table_screen.tscn").instantiate()
+	table.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(table)
+	await get_tree().process_frame
+	table.render(fixture["view"], int(fixture["me_seat"]), fixture["session_info"])
+	for _i in wait_frames:
+		await get_tree().process_frame
+
+	var image := get_viewport().get_texture().get_image()
+	var error := image.save_png(out_path)
+	print("capture：牌桌夹具 %s，窗口 %s，保存到 %s" % [
+		fixture_name, str(window.size), out_path,
+	])
+	_finish(error, out_path)
+
+
+func _capture_window(width: int, height: int, scale_mode: String, scroll: int,
+		out_path: String, wait_frames: int) -> void:
+	var window := _prepare_window(width, height, scale_mode)
 	await get_tree().process_frame
 	await get_tree().process_frame
 

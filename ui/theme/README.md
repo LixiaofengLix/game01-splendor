@@ -4,7 +4,8 @@
 
 - 文字变体：`UiSmall(12)` / `UiTitle(24)` / `UiHero(48)`。
 - 数字变体（Press Start 2P）：`UiNumSmall(8)` / `UiNumMid(12)` / `UiNum(16)` / `UiNumBig(32)`。
-- 按钮变体：`UiButtonAccent` / `UiButtonDark` / `UiButtonGhost` / `UiButtonQuiet` / `UiButtonDanger`。
+- 按钮变体：`UiButtonAccent` / `UiButtonDark` / `UiButtonGhost` / `UiButtonQuiet` / `UiButtonDanger` /
+  `UiButtonHud`（顶栏深底按钮）。
 - 面板：`Panel` / `PanelContainer` 大框、`UiPanelHot`（当前行动者）。
 - 标签：`UiTag*` 与对应的 `UiTag*Text`。
 

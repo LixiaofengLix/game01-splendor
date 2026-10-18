@@ -76,6 +76,25 @@ var feature_bar: bool = false:
 			_feature.visible = value
 			_layout()
 
+## 左侧 4px 内条：我的面板、当前行动的对手面板用。
+var side_bar: bool = false:
+	set(value):
+		side_bar = value
+		if _side != null:
+			_side.visible = value
+			_layout()
+
+var side_bar_color: Color = UiPalette.ORANGE:
+	set(value):
+		side_bar_color = value
+		if _side != null:
+			_side.color = value
+
+var side_bar_width: int = 4:
+	set(value):
+		side_bar_width = value
+		_layout()
+
 ## 子节点放这里；它的最小尺寸决定整个框的最小尺寸。
 var content: MarginContainer
 
@@ -84,6 +103,7 @@ var _bg: ColorRect
 var _frame: NinePatchRect
 var _highlight: ColorRect
 var _feature: ColorRect
+var _side: ColorRect
 
 
 func _ready() -> void:
@@ -116,6 +136,12 @@ func _ready() -> void:
 	_feature.visible = feature_bar
 	_feature.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_feature)
+
+	_side = ColorRect.new()
+	_side.color = side_bar_color
+	_side.visible = side_bar
+	_side.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_side)
 
 	content = MarginContainer.new()
 	content.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -156,6 +182,11 @@ func _layout() -> void:
 	if _feature != null:
 		_feature.position = Vector2(frame_border, frame_border)
 		_feature.size = Vector2(maxf(size.x - frame_border * 2.0, 0.0), 4.0)
+	if _side != null:
+		_side.position = Vector2(frame_border, frame_border)
+		_side.size = Vector2(
+				float(side_bar_width),
+				maxf(size.y - frame_border * 2.0, 0.0))
 	if content != null:
 		content.position = Vector2(content_padding.x, content_padding.y)
 		content.size = Vector2(

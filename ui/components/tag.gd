@@ -13,6 +13,12 @@ var variant: StringName = &"default":
 		variant = value
 		_apply_variant()
 
+## 顶栏里的 tag 用深色底 + 浅字（VISUAL_SPEC 2.3 最后一行的配色）。
+var in_hud: bool = false:
+	set(value):
+		in_hud = value
+		_apply_variant()
+
 var _label: Label
 
 
@@ -52,5 +58,16 @@ func _apply_variant() -> void:
 		&"red":
 			bg = UiPalette.TAG_RED_BG
 			fg = UiPalette.TAG_RED_TEXT
+	if in_hud:
+		match variant:
+			&"orange":
+				bg = UiPalette.ORANGE
+				fg = UiPalette.WHITE
+			&"mint":
+				bg = UiPalette.OK
+				fg = UiPalette.WHITE
+			_:
+				bg = UiPalette.HUD_HIGHLIGHT
+				fg = UiPalette.CREAM
 	background_color = bg
 	_label.add_theme_color_override("font_color", fg)

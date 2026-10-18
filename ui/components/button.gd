@@ -9,6 +9,7 @@ const VARIATIONS: Dictionary[StringName, StringName] = {
 	&"dark": &"UiButtonDark",
 	&"quiet": &"UiButtonQuiet",
 	&"danger": &"UiButtonDanger",
+	&"hud": &"UiButtonHud",
 }
 ## [左右, 上, 下]
 const PADDING: Dictionary[StringName, Vector3i] = {

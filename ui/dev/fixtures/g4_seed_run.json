@@ -1,0 +1,30 @@
+{
+  "log": [],
+  "me_seat": 0,
+  "name": "g4_seed_run",
+  "schema_version": 1,
+  "seats": [
+    {
+      "name": "小明",
+      "type": "human"
+    },
+    {
+      "name": "薄荷",
+      "type": "bot_hard"
+    },
+    {
+      "name": "紫晶",
+      "type": "bot_normal"
+    },
+    {
+      "name": "橘子",
+      "type": "llm"
+    }
+  ],
+  "steps": [
+    {
+      "at_ms": 0,
+      "view": "views/g4_seed_run.json"
+    }
+  ]
+}

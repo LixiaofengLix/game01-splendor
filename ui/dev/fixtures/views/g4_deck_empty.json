@@ -1,0 +1,134 @@
+{
+  "bank": {
+    "black": 7,
+    "blue": 7,
+    "gold": 5,
+    "green": 7,
+    "red": 7,
+    "white": 7
+  },
+  "boards": {
+    "1": [
+      "L1-W-07",
+      "L1-K-05",
+      "L1-U-01",
+      "L1-U-03"
+    ],
+    "2": [
+      "L2-W-06",
+      "L2-R-05",
+      "L2-G-03",
+      "L2-G-05"
+    ],
+    "3": [
+      "L3-R-03",
+      "L3-U-02",
+      "L3-K-01",
+      "L3-G-03"
+    ]
+  },
+  "current_seat": 0,
+  "decks": {
+    "1": {
+      "count": 0
+    },
+    "2": {
+      "count": 26
+    },
+    "3": {
+      "count": 16
+    }
+  },
+  "endgame_triggered": false,
+  "finished_reason": "",
+  "nobles": [
+    "N-08",
+    "N-07",
+    "N-10",
+    "N-03",
+    "N-06"
+  ],
+  "pending_nobles": [],
+  "phase": "playing",
+  "player_count": 4,
+  "players": [
+    {
+      "nobles": [],
+      "purchased": [
+        "L1-R-04",
+        "L1-U-02",
+        "L1-U-07",
+        "L1-G-02",
+        "L1-K-02",
+        "L1-W-04",
+        "L1-K-06",
+        "L1-W-05",
+        "L1-R-03",
+        "L1-G-03"
+      ],
+      "reserved": [],
+      "seat": 0,
+      "tokens": {}
+    },
+    {
+      "nobles": [],
+      "purchased": [
+        "L1-W-06",
+        "L1-G-06",
+        "L1-R-07",
+        "L1-W-03",
+        "L1-K-04",
+        "L1-U-04",
+        "L1-R-08",
+        "L1-G-08",
+        "L1-U-06"
+      ],
+      "reserved": [],
+      "seat": 1,
+      "tokens": {}
+    },
+    {
+      "nobles": [],
+      "purchased": [
+        "L1-G-01",
+        "L1-R-06",
+        "L1-R-05",
+        "L1-K-03",
+        "L1-W-08",
+        "L1-K-01",
+        "L1-U-05",
+        "L1-W-01",
+        "L1-G-04"
+      ],
+      "reserved": [],
+      "seat": 2,
+      "tokens": {}
+    },
+    {
+      "nobles": [],
+      "purchased": [
+        "L1-R-02",
+        "L1-G-07",
+        "L1-K-08",
+        "L1-U-08",
+        "L1-W-02",
+        "L1-K-07",
+        "L1-G-05",
+        "L1-R-01"
+      ],
+      "reserved": [],
+      "seat": 3,
+      "tokens": {}
+    }
+  ],
+  "schema_version": 1,
+  "trigger_seat": -1,
+  "turn_counts": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "viewer_seat": 0,
+  "winners": []
+}

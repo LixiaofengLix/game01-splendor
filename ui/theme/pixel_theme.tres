@@ -481,6 +481,67 @@ texture_margin_right = 2.0
 texture_margin_bottom = 2.0
 modulate_color = Color(1, 0.8392157, 0.8156863, 1)
 
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_hudn"]
+content_margin_left = 14.0
+content_margin_top = 7.0
+content_margin_right = 14.0
+content_margin_bottom = 9.0
+texture = ExtResource("1_51ia0")
+texture_margin_left = 2.0
+texture_margin_top = 2.0
+texture_margin_right = 2.0
+texture_margin_bottom = 2.0
+modulate_color = Color(0.3529412, 0.2509804, 0.1882353, 1)
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_hudh"]
+content_margin_left = 14.0
+content_margin_top = 7.0
+content_margin_right = 14.0
+content_margin_bottom = 9.0
+texture = ExtResource("1_51ia0")
+texture_margin_left = 2.0
+texture_margin_top = 2.0
+texture_margin_right = 2.0
+texture_margin_bottom = 2.0
+modulate_color = Color(0.41960785, 0.2901961, 0.21176471, 1)
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_hudp"]
+content_margin_left = 14.0
+content_margin_top = 7.0
+content_margin_right = 14.0
+content_margin_bottom = 9.0
+texture = ExtResource("1_51ia0")
+texture_margin_left = 2.0
+texture_margin_top = 2.0
+texture_margin_right = 2.0
+texture_margin_bottom = 2.0
+modulate_color = Color(0.2901961, 0.20392157, 0.14117648, 1)
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_hudd"]
+content_margin_left = 14.0
+content_margin_top = 7.0
+content_margin_right = 14.0
+content_margin_bottom = 9.0
+texture = ExtResource("1_51ia0")
+texture_margin_left = 2.0
+texture_margin_top = 2.0
+texture_margin_right = 2.0
+texture_margin_bottom = 2.0
+modulate_color = Color(0.3529412, 0.2509804, 0.1882353, 0.5)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hudf"]
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.9098039, 0.34509805, 0.16470589, 1)
+expand_margin_left = 2.0
+expand_margin_top = 2.0
+expand_margin_right = 2.0
+expand_margin_bottom = 2.0
+anti_aliasing = false
+
 [resource]
 default_font = ExtResource("3_7wht0")
 default_font_size = 12
@@ -564,6 +625,19 @@ UiButtonGhost/styles/focus = SubResource("StyleBoxFlat_rwy07")
 UiButtonGhost/styles/hover = SubResource("StyleBoxTexture_0s417")
 UiButtonGhost/styles/normal = SubResource("StyleBoxTexture_wcvgh")
 UiButtonGhost/styles/pressed = SubResource("StyleBoxTexture_mbtkp")
+UiButtonHud/base_type = &"Button"
+UiButtonHud/colors/font_color = Color(0.9529412, 0.9019608, 0.78431374, 1)
+UiButtonHud/colors/font_disabled_color = Color(0.9529412, 0.9019608, 0.78431374, 0.5)
+UiButtonHud/colors/font_focus_color = Color(0.9529412, 0.9019608, 0.78431374, 1)
+UiButtonHud/colors/font_hover_color = Color(0.9529412, 0.9019608, 0.78431374, 1)
+UiButtonHud/colors/font_pressed_color = Color(0.9529412, 0.9019608, 0.78431374, 1)
+UiButtonHud/font_sizes/font_size = 12
+UiButtonHud/fonts/font = ExtResource("3_7wht0")
+UiButtonHud/styles/disabled = SubResource("StyleBoxTexture_hudd")
+UiButtonHud/styles/focus = SubResource("StyleBoxFlat_hudf")
+UiButtonHud/styles/hover = SubResource("StyleBoxTexture_hudh")
+UiButtonHud/styles/normal = SubResource("StyleBoxTexture_hudn")
+UiButtonHud/styles/pressed = SubResource("StyleBoxTexture_hudp")
 UiButtonQuiet/base_type = &"Button"
 UiButtonQuiet/colors/font_color = Color(0.16470589, 0.10980392, 0.07058824, 1)
 UiButtonQuiet/colors/font_disabled_color = Color(0.16470589, 0.10980392, 0.07058824, 0.5)

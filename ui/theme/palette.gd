@@ -44,6 +44,8 @@ const WHITE := Color("#ffffff")
 
 const SEGMENT_BG := Color("#e4cfa2")
 const PROGRESS_BG := Color("#d8c296")
+## 对手分数进度条未进入终局威胁区时的填充色。
+const PROGRESS_FILL := Color("#bdb3a2")
 const NOBLE_BG := Color("#f6e7c1")
 const NOBLE_INNER := Color("#fff6dc")
 const NOBLE_INNER_2 := Color("#e0c58a")

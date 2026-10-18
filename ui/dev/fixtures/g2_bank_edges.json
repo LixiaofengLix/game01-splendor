@@ -1,0 +1,22 @@
+{
+  "log": [],
+  "me_seat": 0,
+  "name": "g2_bank_edges",
+  "schema_version": 1,
+  "seats": [
+    {
+      "name": "小明",
+      "type": "human"
+    },
+    {
+      "name": "薄荷",
+      "type": "bot_normal"
+    }
+  ],
+  "steps": [
+    {
+      "at_ms": 0,
+      "view": "views/g2_bank_edges.json"
+    }
+  ]
+}

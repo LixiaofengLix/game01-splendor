@@ -1,0 +1,79 @@
+{
+  "bank": {
+    "black": 4,
+    "blue": 4,
+    "gold": 5,
+    "green": 0,
+    "red": 3,
+    "white": 4
+  },
+  "boards": {
+    "1": [
+      "L1-W-03",
+      "L1-U-01",
+      "L1-K-03",
+      "L1-K-06"
+    ],
+    "2": [
+      "L2-W-01",
+      "L2-R-04",
+      "L2-W-04",
+      "L2-K-04"
+    ],
+    "3": [
+      "L3-W-02",
+      "L3-W-03",
+      "L3-K-03",
+      "L3-U-04"
+    ]
+  },
+  "current_seat": 0,
+  "decks": {
+    "1": {
+      "count": 36
+    },
+    "2": {
+      "count": 26
+    },
+    "3": {
+      "count": 16
+    }
+  },
+  "endgame_triggered": false,
+  "finished_reason": "",
+  "nobles": [
+    "N-09",
+    "N-08",
+    "N-07"
+  ],
+  "pending_nobles": [],
+  "phase": "playing",
+  "player_count": 2,
+  "players": [
+    {
+      "nobles": [],
+      "purchased": [],
+      "reserved": [],
+      "seat": 0,
+      "tokens": {}
+    },
+    {
+      "nobles": [],
+      "purchased": [],
+      "reserved": [],
+      "seat": 1,
+      "tokens": {
+        "green": 4,
+        "red": 1
+      }
+    }
+  ],
+  "schema_version": 1,
+  "trigger_seat": -1,
+  "turn_counts": [
+    0,
+    0
+  ],
+  "viewer_seat": 0,
+  "winners": []
+}
