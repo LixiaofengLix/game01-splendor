@@ -45,6 +45,8 @@ var _right: VBoxContainer
 var _opponents: VBoxContainer
 var _log: UiLogPanel
 var _popover: UiCardPopover
+## 动效层：飞行的筹码 / 卡牌 / 贵族，压在牌桌之上、弹窗之下。
+var _anim_layer: Control
 var _modal_layer: Control
 var _modal_center: CenterContainer
 var _modal_control: Control = null
@@ -55,6 +57,7 @@ var _toast_slot: Control
 
 var _deck_piles: Dictionary[int, UiDeckPile] = {}
 var _market_cards: Dictionary[int, Array] = {}
+var _noble_tiles: Dictionary[String, UiNobleTile] = {}
 var _opponent_panels: Dictionary[int, UiOpponentPanel] = {}
 ## 已按哪套规则搭过市场行；规则里的卡位数变了就重建。
 var _market_slots_built: int = -1
@@ -72,6 +75,7 @@ func _ready() -> void:
 	_build_hud()
 	_build_content()
 	_build_popover()
+	_build_animation_layer()
 	_build_modal_layer()
 	_build_overlay_layer()
 	_build_toast_slot()
@@ -127,6 +131,15 @@ func _build_popover() -> void:
 	_popover.purchase_pressed.connect(func() -> void: purchase_pressed.emit())
 	_popover.reserve_pressed.connect(func() -> void: reserve_pressed.emit())
 	add_child(_popover)
+
+
+func _build_animation_layer() -> void:
+	_anim_layer = Control.new()
+	_anim_layer.name = "AnimationLayer"
+	_anim_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_anim_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anim_layer.z_index = 90
+	add_child(_anim_layer)
 
 
 func _build_modal_layer() -> void:
@@ -464,9 +477,12 @@ func _update_columns() -> void:
 
 ## 视图是唯一真相：每次调用都按视图整桌重画。
 ## session_info 可选键：names / seat_types / log / strip / pill_text / mode /
-## flash_cards / log_limit / catalog / rules / interactive / selection / clickable_colors /
-## selected_kind / selected_id / selected_level / popover / take_confirm_enabled。
+## flash_cards / flash_slots / log_limit / catalog / rules / interactive / selection /
+## clickable_colors / selected_kind / selected_id / selected_level / popover / take_confirm_enabled。
 func render(view: Dictionary, me_seat: int, session_info: Dictionary = {}) -> void:
+	# 退出对局时可能还有一拍迟到的视图；不在树里就不要再碰子节点。
+	if not is_inside_tree():
+		return
 	_view = view
 	_me_seat = me_seat
 	_session = session_info
@@ -522,6 +538,7 @@ func _render_market() -> void:
 	var boards: Dictionary = _view.get("boards", {})
 	var decks: Dictionary = _view.get("decks", {})
 	var flash_cards: Array = _session.get("flash_cards", [])
+	var flash_slots: Array = _session.get("flash_slots", [])
 	for level: int in [3, 2, 1]:
 		var deck_entry: Variant = decks.get(str(level), {})
 		var deck_count: int = int((deck_entry as Dictionary).get("count", 0)) \
@@ -543,7 +560,8 @@ func _render_market() -> void:
 			card.blind_label = false
 			card.show_status = playing_input
 			card.selected = selected_kind == "market" and card_id == selected_id
-			card.flash = card_id in flash_cards
+			card.flash = (not card_id.is_empty() and card_id in flash_cards) \
+					or flash_slots.has(Vector2i(level, index))
 			card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND \
 					if playing_input and not card_id.is_empty() else Control.CURSOR_ARROW
 			if card_id.is_empty():
@@ -589,12 +607,15 @@ func _render_nobles() -> void:
 	for child in _nobles.get_children():
 		_nobles.remove_child(child)
 		child.queue_free()
+	_noble_tiles.clear()
 	var noble_ids: Array = _view.get("nobles", [])
 	for item: Variant in noble_ids:
+		var noble_id: String = String(item)
 		var tile := UiNobleTile.new()
 		tile.catalog = _catalog
-		tile.noble_id = String(item)
+		tile.noble_id = noble_id
 		_nobles.add_child(tile)
+		_noble_tiles[noble_id] = tile
 
 
 func _render_bank() -> void:
@@ -824,6 +845,109 @@ func _seat_type(seat: int) -> String:
 		if not value.is_empty():
 			return value
 	return "human"
+
+
+# ---------------------------------------------------------------- 动效定位
+
+func animation_layer() -> Control:
+	return _anim_layer
+
+
+func catalog() -> CardCatalog:
+	return _catalog
+
+
+func me_seat() -> int:
+	return _me_seat
+
+
+func bank_chip_rect(color: Enums.GemColor) -> Rect2:
+	return _bank.chip_rect(color) if _bank != null else Rect2()
+
+
+func market_card_rect(card_id: String) -> Rect2:
+	if card_id.is_empty():
+		return Rect2()
+	for level: int in _market_cards:
+		for card: UiDevCard in _market_cards[level]:
+			if card.card_id == card_id:
+				return card.get_global_rect()
+	return Rect2()
+
+
+func market_slot_rect(level: int, slot: int) -> Rect2:
+	var cards: Array = _market_cards.get(level, [])
+	if slot < 0 or slot >= cards.size():
+		return Rect2()
+	return (cards[slot] as UiDevCard).get_global_rect()
+
+
+func deck_rect(level: int) -> Rect2:
+	var deck: UiDeckPile = _deck_piles.get(level) as UiDeckPile
+	return deck.get_global_rect() if deck != null else Rect2()
+
+
+func noble_rect(noble_id: String) -> Rect2:
+	var tile: UiNobleTile = _noble_tiles.get(noble_id) as UiNobleTile
+	return tile.get_global_rect() if tile != null else Rect2()
+
+
+func seat_panel_control(seat: int) -> Control:
+	if seat >= 0 and seat == _me_seat and _my_panel != null and _my_panel.visible:
+		return _my_panel
+	return _opponent_panels.get(seat) as Control
+
+
+func seat_panel_rect(seat: int) -> Rect2:
+	var panel: Control = seat_panel_control(seat)
+	return panel.get_global_rect() if panel != null else Rect2()
+
+
+func seat_reserved_rect(seat: int) -> Rect2:
+	if seat >= 0 and seat == _me_seat and _my_panel != null and _my_panel.visible:
+		return _my_panel.reserved_area_rect()
+	return seat_panel_rect(seat)
+
+
+func seat_token_rect(seat: int, color: Enums.GemColor) -> Rect2:
+	var panel := seat_panel_control(seat)
+	if panel is UiMyPanel:
+		var own_chip: UiGemChip = (panel as UiMyPanel).token_chip(color)
+		if own_chip != null:
+			return own_chip.get_global_rect()
+	elif panel is UiOpponentPanel:
+		var other_chip: UiGemChip = (panel as UiOpponentPanel).token_chip(color)
+		if other_chip != null:
+			return other_chip.get_global_rect()
+	return seat_panel_rect(seat)
+
+
+func seat_score_control(seat: int) -> Control:
+	var panel := seat_panel_control(seat)
+	if panel is UiMyPanel:
+		return (panel as UiMyPanel).score_control()
+	if panel is UiOpponentPanel:
+		return (panel as UiOpponentPanel).score_control()
+	return null
+
+
+func seat_bonus_control(seat: int, color: Enums.GemColor) -> Control:
+	var panel := seat_panel_control(seat)
+	if panel is UiMyPanel:
+		return (panel as UiMyPanel).bonus_tile(color)
+	if panel is UiOpponentPanel:
+		return (panel as UiOpponentPanel).bonus_tile(color)
+	return null
+
+
+func reserved_card_rect(card_id: String) -> Rect2:
+	if _my_panel == null or not _my_panel.visible:
+		return Rect2()
+	return _my_panel.reserved_card_rect(card_id)
+
+
+func endgame_tag_control() -> Control:
+	return _hud.endgame_tag_control() if _hud != null else null
 
 
 # ---------------------------------------------------------------- 测试 / 调试用

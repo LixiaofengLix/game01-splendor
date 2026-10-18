@@ -22,7 +22,8 @@
 - 几何按 `docs/ui/SCREENS.md`：顶栏 44，左栏 906（市场 470 / 我的面板 246），右栏 330（最宽 420）。
 - `session_info` 键：
   - 显示：`names`、`seat_types`、`log`、`strip`、`pill_text`、`mode`（`spectate` / `replay`）、
-    `replay_label`、`flash_cards`、`log_limit`、`catalog`、`rules`。
+    `replay_label`、`flash_cards`（卡牌 id）、`flash_slots`（`Vector2i(level, slot)`，补牌卡位）、
+    `log_limit`、`catalog`、`rules`。
   - 交互：`interactive`、`selection`（颜色 → 枚数）、`clickable_colors`、
     `selected_kind`（`market` / `deck` / `reserved`）、`selected_id`、`selected_level`、
     `popover`（`UiCardPopover` 的数据）、`take_confirm_enabled`。
@@ -35,8 +36,24 @@
   所以弃宝石 / 选贵族弹窗打开时仍能开暂停。toast 用 `show_toast()`，出现在顶栏下 12px。
 - 暂停与规则：`pause_menu.gd`（`UiPauseMenu`）+ `rules_panel.gd`（`UiRulesPanel`）。
   Esc 的行为：有选择先取消；弃宝石 / 选贵族 / 结算弹窗上叠开暂停；什么都没选时打开 / 关闭暂停。
+- 动效：`table_anim.gd`（`UiTableAnim`，Node，`UiTableFlow` 的子节点）。
+  - `events_arrived` 先到、`view_updated` 后到；`UiTableFlow` 把一对事件 + 目标视图作为一批交给它。
+    队列播完（或跳过）后才调用 `UiTableFlow._apply_view()` 落到目标视图。
+  - 视觉只画在牌桌的 `AnimationLayer`（z 90，不拦鼠标）：筹码飞行、卡牌滑走、贵族来访、
+    补牌翻盖、分数 / 折扣两帧跳动、终局标签跳动。飞行位置每步取整到 2px。
+  - 积压（当前 + 排队）超过 2 批时 `skip_all()` 直接落到最新视图，只保留最后一批的光晕；
+    同一座位的连续弃宝石会合并成一批，避免一次弃 3 枚就触发快进。
+  - 可跳过：动效播放时点击牌桌任意位置，或按 1–5 / Enter / R / Esc，都会先跳到最新视图；
+    这一下点击本身不再执行原动作。
+  - 回合内弹窗（弃宝石 / 选贵族）在动效播放期间关闭；确认提交后立刻关窗，让飞行可见，
+    需要继续选时由 `_sync_modal()` 按落地后的视图重开。
+  - 动画速度来自 `UiSettings.anim_speed`（slow ×1.5 / normal ×1 / fast ×0.5）；
+    `UiSettings.animations_enabled = false` 时事件和视图同步落地，供测试与 U7 设置页使用。
+  - 音效在事件播放时调用 `UiSfx.play_events()`；素材为空，只有调用点与开关。
 - 同屏换人遮挡：`UiTableFlow` 按 `INTERACTION.md` 第 5 节判断，牌桌不渲染私密信息直到玩家点按钮。
-- 存读档：`UiTableFlow` 在 `turn_ended` 后写自动存档，暂停菜单写快速存档，`game_ended` 后转存
-  `finished/`；结算弹窗的【保存回放】在自动转存失败时补存。
+  遮挡前会先把积压动效直接落完（盖屏期间不播）。
+- 存读档：`UiTableFlow` 在视图落地后写自动存档（`turn_ended` 触发），暂停菜单写快速存档，
+  `game_ended` 后转存 `finished/`；结算弹窗的【保存回放】在自动转存失败时补存。
+  存档摘要取会话最新视图，不取落后一拍的动效画面。
 - 本机“我”的判定、盲抽隐私和缓存的边界见 `ui/bridge/README.md`。
 - 调试夹具与截图见 `ui/dev/`；自动检查在 `tests/ui_smoke.gd`。

@@ -331,3 +331,20 @@ func _make_marker(entry: Dictionary, catalog: CardCatalog) -> Control:
 
 func get_render_data() -> Dictionary:
 	return _last_data.duplicate(true)
+
+
+## 动效定位：分数 / 宝石 / 折扣块的屏幕矩形。
+func score_control() -> Control:
+	return _score
+
+
+func token_chip(color: Enums.GemColor) -> UiGemChip:
+	return _chips.get(color)
+
+
+func bonus_tile(color: Enums.GemColor) -> UiBonusTile:
+	return _bonus_tiles.get(color)
+
+
+func panel_rect() -> Rect2:
+	return get_global_rect()

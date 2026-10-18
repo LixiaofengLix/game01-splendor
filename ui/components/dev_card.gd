@@ -82,6 +82,12 @@ var blind_label: bool = false:
 		blind_label = value
 		_refresh()
 
+## 牌背中间的文字；市场补牌翻面时留空，避免把普通补牌画成“盲抽”。
+var back_label: String = "盲抽":
+	set(value):
+		back_label = value
+		_refresh()
+
 var show_id: bool = false:
 	set(value):
 		show_id = value
@@ -442,7 +448,8 @@ func _refresh() -> void:
 		_frame.visible = true
 		_back_lv.text = ROMAN.get(back_level, "I")
 		_back_marks.text = "◆".repeat(back_level)
-		_back_text.text = "盲抽"
+		_back_text.text = back_label
+		_back_text.visible = not back_label.is_empty()
 		_hide_normal()
 		_layout_all()
 		return

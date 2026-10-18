@@ -106,6 +106,9 @@
 # 重新生成像素贴图（改点阵定义后；结果写入 ui/assets/pixel/）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . ui/tools/build_pixel_assets.tscn
 
+# 动效预览：自动触发拿宝石 / 预留 / 购买 / 贵族 / 弃宝石并截图到 /tmp/splendor_ui/（必须带窗口）
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/u5_anim_preview.tscn
+
 # 牌桌夹具（改完卡表 / 规则 / 样张局面后；结果写入 ui/dev/fixtures/）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . ui/dev/build_fixtures.tscn
 # 单张夹具的牌桌预览（带窗口）

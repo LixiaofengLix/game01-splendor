@@ -23,7 +23,8 @@
 - `bonus_tile.gd` — `UiBonusTile`：方形折扣块，noble / opp / base / big / md。
 - `cost_pill.gd` — `UiCostPill`：花费药丸，普通 / 迷你。
 - `dev_card.gd` — `UiDevCard`：市场 / 迷你发展卡，含可买、差 N、选中、光晕、对手头像、空位、牌背、盲抽标签；
-  `show_status` 控制“可买 / 差 N”标签是否显示（不是我的回合时仍保留悬停缺口条）。
+  `show_status` 控制“可买 / 差 N”标签是否显示（不是我的回合时仍保留悬停缺口条）；
+  `back_label` 是牌背中间的文字（补牌翻面时置空，默认“盲抽”）。
 - `deck_pile.gd` — `UiDeckPile`：牌堆（有牌 / 已空 / 选中）。
 - `noble_tile.gd` — `UiNobleTile`：贵族牌（市场 / 大号 / 选中）。
 - `card_ref.gd` — `UiCardRef`：日志里的卡牌引用小块。
@@ -39,3 +40,8 @@
 - `log_panel.gd` — `UiLogPanel`：对局日志，最新一条高亮，支持 `{card:id}` / `{gem:color}` 内联标记。
 
 所有类名统一 `Ui` 前缀。陈列与截图见 `ui/dev/`；牌桌的组合方式见 `ui/screens/table/`。
+
+U5 起，面板零件额外暴露动效定位用的只读方法（不改变显示逻辑）：`bank_column.chip_rect()`、
+`my_panel.score_control()` / `token_chip()` / `bonus_tile()` / `reserved_card_rect()` / `reserved_area_rect()`、
+`opponent_panel.score_control()` / `token_chip()` / `bonus_tile()`、`hud.endgame_tag_control()`。
+牌桌把它们换算成屏幕矩形交给 `UiTableAnim`。

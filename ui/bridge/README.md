@@ -22,6 +22,10 @@ UI 与逻辑层之间的唯一接触面。屏幕和零件只认这一层；`ui/`
 - `save_entry.gd` — `UiSaveEntry`（RefCounted）：读档列表的一项。字段有 `kind`（replay / snapshot /
   unreadable）、`reason`、`ui_meta`、`display_name`、`player_count`、`action_count`、`saved_at`、
   `read_only`、以及选中时填写的 `verify_*`。屏幕只读它，不解析存档 JSON。
+- `ui_settings.gd` — `UiSettings`（RefCounted，全部静态）：UI 自有设置的运行时状态。
+  U5 只有 `anim_speed`（`slow` / `normal` / `fast`，倍率 1.5 / 1 / 0.5）、`animations_enabled`、
+  `sfx_enabled`、`confirm_before_buy`；`reset_defaults()` 供测试用。
+  持久化（`user://ui_settings.json`）按计划在 U7 做。
 - `save_store.gd` — `UiSaveStore`（Node）：管理 `user://saves/`。
   - `list()` / `autosave_entry()` / `autosave_summary()` / `validate(entry)` / `delete_entry(entry)`。
   - `save_autosave(data, meta)`（每回合结束）/ `save_quick(data, meta)`（暂停菜单）/ `transfer_finished(data, meta)`

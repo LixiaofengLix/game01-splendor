@@ -113,6 +113,11 @@ func render(info: Dictionary) -> void:
 	_layout()
 
 
+## 终局轮标签（动效里跳动用）；不在终局时也不可见。
+func endgame_tag_control() -> Control:
+	return _endgame_tag
+
+
 func _layout() -> void:
 	if _left == null or _right == null:
 		return

@@ -14,6 +14,11 @@ var _failures := 0
 
 
 func _ready() -> void:
+	# U0–U4 的交互检查按“立即落地”编写；U5 的动效检查会显式打开动效。
+	UiSettings.reset_defaults()
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	UiSfx.clear_calls()
 	_check_theme()
 	_check_text_variants()
 	_check_styleboxes()
@@ -43,6 +48,17 @@ func _ready() -> void:
 	await _check_u4_hotseat_cover()
 	await _check_u4_flow_autosave()
 	await _check_u4_app_flow()
+	await _check_u5_settings()
+	await _check_u5_animation_targets()
+	await _check_u5_flash_slots()
+	await _check_u5_animation_on_off()
+	await _check_u5_fast_forward()
+	await _check_u5_skip_and_speed()
+	await _check_u5_bot_spectator()
+	await _check_u5_endgame()
+	UiSettings.reset_defaults()
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
 	await _check_app()
 	if _failures == 0:
 		print("ui_smoke：%d 项全部通过。" % _checks)
@@ -2016,6 +2032,412 @@ func _check_u4_app_flow() -> void:
 	await get_tree().process_frame
 	UiSaveStore.root_override = ""
 	_u4_wipe(U4_SAVE_ROOT)
+
+
+# ---------------------------------------------------------------- U5：动效与反馈
+
+func _check_u5_settings() -> void:
+	UiSettings.reset_defaults()
+	_check(UiSettings.animations_enabled(), "U5 动效默认开启")
+	_check(UiSettings.anim_speed() == UiSettings.SPEED_NORMAL, "U5 动画速度默认标准")
+	_check(is_equal_approx(UiSettings.speed_multiplier(), 1.0), "U5 标准速度倍率 1")
+	UiSettings.set_anim_speed(UiSettings.SPEED_SLOW)
+	_check(is_equal_approx(UiSettings.speed_multiplier(), 1.5), "U5 慢速倍率 1.5")
+	UiSettings.set_anim_speed(UiSettings.SPEED_FAST)
+	_check(is_equal_approx(UiSettings.speed_multiplier(), 0.5), "U5 快速倍率 0.5")
+	UiSettings.set_anim_speed("bogus")
+	_check(UiSettings.anim_speed() == UiSettings.SPEED_NORMAL, "U5 未知速度回退标准")
+
+	UiSettings.set_animations_enabled(false)
+	_check(not UiSettings.animations_enabled(), "U5 动效可以关闭")
+	UiSettings.set_animations_enabled(true)
+	_check(UiSettings.animations_enabled(), "U5 动效可以打开")
+
+	UiSettings.set_sfx_enabled(false)
+	UiSfx.clear_calls()
+	UiSfx.play("take")
+	_check(UiSfx.take_calls().is_empty(), "U5 音效关闭时不播放")
+	UiSettings.set_sfx_enabled(true)
+	UiSfx.clear_calls()
+	UiSfx.play("take")
+	var calls: Array[String] = UiSfx.take_calls()
+	_check(calls == ["take"], "U5 音效打开时记录调用点")
+	var button := UiButton.new()
+	add_child(button)
+	button.pressed.emit()
+	_check(UiSfx.take_calls().has("click"), "U5 按钮点击接入音效钩子")
+	button.queue_free()
+	_check(not FileAccess.file_exists(UiSfx.DIR + "gems_taken.wav"), "U5 音效素材暂时为空")
+	UiSettings.set_sfx_enabled(false)
+	UiSettings.reset_defaults()
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+
+
+func _u5_fixture_host(fixture_name: String) -> Array:
+	await get_tree().process_frame
+	var host := Control.new()
+	host.name = "UiU5FixtureHost"
+	host.theme = load(THEME_PATH)
+	host.size = Vector2(1280, 800)
+	get_tree().root.add_child(host)
+	var table: UiTableScreen = load(TABLE_SCENE).instantiate()
+	table.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	host.add_child(table)
+	var fixture := UiFixtureLoader.load_fixture(fixture_name)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	table.render(fixture["view"], int(fixture["me_seat"]), fixture["session_info"])
+	await get_tree().process_frame
+	await get_tree().process_frame
+	return [host, table, fixture]
+
+
+func _check_u5_animation_targets() -> void:
+	var parts: Array = await _u5_fixture_host("g3_turn_mine")
+	var table: UiTableScreen = parts[1]
+	var fixture: Dictionary = parts[2]
+	var view: Dictionary = fixture["view"]
+	var me_seat: int = int(fixture["me_seat"])
+	_check(table.animation_layer() != null, "U5 动效层存在")
+	_check(table.animation_layer().z_index == 90, "U5 动效层在弹窗之下")
+	_check(table.animation_layer().mouse_filter == Control.MOUSE_FILTER_IGNORE,
+			"U5 动效层不拦截鼠标")
+	_check(table.bank_chip_rect(Enums.GemColor.WHITE).size.x > 0.0, "U5 银行筹码定位")
+	var first_card: String = String((view["boards"]["1"] as Array)[0])
+	_check(table.market_card_rect(first_card).size.x > 0.0, "U5 市场卡定位")
+	_check(table.market_slot_rect(1, 0).size.x > 0.0, "U5 市场卡位定位")
+	_check(table.deck_rect(1).size.x > 0.0, "U5 牌堆定位")
+	_check(table.noble_rect(String((view["nobles"] as Array)[0])).size.x > 0.0, "U5 贵族定位")
+	_check(table.seat_panel_rect(me_seat).size.x > 0.0, "U5 玩家面板定位")
+	_check(table.seat_token_rect(me_seat, Enums.GemColor.WHITE).size.x > 0.0, "U5 玩家筹码定位")
+	_check(table.seat_score_control(me_seat) != null, "U5 分数控件存在")
+	_check(table.seat_bonus_control(me_seat, Enums.GemColor.WHITE) != null, "U5 折扣块存在")
+	_check(table.reserved_card_rect("L2-K-04").size.x > 0.0, "U5 我的预留卡定位")
+
+	# 卡位光晕：session_info.flash_slots 命中时，该卡位进入两帧闪烁。
+	var info: Dictionary = (fixture["session_info"] as Dictionary).duplicate(true)
+	info["flash_slots"] = [Vector2i(1, 0)]
+	table.render(view, me_seat, info)
+	await get_tree().process_frame
+	var card: UiDevCard = table.find_child("Card1_0", true, false) as UiDevCard
+	_check(card != null and card.flash, "U5 卡位光晕命中新补的牌")
+	var parts2: Array = await _u5_fixture_host("g4_endgame")
+	var table2: UiTableScreen = parts2[1]
+	var tag: Control = table2.endgame_tag_control()
+	_check(tag != null and tag.visible, "U5 终局轮标签可定位")
+	for part: Array in [parts, parts2]:
+		(part[0] as Control).queue_free()
+	await get_tree().process_frame
+
+
+func _u5_first_action(legal: Array[Action], type: int) -> Action:
+	for action: Action in legal:
+		if action.type == type:
+			return action
+	return null
+
+
+func _u5_view_snapshot(view: Dictionary) -> Dictionary:
+	return {
+		"current_seat": int(view.get("current_seat", -1)),
+		"phase": String(view.get("phase", "")),
+		"boards": view.get("boards", {}),
+		"bank": view.get("bank", {}),
+		"players": view.get("players", []),
+		"nobles": view.get("nobles", []),
+		"endgame_triggered": bool(view.get("endgame_triggered", false)),
+	}
+
+
+func _u5_wait_idle(flow: UiTableFlow, timeout_ms: int = 8000) -> bool:
+	var start: int = Time.get_ticks_msec()
+	while flow.is_animating() and Time.get_ticks_msec() - start < timeout_ms:
+		await get_tree().process_frame
+	return not flow.is_animating()
+
+
+func _check_u5_flash_slots() -> void:
+	UiSettings.set_animations_enabled(false)
+	var parts: Array = await _u3_host()
+	if not _u3_start_humans(parts, 2, 20261018):
+		_check(false, "U5 预留光晕检查开局")
+		await _u3_cleanup(parts)
+		return
+	await get_tree().process_frame
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var reserve: Action = _u5_first_action(session.legal_actions(), Enums.ActionType.RESERVE)
+	_check(reserve != null, "U5 开局有预留动作")
+	if reserve != null:
+		_check(session.submit(reserve), "U5 预留提交成功")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_check(not flow.is_animating(), "U5 关闭动效时视图立即落地")
+		_check(flow.flash_cards().has(reserve.card_id), "U5 预留的卡进入光晕列表")
+		_check(not flow.flash_slots().is_empty(), "U5 补牌卡位进入光晕列表")
+	await _u3_cleanup(parts)
+
+
+func _check_u5_animation_on_off() -> void:
+	# 关闭动效：动作后立即落地。
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	var off_parts: Array = await _u3_host()
+	if not _u3_start_humans(off_parts, 2, 20261018):
+		_check(false, "U5 动效对比开局（关）")
+		await _u3_cleanup(off_parts)
+		return
+	await get_tree().process_frame
+	var off_session: UiTableSession = off_parts[2]
+	var off_flow: UiTableFlow = off_parts[3]
+	var take: Action = _u5_first_action(off_session.legal_actions(), Enums.ActionType.TAKE_THREE)
+	if take == null:
+		take = _u5_first_action(off_session.legal_actions(), Enums.ActionType.TAKE_TWO)
+	_check(take != null, "U5 开局有拿宝石动作")
+	if take == null:
+		await _u3_cleanup(off_parts)
+		return
+	_check(off_session.submit(take), "U5 关闭动效的提交成功")
+	await get_tree().process_frame
+	if not off_session.legal_actions().is_empty():
+		_check(not off_flow.is_animating(), "U5 关闭动效时不产生动画")
+	var off_snapshot: Dictionary = _u5_view_snapshot(off_flow.displayed_view())
+	var off_fingerprint: String = off_session.fingerprint()
+	var off_market: Dictionary = (off_parts[1] as UiTableScreen).market_card_ids()
+	var off_bank: Dictionary = (off_parts[1] as UiTableScreen).bank_column().get_counts()
+	await _u3_cleanup(off_parts)
+
+	# 打开动效：同一动作先停在起点，播完后落到同一状态。
+	UiSettings.set_animations_enabled(true)
+	UiSettings.set_anim_speed(UiSettings.SPEED_NORMAL)
+	var on_parts: Array = await _u3_host()
+	if not _u3_start_humans(on_parts, 2, 20261018):
+		_check(false, "U5 动效对比开局（开）")
+		await _u3_cleanup(on_parts)
+		return
+	await get_tree().process_frame
+	var on_session: UiTableSession = on_parts[2]
+	var on_flow: UiTableFlow = on_parts[3]
+	var on_take: Action = null
+	for legal: Action in on_session.legal_actions():
+		if legal.equals(take):
+			on_take = legal
+			break
+	_check(on_take != null, "U5 同一动作在相同种子下合法")
+	if on_take != null:
+		var start_seat: int = int(on_flow.displayed_view().get("current_seat", -1))
+		_check(on_session.submit(on_take), "U5 打开动效的提交成功")
+		await get_tree().process_frame
+		_check(on_flow.is_animating(), "U5 打开动效时动作先播动画")
+		_check(on_flow.last_animation_visuals() >= on_take.colors.size(),
+				"U5 拿宝石生成逐个筹码")
+		_check(int(on_flow.displayed_view().get("current_seat", -1)) == start_seat,
+				"U5 动效期间牌桌停在起点")
+		var idle_ok: bool = await _u5_wait_idle(on_flow)
+		_check(idle_ok, "U5 动效队列在超时前播完")
+		_check(_u5_view_snapshot(on_flow.displayed_view()) == off_snapshot,
+				"U5 动效开 / 关最终视图一致")
+		_check(on_session.fingerprint() == off_fingerprint, "U5 动效开 / 关最终指纹一致")
+		_check((on_parts[1] as UiTableScreen).market_card_ids() == off_market,
+				"U5 动效开 / 关最终市场一致")
+		_check((on_parts[1] as UiTableScreen).bank_column().get_counts() == off_bank,
+				"U5 动效开 / 关最终银行一致")
+	await _u3_cleanup(on_parts)
+	UiSettings.set_animations_enabled(false)
+
+
+func _check_u5_fast_forward() -> void:
+	UiSettings.set_animations_enabled(true)
+	UiSettings.set_anim_speed(UiSettings.SPEED_NORMAL)
+	var parts: Array = await _u3_host()
+	if not _u3_start_humans(parts, 2, 20261027):
+		_check(false, "U5 积压快进开局")
+		await _u3_cleanup(parts)
+		return
+	await get_tree().process_frame
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var submitted: int = 0
+	for _i: int in 5:
+		var legal: Array[Action] = session.legal_actions()
+		if legal.is_empty():
+			break
+		var action: Action = _u5_first_action(legal, Enums.ActionType.TAKE_THREE)
+		if action == null:
+			action = legal[0]
+		if not session.submit(action):
+			break
+		submitted += 1
+	_check(submitted >= 4, "U5 连续快速提交 4 个以上动作")
+	await get_tree().process_frame
+	_check(flow.pending_animation_batches() <= 2, "U5 积压超过 2 批后快进")
+	var idle_ok: bool = await _u5_wait_idle(flow)
+	_check(idle_ok, "U5 快速提交后动效队列不卡死")
+	_check(_u5_view_snapshot(flow.displayed_view()) == _u5_view_snapshot(session.view()),
+			"U5 快速提交后牌桌追上最新视图")
+	_check(not flow.is_animating() and flow.pending_animation_batches() == 0,
+			"U5 快速提交后没有残留批次")
+	await _u3_cleanup(parts)
+	UiSettings.set_animations_enabled(false)
+
+
+func _check_u5_skip_and_speed() -> void:
+	UiSettings.set_animations_enabled(true)
+	UiSettings.set_anim_speed(UiSettings.SPEED_NORMAL)
+	var parts: Array = await _u3_host()
+	if not _u3_start_humans(parts, 2, 20261101):
+		_check(false, "U5 跳过动效开局")
+		await _u3_cleanup(parts)
+		return
+	await get_tree().process_frame
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var take: Action = _u5_first_action(session.legal_actions(), Enums.ActionType.TAKE_THREE)
+	_check(take != null, "U5 跳过检查有拿宝石动作")
+	if take != null:
+		UiSettings.set_sfx_enabled(true)
+		UiSfx.clear_calls()
+		_check(session.submit(take), "U5 跳过检查提交成功")
+		await get_tree().process_frame
+		_check(flow.is_animating(), "U5 跳过前正在播放")
+		_check(UiSfx.take_calls().has("take"), "U5 动效事件触发音效钩子")
+		UiSettings.set_sfx_enabled(false)
+		var duration: float = flow.last_animation_duration()
+		_check(duration > 0.0, "U5 标准速度有动画时长")
+		flow.skip_animation()
+		_check(not flow.is_animating(), "U5 跳过立即结束动效")
+		_check(flow.pending_animation_batches() == 0, "U5 跳过清空积压")
+		_check(_u5_view_snapshot(flow.displayed_view()) == _u5_view_snapshot(session.view()),
+				"U5 跳过后直接落在最新视图")
+		var expected: float = (take.colors.size() - 1) * UiTableAnim.COIN_STAGGER \
+				+ UiTableAnim.COIN_FLIGHT + UiTableAnim.TAIL
+		_check(is_equal_approx(duration, expected), "U5 拿 %d 色筹码的标准时长" % take.colors.size())
+	await _u3_cleanup(parts)
+
+	# 速度倍率：同一动作在快速设置下时长减半。
+	UiSettings.set_anim_speed(UiSettings.SPEED_FAST)
+	var fast_parts: Array = await _u3_host()
+	if not _u3_start_humans(fast_parts, 2, 20261101):
+		_check(false, "U5 快速设置开局")
+		await _u3_cleanup(fast_parts)
+	else:
+		await get_tree().process_frame
+		var fast_session: UiTableSession = fast_parts[2]
+		var fast_flow: UiTableFlow = fast_parts[3]
+		var fast_take: Action = _u5_first_action(fast_session.legal_actions(),
+				Enums.ActionType.TAKE_THREE)
+		if fast_take != null:
+			fast_session.submit(fast_take)
+			await get_tree().process_frame
+			var expected_fast: float = ((fast_take.colors.size() - 1) * UiTableAnim.COIN_STAGGER \
+					+ UiTableAnim.COIN_FLIGHT + UiTableAnim.TAIL) * 0.5
+			_check(is_equal_approx(fast_flow.last_animation_duration(), expected_fast),
+					"U5 快速设置时长减半")
+			await _u5_wait_idle(fast_flow)
+		await _u3_cleanup(fast_parts)
+
+	# 动效播放中直接关闭对局：节点释放不能报错或卡住。
+	UiSettings.set_anim_speed(UiSettings.SPEED_NORMAL)
+	var close_parts: Array = await _u3_host()
+	if _u3_start_humans(close_parts, 2, 20261101):
+		await get_tree().process_frame
+		var close_session: UiTableSession = close_parts[2]
+		var close_flow: UiTableFlow = close_parts[3]
+		var close_take: Action = _u5_first_action(close_session.legal_actions(),
+				Enums.ActionType.TAKE_THREE)
+		if close_take != null:
+			close_session.submit(close_take)
+			await get_tree().process_frame
+			_check(close_flow.is_animating(), "U5 关闭前正在播动效")
+			var host: Control = close_parts[0]
+			await _u3_cleanup(close_parts)
+			await get_tree().process_frame
+			_check(not is_instance_valid(host), "U5 动效中关闭对局可以正常释放")
+		else:
+			await _u3_cleanup(close_parts)
+	else:
+		await _u3_cleanup(close_parts)
+	UiSettings.set_animations_enabled(false)
+
+
+## 4 个电脑观战：动效持续播放时队列必须有界，画面不能越落越远。
+func _check_u5_bot_spectator() -> void:
+	UiSettings.set_animations_enabled(true)
+	UiSettings.set_anim_speed(UiSettings.SPEED_NORMAL)
+	var parts: Array = await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var seats: Array[Dictionary] = []
+	for seat: int in 4:
+		seats.append({"name": "电脑%d" % (seat + 1), "type": "bot_easy"})
+	var ok: bool = session.start_local({"count": 4, "seed": 20261102, "seats": seats})
+	_check(ok, "U5 4 个电脑观战可以开局")
+	if ok:
+		for _i: int in 10:
+			await get_tree().create_timer(0.5).timeout
+			_check(flow.pending_animation_batches() <= 2,
+					"U5 电脑观战动效积压有界")
+		var displayed: Dictionary = flow.displayed_view()
+		var live: Dictionary = session.view()
+		_check(not displayed.is_empty() and not live.is_empty(), "U5 观战有视图")
+		_check(flow.pending_animation_batches() <= 2, "U5 观战后动效积压仍 <= 2")
+		var displayed_turns: int = _u5_turn_total(displayed)
+		var live_turns: int = _u5_turn_total(live)
+		_check(live_turns - displayed_turns <= 3,
+				"U5 观战画面不会越播越落后（差 %d 回合）" % (live_turns - displayed_turns))
+	_check(not session.is_my_turn(), "U5 全电脑观战没有可操作回合")
+	await _u3_cleanup(parts)
+	UiSettings.set_animations_enabled(false)
+
+
+func _u5_turn_total(view: Dictionary) -> int:
+	var counts: Array = view.get("turn_counts", [])
+	var total: int = 0
+	for value: Variant in counts:
+		total += int(value)
+	return total
+
+
+## 动效开着的终局：结算要等队列播完，game_ended 不能被中间视图清掉。
+func _check_u5_endgame() -> void:
+	UiSettings.set_animations_enabled(true)
+	UiSettings.set_anim_speed(UiSettings.SPEED_FAST)
+	var parts: Array = await _u3_host()
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var errors: Array[String] = []
+	if not session.load_snapshot(_u3_snapshot("endgame"), errors):
+		_check(false, "U5 动效终局局面可以载入")
+		await _u3_cleanup(parts)
+		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var purchase: Action = null
+	for action: Action in session.legal_actions():
+		if action.type != Enums.ActionType.PURCHASE:
+			continue
+		var card: CardData = session.catalog().card(action.card_id)
+		if card != null and card.points > 0:
+			purchase = action
+			break
+	_check(purchase != null, "U5 动效终局有计分购买")
+	if purchase != null:
+		flow.click_card("market", purchase.card_id, 0)
+		flow.purchase_selected()
+		await get_tree().process_frame
+		_check(flow.is_animating(), "U5 终局动作先播动效")
+		var legal1: Array[Action] = session.legal_actions()
+		if not legal1.is_empty():
+			session.submit(legal1[0])
+		var idle_ok: bool = await _u5_wait_idle(flow, 10000)
+		_check(idle_ok, "U5 终局动效队列播完")
+		_check(String(session.view().get("phase", "")) == "finished", "U5 动效终局结束")
+		_check(not flow.result().is_empty(), "U5 动效终局产生结算数据")
+		_check(flow.modal_kind() == "result", "U5 动效播完后打开结算弹窗")
+		_check(not flow.is_animating(), "U5 结算后没有残留动效")
+	await _u3_cleanup(parts)
+	UiSettings.set_animations_enabled(false)
 
 
 func _check_app() -> void:

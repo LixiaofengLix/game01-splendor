@@ -16,6 +16,12 @@
   ```
   `--scale` 可取 `fractional` / `integer`；`--scroll` 指定窗口截图的滚动位置。
   屏幕模式用临时 `user://capture_saves/` 生成读档数据，截图后清理。
+- `u5_anim_preview.tscn/.gd` — 动效预览（U5）：自动触发拿宝石 / 预留 / 购买 / 贵族 / 弃宝石，
+  以及 1 人类 + 2 电脑的电脑出手；在飞行途中、补牌翻面时和落地后各截一张图到 `/tmp/splendor_ui/`，然后退出。
+  ```bash
+  $GODOT --path . ui/dev/u5_anim_preview.tscn
+  ```
+  截图必须带窗口；headless 没有渲染。人机对局的动效节奏用正式入口 `ui/app/app.tscn` 看。
 - `table_preview.tscn/.gd` — 单张夹具的牌桌预览：
   `$GODOT --path . ui/dev/table_preview.tscn -- --fixture g3_turn_mine`（默认 `g3_turn_mine`）。
 - `build_fixtures.tscn/.gd` — 生成 `fixtures/` 下的夹具。改完卡表、规则或样张局面后重跑：

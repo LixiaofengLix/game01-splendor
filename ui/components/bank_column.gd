@@ -161,6 +161,12 @@ func chip(color: Enums.GemColor) -> UiGemChip:
 	return _chips[color] if color >= 0 and color < _chips.size() else null
 
 
+## 动效起点 / 终点：筹码在屏幕上的位置。
+func chip_rect(color: Enums.GemColor) -> Rect2:
+	var node: UiGemChip = chip(color)
+	return node.get_global_rect() if node != null else Rect2()
+
+
 func _apply_state() -> void:
 	for color: Enums.GemColor in Enums.ALL_COLORS:
 		var chip: UiGemChip = _chips[color]

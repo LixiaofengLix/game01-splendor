@@ -59,6 +59,7 @@ func _ready() -> void:
 	mouse_exited.connect(_on_mouse_exited)
 	button_down.connect(_on_button_down)
 	button_up.connect(_on_button_up)
+	pressed.connect(func() -> void: UiSfx.play("click"))
 	_layout_shadow()
 
 

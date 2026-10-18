@@ -15,9 +15,14 @@ const RESUME_NOTICE_SECONDS := 8.0
 var _screen: UiTableScreen = null
 var _session: UiTableSession = null
 var _store: UiSaveStore = null
+var _anim: UiTableAnim = null
 var _view: Dictionary = {}
 var _me_seat: int = -1
 var _legal: Array[Action] = []
+## 同一视图的事件先到、视图后到：暂存到视图到达后作为一批交给动效队列。
+var _pending_events: Array[Dictionary] = []
+## 结束信号可能先于最后一帧落地：它到了以后不要再被中间视图清掉。
+var _ended: bool = false
 
 var _selection: Dictionary[int, int] = {}
 var _selected_kind: String = ""
@@ -26,6 +31,8 @@ var _selected_level: int = 0
 
 var _last_event: Dictionary = {}
 var _flash_cards: Array[String] = []
+## 市场卡位变化：{level, slot}；购买 / 预留后补上新牌的位置也要亮一下。
+var _flash_slots: Array[Vector2i] = []
 var _failure_text: String = ""
 
 var _modal_kind: String = ""
@@ -53,6 +60,7 @@ var _approved_seat: int = -1
 var _cover: UiHotseatCover = null
 var _cover_pending_view: Dictionary = {}
 var _cover_pending_me: int = -1
+var _cover_pending_events: Array[Dictionary] = []
 var _cover_events: Array[Dictionary] = []
 
 ## 回合结束时写自动存档；对局结束时转存 finished。
@@ -76,6 +84,11 @@ func setup(screen: UiTableScreen, session: UiTableSession,
 	_failure_timer.wait_time = FAILURE_SECONDS
 	_failure_timer.timeout.connect(_on_failure_timeout)
 	add_child(_failure_timer)
+	_anim = UiTableAnim.new()
+	_anim.name = "TableAnim"
+	add_child(_anim)
+	_anim.setup(screen, _apply_view_animated)
+	_anim.queue_drained.connect(_on_animation_drained)
 
 	_session.view_updated.connect(_on_view_updated)
 	_session.events_arrived.connect(_on_events)
@@ -99,6 +112,8 @@ func setup(screen: UiTableScreen, session: UiTableSession,
 # ---------------------------------------------------------------- 视图 / 事件
 
 func _on_view_updated(view: Dictionary, me_seat: int) -> void:
+	var events: Array[Dictionary] = _pending_events.duplicate()
+	_pending_events.clear()
 	var phase: String = String(view.get("phase", ""))
 	var need_cover: bool = _hotseat_cover_enabled \
 			and _session.local_seats().size() >= 2 \
@@ -107,16 +122,32 @@ func _on_view_updated(view: Dictionary, me_seat: int) -> void:
 			and me_seat >= 0 \
 			and me_seat != _approved_seat
 	if need_cover:
+		# 遮挡前把积压的动效直接落完；盖屏期间不播任何东西。
+		_anim.finish_now()
 		_cover_pending_view = view
 		_cover_pending_me = me_seat
+		_cover_pending_events = events
 		_write_autosave(view)
 		_show_hotseat_cover(me_seat)
 		return
-	_apply_view(view, me_seat)
-	_write_autosave(view)
+	_anim.enqueue(events, view, me_seat)
 
 
-func _apply_view(view: Dictionary, me_seat: int) -> void:
+## 动效队列的落地回调：from_view 是这一批动效的起点（用于光晕和补牌比对）。
+func _apply_view_animated(view: Dictionary, me_seat: int,
+		from_view: Dictionary, events: Array) -> void:
+	_apply_view(view, me_seat, from_view, events)
+
+
+func _on_animation_drained() -> void:
+	# 最后一帧落地时 is_playing() 已经是 false；这里补一次渲染，保证输入锁状态正确。
+	_render()
+
+
+func _apply_view(view: Dictionary, me_seat: int, from_view: Dictionary = {},
+		events: Array = []) -> void:
+	var previous: Dictionary = from_view if not from_view.is_empty() else _view
+	_update_flash(previous, view, events)
 	_view = view
 	_me_seat = me_seat
 	_legal = _session.legal_actions()
@@ -126,7 +157,7 @@ func _apply_view(view: Dictionary, me_seat: int) -> void:
 		_clear_selection()
 		_last_current = current
 		_last_phase = phase
-	if phase != "finished":
+	if phase != "finished" and not _ended:
 		_result = {}
 		_result_dismissed = false
 	if not _session.is_my_turn():
@@ -136,38 +167,70 @@ func _apply_view(view: Dictionary, me_seat: int) -> void:
 	_validate_selection()
 	_sync_modal()
 	_render()
+	_write_autosave(view)
+
+
+## 光晕目标：事件里的卡 id（已离开场面也没关系）+ 卡位差异（补上来的新卡也要亮）。
+func _update_flash(previous: Dictionary, view: Dictionary, events: Array) -> void:
+	var cards: Array[String] = []
+	for item: Variant in events:
+		if not item is Dictionary:
+			continue
+		var event: Dictionary = item
+		var type: String = String(event.get("type", ""))
+		if type == "card_reserved" and bool(event.get("blind", false)):
+			continue
+		if type != "card_reserved" and type != "card_purchased":
+			continue
+		var card_id: String = String(event.get("card_id", ""))
+		if not card_id.is_empty() and not cards.has(card_id):
+			cards.append(card_id)
+	var slots: Array[Vector2i] = _changed_slots(previous, view)
+	if cards.is_empty() and slots.is_empty():
+		return
+	_flash_cards = cards
+	_flash_slots = slots
+	_flash_timer.start(FLASH_SECONDS)
+
+
+## 市场卡位差异：购买 / 预留后新补上的牌（或空位）在动效里闪 1.5 秒。
+func _changed_slots(previous: Dictionary, view: Dictionary) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if previous.is_empty():
+		return result
+	var old_boards: Dictionary = previous.get("boards", {})
+	var new_boards: Dictionary = view.get("boards", {})
+	for level: int in [1, 2, 3]:
+		var old_slots: Array = old_boards.get(str(level), [])
+		var new_slots: Array = new_boards.get(str(level), [])
+		var count: int = mini(old_slots.size(), new_slots.size())
+		for index: int in count:
+			var old_id: String = String(old_slots[index]) if old_slots[index] != null else ""
+			var new_id: String = String(new_slots[index]) if new_slots[index] != null else ""
+			if old_id != new_id:
+				result.append(Vector2i(level, index))
+	return result
 
 
 func _on_events(events: Array[Dictionary]) -> void:
-	var added_flash: bool = false
 	for event: Dictionary in events:
+		_pending_events.append(event)
 		var type: String = String(event.get("type", ""))
 		if type == "turn_ended":
 			_autosave_pending = true
 		if _hotseat_cover_enabled and _session.local_seats().size() >= 2:
 			_cover_events.append(event)
-		if type == "card_reserved" and not bool(event.get("blind", false)):
-			var card_id: String = String(event.get("card_id", ""))
-			if not card_id.is_empty() and not _flash_cards.has(card_id):
-				_flash_cards.append(card_id)
-				added_flash = true
-		elif type == "card_purchased":
-			var card_id: String = String(event.get("card_id", ""))
-			if not card_id.is_empty() and not _flash_cards.has(card_id):
-				_flash_cards.append(card_id)
-				added_flash = true
 		var text: String = UiEventText.text_for(event, _session.catalog(), _session.names())
 		if not text.is_empty():
 			_last_event = {
 				"seat": int(event.get("seat", -1)),
 				"text": text,
 			}
-	if added_flash:
-		_flash_timer.start(FLASH_SECONDS)
 
 
 func _on_flash_timeout() -> void:
 	_flash_cards.clear()
+	_flash_slots.clear()
 	_render()
 
 
@@ -185,11 +248,13 @@ func _on_action_failed(message: String) -> void:
 	_failure_text = "这一步没成功：%s，请重新选择" % message
 	_failure_timer.start(FAILURE_SECONDS)
 	_render()
-	if String(_view.get("phase", "")) == "discard" and _session.is_my_turn():
+	if String(_view.get("phase", "")) == "discard" and _session.is_my_turn() \
+			and not is_animating():
 		_build_discard_modal()
 
 
 func _on_game_ended(result: Dictionary) -> void:
+	_ended = true
 	_result = result
 	_result_dismissed = false
 	_save_finished_record()
@@ -205,7 +270,8 @@ func _render() -> void:
 	if _cover != null:
 		return
 	var phase: String = String(_view.get("phase", ""))
-	var interactive: bool = _session.is_my_turn()
+	# 动效播放期间锁住所有动作入口；最后一帧落地时 is_playing() 已经为 false。
+	var interactive: bool = _session.is_my_turn() and not is_animating()
 	var playing: bool = interactive and phase == "playing"
 	var info: Dictionary = {
 		"names": _session.names(),
@@ -224,6 +290,7 @@ func _render() -> void:
 		"strip": _strip_data(),
 		"pill_text": _pill_text(),
 		"flash_cards": _flash_cards,
+		"flash_slots": _flash_slots,
 	}
 	_screen.render(_view, _me_seat, info)
 
@@ -312,6 +379,8 @@ func _endgame_strip() -> Dictionary:
 # ---------------------------------------------------------------- 拿宝石
 
 func click_color(color: int) -> void:
+	if _maybe_skip_animation():
+		return
 	if not _is_playing_mine():
 		return
 	if not _clickable_colors().has(color):
@@ -334,6 +403,8 @@ func click_color(color: int) -> void:
 
 
 func confirm() -> void:
+	if _maybe_skip_animation():
+		return
 	if _modal_kind == "discard":
 		confirm_discard()
 		return
@@ -351,6 +422,8 @@ func confirm() -> void:
 
 
 func cancel() -> void:
+	if _maybe_skip_animation():
+		return
 	if _modal_kind == "discard" or _modal_kind == "noble" or _modal_kind == "result":
 		return
 	_clear_selection()
@@ -455,6 +528,8 @@ func _bank_count(color: int) -> int:
 # ---------------------------------------------------------------- 选卡 / 浮层
 
 func click_card(kind: String, card_id: String, level: int) -> void:
+	if _maybe_skip_animation():
+		return
 	if not _is_playing_mine():
 		return
 	if kind == "market" and card_id.is_empty():
@@ -471,6 +546,8 @@ func click_card(kind: String, card_id: String, level: int) -> void:
 
 
 func click_blank() -> void:
+	if _maybe_skip_animation():
+		return
 	if _modal_kind == "discard" or _modal_kind == "noble" or _modal_kind == "result":
 		return
 	if not _is_playing_mine():
@@ -480,6 +557,8 @@ func click_blank() -> void:
 
 
 func purchase_selected() -> void:
+	if _maybe_skip_animation():
+		return
 	if not _is_playing_mine() or _selected_kind == "deck":
 		return
 	if not _can_purchase(_selected_id):
@@ -490,6 +569,8 @@ func purchase_selected() -> void:
 
 
 func reserve_selected() -> void:
+	if _maybe_skip_animation():
+		return
 	if not _is_playing_mine():
 		return
 	if _selected_kind == "market":
@@ -668,6 +749,14 @@ func _is_playing_mine() -> bool:
 # ---------------------------------------------------------------- 弹窗
 
 func _sync_modal() -> void:
+	# 动效播放期间画面还停在起点，不能按中间视图开 / 关弃宝石、选贵族弹窗；
+	# 否则飞行会被弹窗遮住，或旧回合的弹窗被重新打开。
+	if is_animating():
+		if _modal_kind == "result":
+			return
+		if not _modal_kind.is_empty():
+			_close_modal()
+		return
 	var phase: String = String(_view.get("phase", ""))
 	if phase == "finished" and not _result.is_empty() and not _result_dismissed:
 		_show_result_modal()
@@ -787,10 +876,10 @@ func confirm_discard() -> void:
 	_discard_submitting = false
 	_discard_selection.clear()
 	_discard_order.clear()
-	if String(_view.get("phase", "")) == "discard" and _session.is_my_turn():
-		_build_discard_modal()
-	else:
-		_close_modal()
+	# 先关掉弹窗让弃宝石的飞行动效可见；如果仍然需要弃（被拒 / 还没弃够），
+	# _sync_modal 会按最新落地视图重新打开。
+	_close_modal()
+	_sync_modal()
 	_render()
 
 
@@ -807,6 +896,10 @@ func confirm_noble() -> void:
 	var noble_id: String = _noble_selected
 	_noble_selected = ""
 	_submit(Action.choose_noble(noble_id))
+	# 关掉弹窗让贵族飞向玩家面板；失败时 _sync_modal 会按仍为 choose_noble 的视图重开。
+	_close_modal()
+	_sync_modal()
+	_render()
 
 
 func dismiss_result() -> void:
@@ -921,14 +1014,16 @@ func dismiss_cover() -> void:
 		return
 	var pending_view: Dictionary = _cover_pending_view
 	var pending_me: int = _cover_pending_me
+	var pending_events: Array[Dictionary] = _cover_pending_events.duplicate()
 	_screen.pop_overlay(_cover)
 	_cover = null
 	_cover_events.clear()
 	_cover_pending_view = {}
 	_cover_pending_me = -1
+	_cover_pending_events.clear()
 	_approved_seat = pending_me
 	if not pending_view.is_empty():
-		_apply_view(pending_view, pending_me)
+		_apply_view(pending_view, pending_me, {}, pending_events)
 
 
 ## 上一位本机座位之后、别人做的最后一件事；多件时写动作数。
@@ -959,7 +1054,8 @@ func quick_save() -> void:
 		_screen.show_toast(_me_seat, "保存失败", "这局不能保存回放。", 3.0)
 		return
 	var data: Dictionary = _session.build_save_data()
-	if data.is_empty() or not _store.save_quick(data, _make_meta(UiSaveEntry.STATUS_IN_PROGRESS, _view, [])):
+	if data.is_empty() or not _store.save_quick(data,
+			_make_meta(UiSaveEntry.STATUS_IN_PROGRESS, _latest_view(), [])):
 		_screen.show_toast(_me_seat, "保存失败", "无法写入存档目录。", 3.0)
 		return
 	_screen.show_toast(_me_seat, "已保存到「快速存档」", "可从主菜单 → 读取存档 继续")
@@ -975,7 +1071,8 @@ func _write_autosave(view: Dictionary) -> void:
 		return
 	var data: Dictionary = _session.build_save_data()
 	if not data.is_empty():
-		_store.save_autosave(data, _make_meta(UiSaveEntry.STATUS_IN_PROGRESS, view, []))
+		_store.save_autosave(data,
+				_make_meta(UiSaveEntry.STATUS_IN_PROGRESS, _latest_view(), []))
 
 
 func _save_finished_record() -> void:
@@ -987,7 +1084,7 @@ func _save_finished_record() -> void:
 		return
 	var winners: Array = _result.get("winners", [])
 	var path: String = _store.transfer_finished(data,
-			_make_meta(UiSaveEntry.STATUS_FINISHED, _view, winners))
+			_make_meta(UiSaveEntry.STATUS_FINISHED, _latest_view(), winners))
 	_result_saved = not path.is_empty()
 
 
@@ -1000,6 +1097,12 @@ func save_result_replay() -> void:
 	else:
 		_screen.show_toast(_me_seat, "保存失败", "无法写入存档目录。", 3.0)
 	_show_result_modal()
+
+
+## 存档的摘要取会话最新视图：动效可能还没播完，不能写落后一拍的画面。
+func _latest_view() -> Dictionary:
+	var view: Dictionary = _session.view() if _session != null else {}
+	return view if not view.is_empty() else _view
 
 
 func _make_meta(status: String, view: Dictionary, winners: Array) -> Dictionary:
@@ -1024,6 +1127,11 @@ func show_resume_notice(text: String) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _session == null or _view.is_empty():
+		return
+	if _anim != null and _anim.is_playing() and _is_action_key(event) \
+			and _pause == null and _rules_overlay == null and _cover == null:
+		_anim.skip_all()
+		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("spl_cancel"):
 		if _pause != null:
@@ -1060,6 +1168,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			click_color(Enums.PURCHASABLE_COLORS[index])
 			get_viewport().set_input_as_handled()
 			return
+
+
+## 动效播放时，任意牌桌操作 / 方向键都先跳过动效；这一下点击不再执行原动作。
+func _maybe_skip_animation() -> bool:
+	if _anim == null or not _anim.is_playing():
+		return false
+	_anim.skip_all()
+	return true
+
+
+func _is_action_key(event: InputEvent) -> bool:
+	if event.is_action_pressed("spl_cancel") or event.is_action_pressed("spl_confirm") \
+			or event.is_action_pressed("spl_reserve"):
+		return true
+	for index: int in 5:
+		if event.is_action_pressed("spl_color_%d" % (index + 1)):
+			return true
+	return false
 
 
 # ---------------------------------------------------------------- 本地状态辅助
@@ -1192,6 +1318,37 @@ func clickable_colors() -> Array[int]:
 
 func flash_cards() -> Array[String]:
 	return _flash_cards.duplicate()
+
+
+func flash_slots() -> Array[Vector2i]:
+	return _flash_slots.duplicate()
+
+
+## 当前是否还有事件动效在播 / 排队。
+func is_animating() -> bool:
+	return _anim != null and _anim.is_playing()
+
+
+func pending_animation_batches() -> int:
+	return _anim.pending_count() if _anim != null else 0
+
+
+func last_animation_duration() -> float:
+	return _anim.last_duration() if _anim != null else 0.0
+
+
+func last_animation_visuals() -> int:
+	return _anim.last_visual_count() if _anim != null else 0
+
+
+## 牌桌当前实际显示的视图（动效没播完时会落后于会话）。
+func displayed_view() -> Dictionary:
+	return _view.duplicate(true)
+
+
+func skip_animation() -> void:
+	if _anim != null:
+		_anim.skip_all()
 
 
 func pause_menu() -> UiPauseMenu:

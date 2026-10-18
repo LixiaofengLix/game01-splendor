@@ -380,6 +380,33 @@ func find_reserved_card(card_id: String) -> UiDevCard:
 	return null
 
 
+## 动效定位：分数 / 资源 / 预留区的屏幕矩形。节点不存在时返回空矩形。
+func score_control() -> Control:
+	return _score
+
+
+func token_chip(color: Enums.GemColor) -> UiGemChip:
+	return _chips[color] if color >= 0 and color < _chips.size() else null
+
+
+func bonus_tile(color: Enums.GemColor) -> UiBonusTile:
+	var index: int = Enums.PURCHASABLE_COLORS.find(color)
+	return _tiles[index] if index >= 0 and index < _tiles.size() else null
+
+
+func reserved_card_rect(card_id: String) -> Rect2:
+	var card: UiDevCard = find_reserved_card(card_id)
+	return card.get_global_rect() if card != null else Rect2()
+
+
+func reserved_area_rect() -> Rect2:
+	return _reserved_cards.get_global_rect() if _reserved_cards != null else Rect2()
+
+
+func panel_rect() -> Rect2:
+	return get_global_rect()
+
+
 func _render_strip(strip: Dictionary, catalog: CardCatalog) -> void:
 	var event: bool = String(strip.get("kind", "note")) == "event"
 	var text: String = String(strip.get("text", ""))

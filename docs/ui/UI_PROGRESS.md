@@ -19,11 +19,16 @@
   `UiTableSession` + `UiLiveBackend`（真实对局 / 隐私过滤 / 日志 / 结算）、`UiTableFlow`（拿宝石状态机、
   选卡浮层、弃宝石 / 选贵族 / 结算弹窗、锁定与失败提示）、`UiCardPopover` 已就位；
   `ui_smoke` **1049 项**全部通过。U3 的临时入口 `ui/dev/quick_start.tscn` 已在 U4 删除。
-- **U4（入口与流程）：已完成，自动验证通过（2026-10-18）；人工走流程待你验收，验收后提交。**
+- **U4（入口与流程）：已完成并提交（2026-10-18，`dc3c195`）。**
   `UiSaveStore` / `UiSaveEntry`、主菜单 01、本地设置 02、读档 03、暂停菜单 13 + 规则速查、
   换人遮挡 09、异常弹窗 21 / 22、结算的再来一局 / 回主菜单 / 保存回放、自动存档与结束转存已就位；
   `ui_smoke` **1198 项**全部通过。7 个屏幕的截图（1280×800）已逐张检查。
-- 下一步：U5（事件动效与反馈）。U3 的试玩验收和 U4 的人工走流程可以一起做。
+- **U5（事件动效与反馈）：已完成并提交（2026-10-18）。**
+  `UiTableAnim` 动效队列（先事件后视图 / 积压快进 / 可跳过）、筹码飞行、卡滑走与补牌翻面、
+  贵族来访、分数 / 折扣两帧跳动、终局标签、音效钩子与 `UiSettings.anim_speed` 已就位；
+  标准速度按试玩反馈放慢约 30%（3 色筹码一批约 0.59s）。`ui_smoke` **1282 项**全部通过；
+  `u5_anim_preview` 的 15 张带窗口截图已逐张检查。
+- 下一步：U6（回放）。U3 的试玩验收和 U4 的人工走流程仍可补做。
   **缩放方案已拍板选 b（整数缩放），在 U9 改 `project.godot`，U0–U8 不改项目设置。**
 - 上次更新：2026-10-18
 
@@ -492,3 +497,108 @@
 ### 新登记的 IR
 
 无。IR-04 / IR-10 / IR-12 仍是本阶段绕过去的接口，状态见 `BRIDGE_AND_REQUESTS.md`。
+
+---
+
+## U5：事件动效与反馈
+
+### 已完成
+
+- `ui/screens/table/table_anim.gd`（`UiTableAnim`，Node，`UiTableFlow` 的子节点）：
+  - 每批 = `events_arrived` 的事件数组 + 紧随其后的目标视图；队列播完（或跳过）才调用
+    `UiTableFlow._apply_view()` 落视图。牌桌在动效期间保持起点画面。
+  - 当前 + 排队超过 2 批时 `skip_all()` 直接落到最新视图；同一座位的连续弃宝石（含最后一批的
+    `turn_ended` / `turn_started`）合并成一批，避免一次弃 3 枚就触发快进。
+  - 可跳过：动效播放时点牌桌 / 按 1–5、Enter、R、Esc 会先跳到最新视图，这一下点击不再执行原动作。
+  - 动效：筹码从银行飞到玩家筹码位（同色多枚间隔 60ms）、支付筹码从玩家飞回银行、卡从市场 /
+    预留区滑到玩家面板、盲抽从牌堆滑出、贵族从贵族列飞到玩家面板、补牌先盖牌背再翻开、
+    分数 / 折扣块两帧跳动、终局标签跳动。所有位移每帧取整到 2px。
+  - 速度倍率读取 `UiSettings.speed_multiplier()`（slow ×1.5 / normal ×1 / fast ×0.5）；
+    `UiSettings.animations_enabled = false` 时事件与视图同步落地。
+  - 标准速度在 U5 试玩后放慢约 30%：筹码飞行 0.38s、卡牌 0.40s、贵族 0.55s、
+    多枚筹码间隔 0.08s；3 色筹码一批约 0.59s（快速约 0.30s）。
+- `ui/bridge/ui_settings.gd`（`UiSettings`）：`anim_speed` / `animations_enabled` / `sfx_enabled` /
+  `confirm_before_buy` 的运行时状态 + `reset_defaults()`；U5 不落盘。
+- `ui/common/sfx.gd`（`UiSfx`）：`play(id)` / `play_events(events)` 按 `ui/assets/sfx/<文件>` 查找，
+  素材不存在时静默跳过；`UiSettings.sfx_enabled()` 是总开关；`take_calls()` / `clear_calls()` 供测试。
+  `UiButton` 在 `pressed` 时调用 `click`。
+- 牌桌：
+  - `UiTableScreen` 新增 `AnimationLayer`（z 90，忽略鼠标）和一批动效定位方法
+    （`bank_chip_rect` / `market_card_rect` / `market_slot_rect` / `deck_rect` / `noble_rect` /
+    `seat_panel_rect` / `seat_token_rect` / `seat_score_control` / `seat_bonus_control` /
+    `reserved_card_rect` / `endgame_tag_control`）。
+  - `render` 的 `session_info` 新增 `flash_slots`：购买 / 预留后补上新牌的卡位也亮 1.5 秒；
+    光晕计时从视图落地时开始。
+  - `UiDevCard` 新增 `back_label`（默认“盲抽”）；补牌翻面的牌背不写“盲抽”。
+- `UiTableFlow`：
+  - 事件暂存到对应视图到达，再整批交给动效队列；自动存档改在视图落地后写。
+  - 动效期间 `interactive = false`，所有动作入口锁定；`is_animating()` / `pending_animation_batches()` /
+    `last_animation_duration()` / `last_animation_visuals()` / `skip_animation()` / `displayed_view()` 是测试钩子。
+  - 弃宝石 / 选贵族弹窗确认提交后立即关闭，让飞行动效可见；动效期间不按中间视图重开弹窗，
+    需要继续选时由落地视图的 `_sync_modal()` 重开。
+  - `game_ended` 用 `_ended` 标记保护结算数据，等最后一帧落地后再弹结算；中间视图不会清掉它。
+  - 同屏换人遮挡前先 `finish_now()` 把积压动效落完。
+- `ui/dev/u5_anim_preview.tscn/.gd`：自动触发六类动效（含 1 人类 + 2 电脑），在途中 / 翻面 / 落地后截图到 `/tmp/splendor_ui/`。
+- `tests/ui_smoke.tscn` 从 1198 项扩到 **1282 项**：
+  - `UiSettings` 默认值 / 速度倍率 / 未知值回退 / 动效开关 / 音效开关与调用记录；
+  - 动效层与各定位矩形、`flash_slots` 命中；
+  - 动效开 / 关同一动作的最终视图、指纹、市场、银行一致；
+  - 5 个动作连续提交后积压 <= 2、牌桌追上最新视图；
+  - 跳过立即落地、标准 / 快速时长（3 色筹码约 0.59s / 0.30s）；
+  - 4 个电脑观战 5 秒，积压有界、画面不落后超过 3 个回合；
+  - 动效开着的终局等待队列播完再弹结算；
+  - 动效开 / 关的事件音效钩子。
+- 文档：`docs/tests/ui_U5.md`；本文件；`ui/bridge/`、`ui/common/`、`ui/screens/table/`、`ui/dev/`、
+  `ui/assets/sfx/`、`ui/components/` 的 README。
+
+### 与计划的偏差
+
+1. **银行 / 玩家数字在落地时一次更新**，没有做到 `INTERACTION.md` 第 7 节写的“银行数字逐个跳”。
+   飞行筹码已经表达“从银行到玩家”的变化；逐数字跳需要按事件拆出中间视图，留给以后按需补。
+2. **动效队列按“批”计数**：连续弃宝石合并成一批；购买 + 贵族 + 终局这类同一视图的事件本来就
+   在同一批里并行播放。积压快进仍然按“当前 + 排队 > 2”触发。
+3. **“可跳过”的第一下点击只跳过，不执行原动作**。用户在动效期间点卡 / 筹码时，需要再点一次才生效。
+   这样避免在落后视图上提交基于旧局面的动作。
+4. **`UiSettings` 只有内存状态**，没有 `user://ui_settings.json`；持久化、设置页和“动画速度”
+   UI 按计划留给 U7。
+5. **音效素材为空**：`UiSfx` 只记录调用、检查文件是否存在，不创建 `AudioStreamPlayer`（除非素材存在）。
+   按钮点击也走同一个钩子。
+6. **补牌翻面的牌背用 `UiDevCard` 画**，新增 `back_label` 置空；没有单独的翻牌贴图。
+7. **新增 `ui/dev/u5_anim_preview.tscn`**：计划里没有，但它让“动效节奏 / 途中截图”可以重复检查；
+   属于 U9 允许保留的截图工具。
+8. **`ui_smoke` 在所有旧检查开始前关闭动效**，U5 检查按需打开并在结束时恢复关闭；
+   这样 U0–U4 的同步断言不用改写。
+9. **同屏换人遮挡期间的积压动效直接落完**，不播放；遮挡优先保证隐私。
+10. **结算弹窗在动效播完后打开**：`game_ended` 可能先于最后一帧到达，`_ended` 标记防止
+    中间视图把 `_result` 清掉。
+11. **贵族 / 弃宝石弹窗在提交后立即关闭**（U5 新增）：否则 z 100 的弹窗遮罩会挡住 z 90 的飞行动效。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **待你试玩**：`$GODOT --path . ui/app/app.tscn`，主菜单开一局“1 人类 + 电脑”（2 / 3 / 4 人），
+  重点看 `docs/tests/ui_U5.md` 的 U5-03 / U5-04：动效节奏、跳过、4 电脑观战不越播越落后。
+- **可重复看动效**：
+  ```bash
+  $GODOT --path . ui/dev/u5_anim_preview.tscn
+  ```
+  截图写到 `/tmp/splendor_ui/u5_*.png`（飞行途中 / 翻面 / 落地）。
+- **`UiTableAnim` 的批次契约**：`enqueue(events, view, me_seat)` 假设事件与视图已经配对；
+  事件必须先到、视图后到。U6 回放如果要逐步播放，应先把每步事件 + 视图配对好再喂队列，
+  不要直接复用 `UiTableSession.view_updated`。
+- **`_last_view` 与光晕**：落地回调的 `from_view` 用于卡位差异；快进时只保留最后一批的差异。
+  新增动效时保持“动效不改状态、只在落地后画”的约定。
+- **动效期间锁输入**：`UiTableFlow._render()` 用 `is_animating()` 算出 `interactive`；如果以后
+  要允许“边播边操作”，需要先保证操作基于最新视图，而不是当前显示的旧视图。
+- **U6 回放**：`UiTableAnim` 可以直接用；回放底栏和 `UiReplaySource` 仍未实现。回放速度是另一项
+  （`INTERACTION.md` 第 7 节“回放和观战另有自己的速度”），不要复用 `UiSettings.anim_speed`。
+- **U7 设置**：把 `UiSettings` 落盘到 `user://ui_settings.json`，并在设置页暴露
+  `anim_speed` / `animations_enabled` / `sfx_enabled` / `confirm_before_buy`。
+  “购买前确认”现在仍写死为开（U3 的约定）。
+- **U4 遗留人工项**：主菜单完整走一遍、同屏 2 人遮挡，仍可与 U5 的试玩一起做。
+- **U3 遗留的完整日志浮层（L 键）** 仍未实现；规则速查里已经写了这个快捷键。
+- **音效**：把同名文件放进 `ui/assets/sfx/` 即可，不需要改代码；素材与音量控制留到后期。
+
+### 新登记的 IR
+
+无。IR-12（暂停冻结电脑）仍待排期；U5 的动效队列还没有接暂停冻结，
+等逻辑层提供真正的 `GameController.set_paused()` 后，在 `UiTableFlow` 里暂停 / 恢复队列即可。
