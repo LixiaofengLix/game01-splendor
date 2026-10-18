@@ -18,6 +18,7 @@ var request_count: int = 0
 var success_count: int = 0
 var error_count: int = 0
 var structured_fallbacks: int = 0
+var thinking_fallbacks: int = 0
 var prompt_tokens: int = 0
 var completion_tokens: int = 0
 var total_tokens: int = 0
@@ -33,6 +34,7 @@ var _started_ms: int = 0
 var _messages: Array[Dictionary] = []
 var _timeout_override_ms: int = -1
 var _structured_fallback_used: bool = false
+var _thinking_fallback_used: bool = false
 
 func configure(p_profile: LlmProfile) -> void:
 	profile = p_profile
@@ -50,11 +52,13 @@ func chat(messages: Array[Dictionary], timeout_override_ms: int = -1) -> void:
 	_messages = messages
 	_timeout_override_ms = timeout_override_ms
 	_structured_fallback_used = false
+	_thinking_fallback_used = false
 	last_http_status = 0
 	_started_ms = Time.get_ticks_msec()
 	_generation += 1
 	request_count += 1
-	_send(_generation, true)
+	_send(_generation, profile.structured_output != LlmProfile.STRUCTURED_NONE,
+			profile.thinking_effort != LlmProfile.THINKING_DEFAULT)
 
 ## 测试连接：发一个极短的请求，只关心能否拿到非空回复。
 func test_connection(p_profile: LlmProfile = null, timeout_override_ms: int = -1) -> void:
@@ -68,14 +72,17 @@ func test_connection(p_profile: LlmProfile = null, timeout_override_ms: int = -1
 		return
 	_busy = true
 	_test_mode = true
-	_messages = [{"role": "user", "content": "请只回复 OK"}]
+	# 提示词里要出现 "JSON"，否则 OpenAI 的 json_object 模式会直接 400。
+	_messages = [{"role": "user", "content": "请只回复一个 JSON 对象：{\"ok\": true}"}]
 	_timeout_override_ms = timeout_override_ms
 	_structured_fallback_used = false
+	_thinking_fallback_used = false
 	last_http_status = 0
 	_started_ms = Time.get_ticks_msec()
 	_generation += 1
 	request_count += 1
-	_send(_generation, false)
+	_send(_generation, profile.structured_output != LlmProfile.STRUCTURED_NONE,
+			profile.thinking_effort != LlmProfile.THINKING_DEFAULT)
 
 ## 取消尚未结束的请求。取消后不会发出 chat_completed / test_finished。
 func cancel() -> void:
@@ -96,18 +103,18 @@ func usage_total() -> Dictionary:
 
 # ---------------------------------------------------------------- 请求
 
-func _send(generation: int, use_structured: bool) -> void:
+func _send(generation: int, use_structured: bool, use_thinking: bool) -> void:
 	if generation != _generation or not _busy:
 		return
 	_discard_http()
 	var http := HTTPRequest.new()
 	http.timeout = _request_timeout_seconds()
 	http.request_completed.connect(
-			_on_request_completed.bind(generation, use_structured))
+			_on_request_completed.bind(generation, use_structured, use_thinking))
 	add_child(http)
 	_http = http
 
-	var body: Dictionary = _build_body(use_structured)
+	var body: Dictionary = _build_body(use_structured, use_thinking)
 	var error: Error = http.request(profile.endpoint_url(), _headers(),
 			HTTPClient.METHOD_POST, JSON.stringify(body))
 	if error != OK:
@@ -115,7 +122,7 @@ func _send(generation: int, use_structured: bool) -> void:
 		_emit_error("network", "HTTPRequest 启动失败：%s" % error_string(error),
 				Time.get_ticks_msec())
 
-func _build_body(use_structured: bool) -> Dictionary:
+func _build_body(use_structured: bool, use_thinking: bool) -> Dictionary:
 	var body: Dictionary = {
 		"model": profile.model,
 		"messages": _messages,
@@ -129,6 +136,8 @@ func _build_body(use_structured: bool) -> Dictionary:
 				body["response_format"] = {"type": "json_object"}
 			LlmProfile.STRUCTURED_OLLAMA_FORMAT:
 				body["format"] = "json"
+	if use_thinking and profile.thinking_effort != LlmProfile.THINKING_DEFAULT:
+		body["reasoning_effort"] = profile.thinking_effort
 	return body
 
 func _headers() -> PackedStringArray:
@@ -144,7 +153,8 @@ func _request_timeout_seconds() -> float:
 	return float(timeout_ms) / 1000.0
 
 func _on_request_completed(result: int, response_code: int, _headers: PackedStringArray,
-		body: PackedByteArray, generation: int, use_structured: bool) -> void:
+		body: PackedByteArray, generation: int, use_structured: bool,
+		use_thinking: bool) -> void:
 	_discard_http()
 	if generation != _generation or not _busy:
 		return
@@ -159,24 +169,51 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 		return
 
 	var body_text: String = body.get_string_from_utf8()
-	if (response_code == 400 or response_code == 422) and use_structured \
-			and _looks_like_unsupported_structured_output(body_text):
-		# 服务不支持 response_format / format：去掉结构化参数重试一次，不消耗上层重试次数。
-		_structured_fallback_used = true
-		structured_fallbacks += 1
-		_send(generation, false)
-		return
+	if response_code == 400 or response_code == 422:
+		# 服务不支持 response_format / format 或 reasoning_effort：
+		# 去掉对应参数重试一次，不消耗上层重试次数。
+		var drop_structured: bool = use_structured \
+				and _looks_like_unsupported_structured_output(body_text)
+		var drop_thinking: bool = use_thinking and _looks_like_unsupported_thinking(body_text)
+		if drop_structured or drop_thinking:
+			if drop_structured:
+				_structured_fallback_used = true
+				structured_fallbacks += 1
+			if drop_thinking:
+				_thinking_fallback_used = true
+				thinking_fallbacks += 1
+			_send(generation, use_structured and not drop_structured,
+					use_thinking and not drop_thinking)
+			return
 	if response_code != 200:
 		_emit_error("http", "HTTP %d：%s" % [response_code, _extract_error(body_text)], elapsed)
 		return
 
 	var parsed: Variant = _parse_json(body_text)
 	if not parsed is Dictionary:
-		_emit_error("bad_response", "响应不是 JSON 对象：%s" % _short(body_text), elapsed)
+		_emit_error("bad_response", "响应不是 JSON 对象：%s" % _short(body_text),
+				elapsed, {"raw": _short(body_text, 500)})
+		return
+	# 有些代理 / 网关会在 HTTP 200 的响应体里放 error 对象。
+	if (parsed as Dictionary).has("error"):
+		_emit_error("http", "HTTP %d：%s" % [response_code, _extract_error(body_text)],
+				elapsed, {"raw": _short(body_text, 500)})
 		return
 	var content: String = _extract_content(parsed)
 	if content.strip_edges().is_empty():
-		_emit_error("empty", "响应里没有文本内容", elapsed)
+		var finish_reason: String = _extract_finish_reason(parsed)
+		var reasoning_len: int = _extract_reasoning_length(parsed)
+		var hint: String = ""
+		if finish_reason == "length":
+			hint = "（finish_reason=length，可能是 max_tokens 太小）"
+		elif reasoning_len > 0:
+			hint = "（只有 reasoning_content，没有最终文本）"
+		_emit_error("empty", "响应里没有文本内容%s" % hint, elapsed, {
+			"raw": _short(body_text, 500),
+			"usage": _extract_usage(parsed),
+			"finish_reason": finish_reason,
+			"reasoning_len": reasoning_len,
+		})
 		return
 	var usage: Dictionary = _extract_usage(parsed)
 	_accumulate_usage(usage)
@@ -184,7 +221,14 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 	_busy = false
 	if _test_mode:
 		_test_mode = false
-		test_finished.emit(true, "连接成功（模型 %s，HTTP %d）" % [profile.model, response_code], elapsed)
+		var notes: Array[String] = []
+		if _structured_fallback_used:
+			notes.append("结构化输出不支持，已自动关闭")
+		if _thinking_fallback_used:
+			notes.append("思考强度参数不支持，已自动关闭")
+		var suffix: String = "" if notes.is_empty() else "；" + "；".join(notes)
+		test_finished.emit(true, "连接成功（模型 %s，HTTP %d）%s"
+				% [profile.model, response_code, suffix], elapsed)
 		return
 	chat_completed.emit({
 		"ok": true,
@@ -193,6 +237,7 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 		"elapsed_ms": elapsed,
 		"http_status": response_code,
 		"structured_fallback": _structured_fallback_used,
+		"thinking_fallback": _thinking_fallback_used,
 	})
 
 # ---------------------------------------------------------------- 解析
@@ -219,6 +264,32 @@ func _extract_content(parsed: Dictionary) -> String:
 				parts.append(String((part as Dictionary)["text"]))
 		return "".join(parts)
 	return ""
+
+func _extract_finish_reason(parsed: Dictionary) -> String:
+	var choices: Variant = parsed.get("choices")
+	if not choices is Array or (choices as Array).is_empty():
+		return ""
+	var first: Variant = (choices as Array)[0]
+	if not first is Dictionary:
+		return ""
+	return String((first as Dictionary).get("finish_reason", ""))
+
+
+## 一些推理模型把思考过程放在 message.reasoning_content 里；记录长度用于判断
+## 是不是 max_tokens 被思考过程吃光了（content 为空、finish_reason=length）。
+func _extract_reasoning_length(parsed: Dictionary) -> int:
+	var choices: Variant = parsed.get("choices")
+	if not choices is Array or (choices as Array).is_empty():
+		return 0
+	var first: Variant = (choices as Array)[0]
+	if not first is Dictionary:
+		return 0
+	var message: Variant = (first as Dictionary).get("message")
+	if not message is Dictionary:
+		return 0
+	var reasoning: Variant = (message as Dictionary).get("reasoning_content")
+	return String(reasoning).length() if reasoning is String else 0
+
 
 func _extract_usage(parsed: Dictionary) -> Dictionary:
 	var raw: Variant = parsed.get("usage")
@@ -251,11 +322,19 @@ func _extract_error(body_text: String) -> String:
 func _looks_like_unsupported_structured_output(body_text: String) -> bool:
 	var lower: String = body_text.to_lower()
 	var mentions: bool = lower.contains("response_format") or lower.contains("\"format\"")
-	var unsupported: bool = lower.contains("unsupported") or lower.contains("not support") \
+	return mentions and _looks_unsupported(lower)
+
+func _looks_like_unsupported_thinking(body_text: String) -> bool:
+	var lower: String = body_text.to_lower()
+	var mentions: bool = lower.contains("reasoning_effort") \
+			or lower.contains("\"thinking\"") or lower.contains("thinking")
+	return mentions and _looks_unsupported(lower)
+
+func _looks_unsupported(lower: String) -> bool:
+	return lower.contains("unsupported") or lower.contains("not support") \
 			or lower.contains("not supported") or lower.contains("unknown") \
 			or lower.contains("unrecognized") or lower.contains("invalid") \
 			or lower.contains("extra")
-	return mentions and unsupported
 
 func _accumulate_usage(usage: Dictionary) -> void:
 	prompt_tokens += int(usage.get("prompt_tokens", 0))
@@ -284,11 +363,12 @@ func _parse_json(text: String) -> Variant:
 		return null
 	return json.data
 
-func _short(text: String) -> String:
+func _short(text: String, limit: int = 200) -> String:
 	var cleaned: String = text.strip_edges().replace("\n", " ")
-	return cleaned.substr(0, 200)
+	return cleaned.substr(0, limit)
 
-func _emit_error(kind: String, message: String, elapsed: int) -> void:
+func _emit_error(kind: String, message: String, elapsed: int,
+		extra: Dictionary = {}) -> void:
 	_busy = false
 	error_count += 1
 	last_error_kind = kind
@@ -297,13 +377,16 @@ func _emit_error(kind: String, message: String, elapsed: int) -> void:
 		_test_mode = false
 		test_finished.emit(false, message, elapsed)
 		return
-	chat_completed.emit({
+	var result: Dictionary = {
 		"ok": false,
 		"error": message,
 		"error_kind": kind,
 		"elapsed_ms": elapsed,
 		"http_status": last_http_status,
-	})
+	}
+	for key: String in extra:
+		result[key] = extra[key]
+	chat_completed.emit(result)
 
 func _discard_http() -> void:
 	if _http == null:

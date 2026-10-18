@@ -13,6 +13,9 @@ const FALLBACK_PARSE: String = "parse_failed"
 const FALLBACK_TIMEOUT: String = "timeout"
 const FALLBACK_NETWORK: String = "network"
 const REASON_MAX_LENGTH: int = 200
+## 诊断日志：每次请求的结果追加到 user://llm_debug.log（不记录 API Key 和完整提示词）。
+const DEBUG_LOG_PATH: String = "user://llm_debug.log"
+const DEBUG_LOG_MAX_BYTES: int = 2 * 1024 * 1024
 
 var profile: LlmProfile = null
 var fallback_bot_type: String = "bot_hard"
@@ -98,6 +101,8 @@ func request_action(view: Dictionary, legal_actions: Array[Action]) -> void:
 	_start_attempt()
 
 func cancel_pending() -> void:
+	if _pending:
+		_debug_log("CANCELLED attempt=%d" % _attempt)
 	_generation += 1
 	_pending = false
 	_stop_budget_timer()
@@ -129,6 +134,9 @@ func _start_attempt() -> void:
 	var messages: Array[Dictionary] = PromptLibrary.build_messages(
 			_view, _legal, _catalog, _config, profile, retry_note)
 	_assert_privacy(messages)
+	_debug_log("attempt=%d REQUEST profile=%s model=%s base=%s timeout=%dms" % [
+		_attempt, profile.display_name, profile.model, profile.base_url,
+		_remaining_timeout_ms()])
 	_client.chat(messages, _remaining_timeout_ms())
 
 func _on_chat_completed(result: Dictionary) -> void:
@@ -137,20 +145,42 @@ func _on_chat_completed(result: Dictionary) -> void:
 	if not bool(result.get("ok", false)):
 		var kind: String = String(result.get("error_kind", "network"))
 		last_error = String(result.get("error", "请求失败"))
+		var extra: String = ""
+		var finish_reason: String = String(result.get("finish_reason", ""))
+		if not finish_reason.is_empty():
+			extra += " finish=%s" % finish_reason
+		if result.has("reasoning_len"):
+			extra += " reasoning_chars=%d" % int(result.get("reasoning_len", 0))
+		var failed_usage: Dictionary = result.get("usage", {})
+		if not failed_usage.is_empty():
+			extra += " tokens=%d" % int(failed_usage.get("total_tokens", 0))
+		var raw: String = String(result.get("raw", ""))
+		if not raw.is_empty():
+			extra += " raw=%s" % raw
+		_debug_log("attempt=%d FAILED kind=%s status=%d elapsed=%dms error=%s%s" % [
+			_attempt, kind, int(result.get("http_status", 0)),
+			int(result.get("elapsed_ms", 0)), last_error, extra])
 		if kind == "timeout":
 			timeouts += 1
 			last_error_kind = FALLBACK_TIMEOUT
+		elif kind == "empty" or kind == "bad_response":
+			# HTTP 成功但回复不可用（空内容 / 不是 JSON）：这是模型输出问题，不是网络问题。
+			parse_failures += 1
+			last_error_kind = FALLBACK_PARSE
 		else:
 			network_errors += 1
 			last_error_kind = FALLBACK_NETWORK
 		_retry_or_fallback()
 		return
 
-	var parsed: Dictionary = _parse_reply(String(result.get("content", "")))
+	var content: String = String(result.get("content", ""))
+	var parsed: Dictionary = _parse_reply(content)
 	if parsed.has("error"):
 		parse_failures += 1
 		last_error_kind = FALLBACK_PARSE
 		last_error = String(parsed["error"])
+		_debug_log("attempt=%d PARSE_FAILED error=%s content=%s" % [
+			_attempt, last_error, _shorten(content, 300)])
 		_retry_or_fallback()
 		return
 
@@ -159,8 +189,17 @@ func _on_chat_completed(result: Dictionary) -> void:
 		parse_failures += 1
 		last_error_kind = FALLBACK_PARSE
 		last_error = "动作编号 %d 不在 1..%d 之间" % [index, _legal.size()]
+		_debug_log("attempt=%d INDEX_INVALID index=%d legal=%d content=%s" % [
+			_attempt, index, _legal.size(), _shorten(content, 300)])
 		_retry_or_fallback()
 		return
+	var usage: Dictionary = result.get("usage", {})
+	_debug_log("attempt=%d OK action=%d elapsed=%dms tokens=%d structured_fallback=%s thinking_fallback=%s reason=%s" % [
+		_attempt, index, int(result.get("elapsed_ms", 0)),
+		int(usage.get("total_tokens", 0)),
+		str(bool(result.get("structured_fallback", false))),
+		str(bool(result.get("thinking_fallback", false))),
+		_clean_reason(String(parsed.get("reason", "")))])
 	_finish_success(_legal[index - 1], String(parsed.get("reason", "")))
 
 func _retry_or_fallback() -> void:
@@ -201,6 +240,8 @@ func _fallback(reason: String) -> void:
 	if action == null:
 		push_error("LlmController：兜底也找不到合法动作（座位 %d）" % seat)
 		return
+	_debug_log("FALLBACK reason=%s bot=%s attempts=%d last_error=%s" % [
+		reason, fallback_bot_type, _attempt, last_error])
 	fallback_used.emit(reason, fallback_bot_type)
 	action_decided.emit(action)
 
@@ -210,6 +251,8 @@ func _on_budget_timeout() -> void:
 	last_error_kind = FALLBACK_TIMEOUT
 	last_error = "思考预算用完"
 	timeouts += 1
+	_debug_log("BUDGET_TIMEOUT budget=%dms elapsed=%dms" % [
+		profile.think_budget_ms, Time.get_ticks_msec() - _started_ms])
 	_fallback(FALLBACK_TIMEOUT)
 
 func _stop_budget_timer() -> void:
@@ -312,6 +355,25 @@ func _clean_reason(reason: String) -> String:
 func _shorten(text: String, limit: int) -> String:
 	var cleaned: String = text.strip_edges().replace("\n", " ")
 	return cleaned.substr(0, limit)
+
+## 追加一行诊断日志。超过上限就删掉旧文件重来；不记录 API Key 和完整提示词。
+func _debug_log(message: String) -> void:
+	var file: FileAccess = null
+	if FileAccess.file_exists(DEBUG_LOG_PATH):
+		file = FileAccess.open(DEBUG_LOG_PATH, FileAccess.READ_WRITE)
+		if file != null:
+			file.seek_end()
+			if file.get_length() > DEBUG_LOG_MAX_BYTES:
+				file.close()
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(DEBUG_LOG_PATH))
+				file = FileAccess.open(DEBUG_LOG_PATH, FileAccess.WRITE)
+	else:
+		file = FileAccess.open(DEBUG_LOG_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_line("[%s] seat=%d %s" % [
+		Time.get_datetime_string_from_system(false, true), seat, message])
+	file.close()
 
 ## 调试模式下自动断言：发出去的文本没有种子、牌堆顺序或对手盲抽预留的牌。
 func _assert_privacy(messages: Array[Dictionary]) -> void:

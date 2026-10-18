@@ -19,11 +19,12 @@
 | `api_key` | `Authorization: Bearer` 的 Key；本地 Ollama 可以留空 |
 | `model` | 模型名 |
 | `temperature` | 0~2 |
-| `max_tokens` | 单次回复的最大 token 数 |
+| `max_tokens` | 单次回复的最大 token 数。推理模型（如 `deepseek-flash` 默认开启思考）会先用 completion tokens 思考；建议把 `thinking_effort` 设为 `none` / `low`，或把这里调到 4096 以上，否则可能出现 `content` 为空、`finish_reason=length` |
 | `request_timeout_ms` | 单次 HTTP 请求超时（毫秒） |
 | `think_budget_ms` | 一次决策的总预算（含重试），0 = 不限 |
 | `max_retries` | 解析失败 / 编号非法后的重试次数（不含第一次请求），0~5 |
 | `structured_output` | `auto`（先试 `response_format`，服务不支持时退回文本解析）/ `json_object`（OpenAI `response_format`）/ `ollama_format`（`format: "json"`）/ `none` |
+| `thinking_effort` | 思考强度，作为 `reasoning_effort` 发给服务：`default`（不发，沿用服务默认）/ `none`（关闭思考）/ `low` / `medium` / `high` / `max`。DeepSeek 会把 `medium` 归到 `high`；不支持该参数的服务会自动去掉它重试 |
 | `fallback_difficulty` | 失败时由哪档程序 AI 兜底：`easy` / `normal` / `hard` |
 | `personality` | 性格模板：`balanced` / `aggressive` / `conservative` / `blocking` |
 

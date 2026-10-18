@@ -18,6 +18,7 @@ var _request_timeout_spin: SpinBox
 var _think_budget_spin: SpinBox
 var _max_retries_spin: SpinBox
 var _structured_option: OptionButton
+var _thinking_option: OptionButton
 var _fallback_option: OptionButton
 var _personality_option: OptionButton
 var _status_label: Label
@@ -147,7 +148,7 @@ func _build_ui() -> void:
 	_api_key_edit.secret = true
 	_model_edit = _add_line_edit(grid, "模型名")
 	_temperature_spin = _add_spin(grid, "温度", 0.0, 2.0, 0.1)
-	_max_tokens_spin = _add_spin(grid, "最大回复 token", 1, 8192, 1)
+	_max_tokens_spin = _add_spin(grid, "最大回复 token（推理模型建议 ≥4096 或关闭思考）", 1, 8192, 1)
 	_request_timeout_spin = _add_spin(grid, "单次请求超时（ms）", 500, 600000, 1000)
 	_think_budget_spin = _add_spin(grid, "每步思考预算（ms，0=不限）", 0, 600000, 1000)
 	_max_retries_spin = _add_spin(grid, "解析失败重试次数", 0, 5, 1)
@@ -156,6 +157,14 @@ func _build_ui() -> void:
 		["json_object（OpenAI）", LlmProfile.STRUCTURED_JSON_OBJECT],
 		["format（Ollama）", LlmProfile.STRUCTURED_OLLAMA_FORMAT],
 		["none（纯文本解析）", LlmProfile.STRUCTURED_NONE],
+	])
+	_thinking_option = _add_option(grid, "思考强度（reasoning_effort）", [
+		["默认（不发送）", LlmProfile.THINKING_DEFAULT],
+		["关闭", "none"],
+		["低", "low"],
+		["中", "medium"],
+		["高", "high"],
+		["最大", "max"],
 	])
 	_fallback_option = _add_option(grid, "失败时兜底", [
 		["简单电脑", "easy"], ["普通电脑", "normal"], ["困难电脑", "hard"],
@@ -211,6 +220,7 @@ func _load_profile(profile_id: String) -> void:
 	_think_budget_spin.value = profile.think_budget_ms
 	_max_retries_spin.value = profile.max_retries
 	_select_option(_structured_option, profile.structured_output)
+	_select_option(_thinking_option, profile.thinking_effort)
 	_select_option(_fallback_option, profile.fallback_difficulty)
 	_select_option(_personality_option, profile.personality)
 	_status_label.text = ""
@@ -222,7 +232,7 @@ func _clear_fields() -> void:
 	_api_key_edit.text = ""
 	_model_edit.text = ""
 	_temperature_spin.value = 0.7
-	_max_tokens_spin.value = 300
+	_max_tokens_spin.value = 1024
 	_request_timeout_spin.value = 20000
 	_think_budget_spin.value = 30000
 	_max_retries_spin.value = 2
@@ -239,6 +249,7 @@ func _set_buttons_enabled(enabled: bool) -> void:
 	_think_budget_spin.editable = enabled
 	_max_retries_spin.editable = enabled
 	_structured_option.disabled = not enabled
+	_thinking_option.disabled = not enabled
 	_fallback_option.disabled = not enabled
 	_personality_option.disabled = not enabled
 
@@ -259,6 +270,8 @@ func _profile_from_fields() -> LlmProfile:
 		"max_retries": int(_max_retries_spin.value),
 		"structured_output": String(_structured_option.get_item_metadata(
 				_structured_option.selected)),
+		"thinking_effort": String(_thinking_option.get_item_metadata(
+				_thinking_option.selected)),
 		"fallback_difficulty": String(_fallback_option.get_item_metadata(
 				_fallback_option.selected)),
 		"personality": String(_personality_option.get_item_metadata(

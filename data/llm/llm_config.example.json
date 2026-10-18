@@ -9,11 +9,12 @@
         "api_key": "",
         "model": "deepseek-chat",
         "temperature": 0.7,
-        "max_tokens": 300,
+        "max_tokens": 2048,
         "request_timeout_ms": 20000,
         "think_budget_ms": 30000,
         "max_retries": 2,
         "structured_output": "json_object",
+        "thinking_effort": "low",
         "fallback_difficulty": "hard",
         "personality": "balanced"
       },
@@ -23,11 +24,12 @@
         "api_key": "",
         "model": "qwen2.5:7b",
         "temperature": 0.7,
-        "max_tokens": 300,
+        "max_tokens": 1024,
         "request_timeout_ms": 30000,
         "think_budget_ms": 60000,
         "max_retries": 2,
         "structured_output": "auto",
+        "thinking_effort": "default",
         "fallback_difficulty": "hard",
         "personality": "balanced"
       }

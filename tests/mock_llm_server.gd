@@ -124,6 +124,10 @@ func _handle(entry: Dictionary, body: String) -> void:
 		_send(entry, 400, "Bad Request",
 				"{\"error\":{\"message\":\"response_format is not supported\"}}")
 		return
+	if mode == "unsupported_thinking" and body.contains("reasoning_effort"):
+		_send(entry, 400, "Bad Request",
+				"{\"error\":{\"message\":\"reasoning_effort is not supported\"}}")
+		return
 	var content: String = "OK"
 	match mode:
 		"garbage":
@@ -132,6 +136,11 @@ func _handle(entry: Dictionary, body: String) -> void:
 			content = "{\"action\": 999, \"reason\": \"越界测试\"}"
 		"raw":
 			content = raw_content
+		"empty":
+			# 推理模型常见形态：内容为空、finish_reason=length、思考过程在 reasoning_content。
+			_send(entry, 200, "OK",
+					_chat_response("", "length", 300, "这里是模型的思考过程，占满了 max_tokens。"))
+			return
 		"ok":
 			content = "OK"
 		_:
@@ -167,16 +176,24 @@ func _last_action_number(body: String) -> int:
 			best = maxi(best, int(prefix))
 	return best
 
-func _chat_response(content: String) -> String:
+func _chat_response(content: String, finish_reason: String = "stop",
+		completion_tokens: int = 20, reasoning: String = "") -> String:
+	var message: Dictionary = {"role": "assistant", "content": content}
+	if not reasoning.is_empty():
+		message["reasoning_content"] = reasoning
 	var data: Dictionary = {
 		"id": "mock",
 		"object": "chat.completion",
 		"choices": [{
 			"index": 0,
-			"message": {"role": "assistant", "content": content},
-			"finish_reason": "stop",
+			"message": message,
+			"finish_reason": finish_reason,
 		}],
-		"usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+		"usage": {
+			"prompt_tokens": 100,
+			"completion_tokens": completion_tokens,
+			"total_tokens": 100 + completion_tokens,
+		},
 	}
 	return JSON.stringify(data)
 

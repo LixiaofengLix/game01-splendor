@@ -15,6 +15,11 @@ const STRUCTURED_OUTPUT_MODES: Array[String] = [
 const PERSONALITIES: Array[String] = ["balanced", "aggressive", "conservative", "blocking"]
 const FALLBACK_DIFFICULTIES: Array[String] = ["easy", "normal", "hard"]
 
+## 思考强度（DeepSeek / 部分 OpenAI 兼容服务用 reasoning_effort）。
+## default = 不发送这个字段，沿用服务默认；none = 关闭思考。
+const THINKING_DEFAULT: String = "default"
+const THINKING_EFFORTS: Array[String] = ["default", "none", "low", "medium", "high", "max"]
+
 ## 配置档 id（JSON 里的键），用于座位引用。
 var id: String = ""
 ## 界面显示名。
@@ -24,7 +29,8 @@ var base_url: String = ""
 var api_key: String = ""
 var model: String = ""
 var temperature: float = 0.7
-var max_tokens: int = 300
+## 推理模型会用 completion tokens 思考，默认留足空间；普通模型的 JSON 回复用不到这么多。
+var max_tokens: int = 1024
 ## 单次 HTTP 请求的超时。
 var request_timeout_ms: int = 20000
 ## 一次决策的总预算（含重试）；0 = 不限。
@@ -33,6 +39,9 @@ var think_budget_ms: int = 30000
 var max_retries: int = 2
 ## 结构化输出方式：auto / json_object / ollama_format / none。
 var structured_output: String = STRUCTURED_AUTO
+## 思考强度：default / none / low / medium / high / max。
+## 非 default 时作为 reasoning_effort 发给服务；服务不支持会自动去掉重试。
+var thinking_effort: String = THINKING_DEFAULT
 ## 失败时交给哪档程序 AI 兜底。
 var fallback_difficulty: String = "hard"
 ## 性格模板 id，对应 data/llm/prompts/personalities/<id>.txt。
@@ -68,7 +77,7 @@ static func from_dict(data: Dictionary, expected_id: String, errors: Array[Strin
 	if profile.temperature < 0.0 or profile.temperature > 2.0:
 		errors.append("%s：temperature 必须在 0~2 之间，实际为 %s" % [where, profile.temperature])
 
-	profile.max_tokens = int(data.get("max_tokens", 300))
+	profile.max_tokens = int(data.get("max_tokens", 1024))
 	if profile.max_tokens < 1 or profile.max_tokens > 8192:
 		errors.append("%s：max_tokens 必须在 1~8192 之间，实际为 %d" % [where, profile.max_tokens])
 
@@ -90,6 +99,11 @@ static func from_dict(data: Dictionary, expected_id: String, errors: Array[Strin
 	if not STRUCTURED_OUTPUT_MODES.has(profile.structured_output):
 		errors.append("%s：structured_output 必须是 %s，实际为 \"%s\""
 				% [where, str(STRUCTURED_OUTPUT_MODES), profile.structured_output])
+
+	profile.thinking_effort = String(data.get("thinking_effort", THINKING_DEFAULT))
+	if not THINKING_EFFORTS.has(profile.thinking_effort):
+		errors.append("%s：thinking_effort 必须是 %s，实际为 \"%s\""
+				% [where, str(THINKING_EFFORTS), profile.thinking_effort])
 
 	profile.fallback_difficulty = String(data.get("fallback_difficulty", "hard"))
 	if not FALLBACK_DIFFICULTIES.has(profile.fallback_difficulty):
@@ -118,6 +132,7 @@ func to_dict() -> Dictionary:
 		"think_budget_ms": think_budget_ms,
 		"max_retries": max_retries,
 		"structured_output": structured_output,
+		"thinking_effort": thinking_effort,
 		"fallback_difficulty": fallback_difficulty,
 		"personality": personality,
 	}

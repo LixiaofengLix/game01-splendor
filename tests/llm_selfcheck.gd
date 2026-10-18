@@ -107,6 +107,14 @@ func _check_profiles() -> void:
 	_check(_rejects_profile(base, "fallback_difficulty", "nightmare"), "非法兜底难度应被拒绝")
 	_check(_rejects_profile(base, "personality", "angry"), "非法性格应被拒绝")
 	_check(_rejects_profile(base, "think_budget_ms", 500), "过小的思考预算应被拒绝")
+	_check(_rejects_profile(base, "thinking_effort", "extreme"), "非法思考强度应被拒绝")
+
+	var legacy: Dictionary = base.duplicate(true)
+	legacy.erase("thinking_effort")
+	var legacy_errors: Array[String] = []
+	var legacy_profile: LlmProfile = LlmProfile.from_dict(legacy, "mock", legacy_errors)
+	_check(legacy_profile != null and legacy_profile.thinking_effort == LlmProfile.THINKING_DEFAULT,
+			"旧配置没有 thinking_effort 时应默认 default")
 
 	var errors: Array[String] = []
 	var profile: LlmProfile = LlmProfile.from_dict(base, "mock", errors)
@@ -300,6 +308,42 @@ func _check_client() -> void:
 	_check(int(usage.get("total_tokens", 0)) == 120, "应记录 token 用量")
 	_check(client.total_tokens == 120, "客户端应累计 token")
 	_check(_server.request_count() == 1, "正常回复应只请求一次")
+	_check(not _server.requests[0].contains("reasoning_effort"),
+			"thinking_effort=default 时不应发送 reasoning_effort")
+
+	# 思考强度：非 default 时作为 reasoning_effort 发送。
+	_server.mode = "ok"
+	_server.requests.clear()
+	var thinking_data: Dictionary = _mock_profile_data(_server.base_url())
+	thinking_data["thinking_effort"] = "low"
+	var thinking_client := LlmClient.new()
+	thinking_client.configure(_profile_from_data(thinking_data))
+	add_child(thinking_client)
+	var thinking_result: Dictionary = await _chat(thinking_client, 3000)
+	_check(bool(thinking_result.get("ok", false)), "带思考强度的请求应成功")
+	_check(_server.request_count() == 1
+			and _server.requests[0].contains("\"reasoning_effort\":\"low\""),
+			"thinking_effort=low 应发送 reasoning_effort")
+	thinking_client.queue_free()
+
+	# 服务不支持 reasoning_effort 时，自动去掉参数重试一次。
+	_server.mode = "unsupported_thinking"
+	_server.requests.clear()
+	var unsupported_thinking_data: Dictionary = _mock_profile_data(_server.base_url())
+	unsupported_thinking_data["thinking_effort"] = "high"
+	var unsupported_thinking_client := LlmClient.new()
+	unsupported_thinking_client.configure(_profile_from_data(unsupported_thinking_data))
+	add_child(unsupported_thinking_client)
+	var unsupported_thinking_result: Dictionary = await _chat(unsupported_thinking_client, 3000)
+	_check(bool(unsupported_thinking_result.get("ok", false)),
+			"思考参数不支持时应去掉参数重试成功")
+	_check(unsupported_thinking_client.thinking_fallbacks == 1,
+			"应记录一次思考参数回退")
+	_check(_server.request_count() == 2
+			and _server.requests[0].contains("reasoning_effort")
+			and not _server.requests[1].contains("reasoning_effort"),
+			"第一次带 reasoning_effort，第二次不带")
+	unsupported_thinking_client.queue_free()
 
 	_server.mode = "unsupported_format"
 	_server.requests.clear()
@@ -316,6 +360,16 @@ func _check_client() -> void:
 	_check(not bool(http_result.get("ok", true)), "HTTP 401 应失败")
 	_check(String(http_result.get("error_kind", "")) == "http", "HTTP 401 应归类为 http 错误")
 	_check(client.last_http_status == 401, "应记录 HTTP 状态码")
+
+	_server.mode = "empty"
+	var empty_result: Dictionary = await _chat(client, 3000)
+	_check(not bool(empty_result.get("ok", true)), "空 content 应失败")
+	_check(String(empty_result.get("error_kind", "")) == "empty", "空 content 应归类为 empty")
+	_check(String(empty_result.get("finish_reason", "")) == "length",
+			"应记录 finish_reason=length")
+	_check(int(empty_result.get("reasoning_len", 0)) > 0, "应记录 reasoning_content 长度")
+	_check(String(empty_result.get("raw", "")).contains("finish_reason"),
+			"empty 失败时应返回原始响应，便于排查")
 
 	# 断网：连接一个刚释放、没有监听的端口。
 	var closed_port: int = _unused_port()
@@ -425,6 +479,22 @@ func _check_controller() -> void:
 	_check(http_fallbacks.size() == 1 and http_fallbacks[0] == LlmController.FALLBACK_NETWORK,
 			"HTTP 错误应报告 network")
 	_free_controller(http_controller)
+
+	# HTTP 200 但 content 为空：应归为解析失败（模型输出问题），不是 network。
+	_server.mode = "empty"
+	var empty_controller := _new_llm_controller(parse_data)
+	var empty_fallbacks: Array[String] = []
+	empty_controller.fallback_used.connect(func(reason: String, _bot: String) -> void:
+		empty_fallbacks.append(reason))
+	outcome = await _request_action(empty_controller, view, legal)
+	action = outcome.get("action") as Action
+	_check(action != null and _is_legal(action, legal), "空回复后应兜底到合法动作")
+	_check(empty_fallbacks.size() == 1 and empty_fallbacks[0] == LlmController.FALLBACK_PARSE,
+			"空回复应报告 parse_failed（不是 network）")
+	_check(empty_controller.last_error.contains("max_tokens")
+			or empty_controller.last_error.contains("文本内容"),
+			"空回复的错误信息应能提示原因")
+	_free_controller(empty_controller)
 
 	# 超时：思考预算内反复超时，最终兜底。
 	_server.mode = "timeout"
@@ -678,6 +748,7 @@ func _mock_profile_data(base_url: String) -> Dictionary:
 		"think_budget_ms": 5000,
 		"max_retries": 1,
 		"structured_output": "json_object",
+		"thinking_effort": "default",
 		"fallback_difficulty": "normal",
 		"personality": "balanced",
 	}

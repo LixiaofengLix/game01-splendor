@@ -76,7 +76,7 @@ ERROR: GameController：座位 0 的类型 "llm" 在本阶段不可用
   start_new_game 的 llm 座位与坏配置档 ✓
   调试界面配置面板 ✓
 
-OK —— 共 120 项检查全部通过，用时 5.8 秒。
+OK —— 共 136 项检查全部通过，用时 5.9 秒。
 ```
 
 请求数 / token 数由模拟服务器和固定种子决定，本次是 34 / 4080；改动规则或模拟策略后可能变化，
@@ -90,7 +90,9 @@ OK —— 共 120 项检查全部通过，用时 5.8 秒。
   用完整视图交叉检查文本不含牌堆卡牌 id / 对手盲抽 id；故意塞入隐藏 id 时能被检查出来。
 - 提示词：占位符全部替换、四种性格模板都存在、messages 为 system + user。
 - `LlmClient`：正常回复与 token 统计；服务不支持 `response_format` 时自动退回纯文本；
-  HTTP 401；断网；超时；`test_connection`。
+  `thinking_effort` 非 default 时发送 `reasoning_effort`，服务不支持时自动去掉重试并记
+  `thinking_fallbacks`；HTTP 401；断网；超时；空 content 的 `finish_reason` / `reasoning_content`
+  诊断；`test_connection`。
 - `LlmController`：正常 JSON、代码块 + 前后解释、越界编号重试后 `parse_failed` 兜底、
   HTTP 500 重试后 `network` 兜底、超时预算内 `timeout` 兜底、`cancel_pending()` 后不再发动作。
 - 完整对局：第 0 座大模型 + 第 1 座简单电脑，模拟服务器永远返回合法动作；
@@ -254,7 +256,47 @@ $GODOT --headless --path . tests/llm_selfcheck.tscn; echo "退出码: $?"
 
 ---
 
-## T5-08 配置持久化与 API Key 位置（手工）
+## T5-08 请求失败日志（排查用）
+
+**前置条件**：已经在真实服务 / Ollama 上跑了一局，或刚出现兜底。
+
+**日志位置**
+
+- **牌桌右栏日志**：橙色“电脑代打”那条 + 原因类别（回复解析失败 / 思考超时 / 网络错误）；
+  我的面板顶条也会显示“X 的大模型… 这一步已由困难电脑代打”。
+- **设置 → 大模型 → 测试连接**：显示详细错误（例如 `✗ Key 无效：HTTP 401：invalid api key`、
+  `✗ 连接失败：请求超时（20000 ms）`）；左侧配置档列表状态显示“✓ 已连接 / ✗ Key 无效 / ✗ 连接失败”。
+- **诊断日志文件**（每次请求一行）：
+
+  ```bash
+  LOG="$HOME/Library/Application Support/Godot/app_userdata/Splendor/llm_debug.log"
+  tail -f "$LOG"
+  grep -E "FAILED|PARSE_FAILED|FALLBACK|BUDGET_TIMEOUT" "$LOG" | tail -30
+  ```
+
+  每行包含配置档 / 模型 / BASE URL、尝试次数、HTTP 状态、错误正文、耗时、token，
+  以及解析失败时模型返回的原文片段。**不包含 API Key 和完整提示词**；超过 2 MB 自动清空。
+
+**常见结果**
+
+| 日志 | 含义 / 处理 |
+|---|---|
+| `FAILED kind=http status=401` | Key 无效或没填 |
+| `FAILED kind=http status=404` | BASE URL 或模型名不对（很多服务要 `.../v1`） |
+| `FAILED kind=http status=400 ... response_format` | 服务不支持结构化输出；客户端会自动去掉参数重试一次，第二次成功时会记 `structured_fallback=true` |
+| `FAILED kind=timeout` | 服务太慢或网络差；调大思考预算 / 单次超时（调试面板可改 `request_timeout_ms`，正式设置页只暴露思考预算） |
+| `FAILED kind=network` | 地址不可达、断网、TLS / 代理问题 |
+| `PARSE_FAILED ... content=...` | 模型没有按 JSON 回复，或 action 编号越界；看 content 就知道它说了什么 |
+| `FAILED kind=empty ... finish=length` | 模型把 completion tokens 用完了（常见于推理模型），`content` 为空；把思考强度设为关闭/低，或把 `max_tokens` 调到 4096 以上 |
+| `FAILED kind=empty ... reasoning_chars>0` | 只有 `reasoning_content`、没有最终文本；同上，先调大 `max_tokens` |
+| `OK ... thinking_fallback=true` | 服务不支持 `reasoning_effort`，客户端已自动去掉该参数；思考强度设置对这个服务无效 |
+| `FALLBACK reason=...` | 重试耗尽，已由程序 AI 代打 |
+
+**预期结果**：能根据日志定位到具体原因；正常请求显示 `OK action=...`。
+
+---
+
+## T5-09 配置持久化与 API Key 位置（手工）
 
 **前置条件**：完成 T5-04 的保存。
 
@@ -277,6 +319,42 @@ $GODOT --headless --path . tests/llm_selfcheck.tscn; echo "退出码: $?"
 
 **预期结果**：配置在重启后保留；Key 只在 `user://config.json` 里；
 `git status` 不会出现这个文件（它在用户目录，不在仓库）。
+
+---
+
+## T5-10 大模型设置与思考强度（自动 + 手工）
+
+**前置条件**：无（自动部分用本地模拟服务器）。
+
+**自动部分**
+
+```bash
+$GODOT --headless --path . tests/llm_selfcheck.tscn
+$GODOT --headless --path . tests/ui_smoke.tscn
+```
+
+**预期**：
+
+- `llm_selfcheck`：136 项通过；包含 `thinking_effort=low` 时请求带
+  `"reasoning_effort":"low"`、`default` 时不带、服务拒绝时自动去掉重试。
+- `ui_smoke`：1505 项通过；U7-04 检查设置页回显 / 保存
+  `max_tokens`、`request_timeout_ms`、`thinking_effort`、`structured_output`。
+
+**手工部分**
+
+1. 打开 `$GODOT --path . ui/app/app.tscn` → 设置 → 大模型。
+2. 右侧「出手」现在有：
+   - **最大回复 token**（默认 1024）
+   - **单次超时 (ms)**（默认 20000）
+   - **思考强度**：默认 / 关闭 / 低 / 中 / 高 / 最大（发送为 `reasoning_effort`）
+   - **结构化输出**：自动 / JSON / format / 关闭
+3. 把 DeepSeek 配置档的最大 token 改为 1024、思考强度改为「关闭」或「低」，保存。
+4. 点「测试连接」，再开一局大模型座位。
+5. 观察日志：不应再出现 `kind=empty`；如果服务不支持思考参数，日志会带
+   `thinking_fallback=true`，说明该服务忽略了思考强度。
+
+**预期结果**：设置页能修改并保存这些字段；重启后保留；思考强度确实进入请求体
+（可用模拟服务器日志或 `user://llm_debug.log` 验证）。
 
 ---
 

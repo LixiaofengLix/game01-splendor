@@ -28,8 +28,8 @@
   `data/llm/llm_config.example.json` 复制；配置档的增删改查、激活配置档、逐条校验错误。
   API Key 只存在用户目录，不进仓库、存档和日志。
 - `llm/`：
-  - `llm_profile.gd` — 配置档类型化对象与校验（base_url / model / 温度 / 超时 / 预算 /
-    重试 / 结构化输出 / 兜底难度 / 性格）。
+  - `llm_profile.gd` — 配置档类型化对象与校验（base_url / model / 温度 / max_tokens /
+    超时 / 预算 / 重试 / 结构化输出 / 思考强度 / 兜底难度 / 性格）。
   - `llm_client.gd` — OpenAI 兼容 `/chat/completions`：超时、HTTP、网络、空回复归类，
     token 统计，`response_format` / `format` 不支持时自动退回纯文本，`test_connection()`。
   - `state_describer.gd` — 过滤视图转中文文本、合法动作编号（从 1 开始）、
@@ -52,17 +52,34 @@
   覆盖正常回复、结构化输出回退、HTTP 401/500、断网、超时、乱回复、越界编号、取消、
   完整 LLM vs 程序 AI 对局、`start_new_game` 的 llm 座位、调试棋盘与配置面板。
 - `tests/board_smoke.gd` 更新：大模型座位选项启用、配置档下拉框、seat_options 传递。
+- 诊断日志（验收后补充）：`LlmController` 把每次请求的结果追加到 `user://llm_debug.log`
+  （配置档 / 模型 / BASE URL / 尝试次数 / HTTP 状态 / 错误正文 / 耗时 / token /
+  解析失败时的回复片段；不记录 API Key 和完整提示词），超过 2 MB 自动清空；
+  用于排查真实服务失败。路径与常用 grep 命令见 `docs/tests/phase_5.md` T5-08。
+- 设置与思考强度（验收后补充）：
+  - `LlmProfile` 新增 `thinking_effort`（`default` / `none` / `low` / `medium` / `high` /
+    `max`），非 default 时作为 `reasoning_effort` 发送；服务不支持时客户端自动去掉并重试，
+    结果里的 `thinking_fallback` 写入诊断日志。
+  - 正式 UI 16 屏与调试面板补齐：最大回复 token、单次请求超时、思考强度、结构化输出；
+    正式 UI 右栏改为可滚动（新字段在 1280×800 下会超出）。
+  - `max_tokens` 默认从 300 改为 1024（推理模型会用 completion tokens 思考）；
+    已有配置档不会被强制改写，可在设置页调整。
+  - `LlmClient.test_connection` 改为与正式请求一致（带 `response_format` / `reasoning_effort`，
+    提示词含 JSON），并在成功信息里说明自动关闭了哪些参数。
+  - `llm_selfcheck` 增至 136 项；`ui_smoke` 增至 1505 项，U7-04 覆盖新字段的回显与保存。
 - 各目录 README、`docs/UI_INTEGRATION.md`、`docs/ui/BRIDGE_AND_REQUESTS.md`（IR-08 状态）、
   `CLAUDE.md` 常用命令已更新。
 
 ### 自动验证结果（2026-10-18）
 
-- `tests/llm_selfcheck.tscn`：**120 项检查全部通过，约 5.8 秒**。
+- `tests/llm_selfcheck.tscn`：**136 项检查全部通过，约 5.9 秒**。
   - 配置解析、AppConfig 读写 / 增删改 / 坏 JSON、局面描述与隐藏信息断言、提示词与性格。
   - `LlmClient`：正常回复（120 tokens）、结构化输出不支持时自动回退（2 次请求）、
+    思考强度发送 `reasoning_effort` / 不支持时自动去掉、空 content 的诊断字段、
     HTTP 401、断网（network）、超时（timeout）、测试连接。
   - `LlmController`：正常 JSON、代码块 + 前后解释、越界编号重试后 parse_failed 兜底、
-    HTTP 500 重试后 network 兜底、超时预算内 timeout 兜底、`cancel_pending()` 后不再发动作。
+    HTTP 500 重试后 network 兜底、HTTP 200 但 content 为空时归为 parse_failed、
+    超时预算内 timeout 兜底、`cancel_pending()` 后不再发动作。
   - 完整对局（第 0 座大模型 + 第 1 座简单电脑，模拟服务器）：**34 次请求 / 4080 tokens /
     win_points 正常结束 / 0 次兜底 / 回合数相同**。
   - `start_new_game` 的 `llm` 座位实际推进；不存在的配置档被拒绝（测试里会打印一条预期的

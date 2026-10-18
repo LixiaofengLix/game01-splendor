@@ -91,7 +91,11 @@ signal action_decided(action: Action)
   模型回复只接受 `{"action": <1 起的编号>, "reason": "..."}`；编号必须来自本次请求的合法动作列表。
 - 发给模型的内容来自 `StateDescriber`：只包含当前座位的过滤视图（牌堆只有张数、对手盲抽为 null）。
   调试构建会在发送前断言文本不含种子 / 牌堆顺序 / 对手盲抽卡牌 id。
-- 调试棋盘顶栏在大模型回合显示“已等 N 秒 / 预算”，日志里显示模型理由和兜底原因。
+- 配置档还可以设置 `max_tokens`、`request_timeout_ms`、`structured_output` 和
+  `thinking_effort`（作为 `reasoning_effort` 发送）。服务不支持结构化输出 / 思考强度时，
+  `LlmClient` 会自动去掉对应参数重试，并在结果里标记 `structured_fallback` / `thinking_fallback`。
+- 调试棋盘顶栏在大模型回合显示“已等 N 秒 / 预算”，日志里显示模型理由和兜底原因；
+  正式 UI 的设置在 `ui/screens/settings/llm_page.gd`，字段与调试面板一致。
 
 ## 事件与存档
 
