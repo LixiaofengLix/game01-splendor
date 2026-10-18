@@ -4,7 +4,8 @@
 ##   godot --path . ui/dev/capture.tscn -- --out /tmp/splendor_ui/g_1280.png --width 1280 --height 800 --scale fractional
 ## 整页模式用放大的 SubViewport 一次拍下全部零件：
 ##   godot --path . ui/dev/capture.tscn -- --full --out /tmp/splendor_ui/gallery_full.png --width 1280
-## 屏幕模式（U4 起）：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22 / replay
+## 屏幕模式（U4 起）：main_menu / local_setup / local_setup_llm / save_browser / pause / hotseat /
+##   error21 / error22 / replay / settings / settings_llm / settings_about
 ##   godot --path . ui/dev/capture.tscn --quit-after 300 -- --screen main_menu --out /tmp/splendor_ui/main_menu.png --width 1280 --height 800 --wait 10
 extends Node
 
@@ -107,6 +108,12 @@ func _capture_screen(screen_name: String, width: int, height: int,
 		"local_setup":
 			var setup: UiLocalSetup = load("res://ui/screens/local_setup/local_setup.tscn").instantiate()
 			host.add_child(setup)
+		"local_setup_llm":
+			var llm_setup: UiLocalSetup = load(
+					"res://ui/screens/local_setup/local_setup.tscn").instantiate()
+			host.add_child(llm_setup)
+			await get_tree().process_frame
+			llm_setup.set_seat_type(1, "llm")
 		"save_browser":
 			var store := _capture_store()
 			var browser: UiSaveBrowser = load(
@@ -126,6 +133,12 @@ func _capture_screen(screen_name: String, width: int, height: int,
 			await _capture_pause_scene(host)
 		"replay":
 			await _capture_replay_scene(host)
+		"settings":
+			await _capture_settings_scene(host, "general")
+		"settings_llm":
+			await _capture_settings_scene(host, "llm")
+		"settings_about":
+			await _capture_settings_scene(host, "about")
 		"error21":
 			var data_modal := UiErrorModal.new()
 			host.add_child(data_modal)
@@ -175,6 +188,15 @@ func _capture_replay_scene(host: Control) -> void:
 		printerr("截图失败：回放打不开（%s）" % "\n".join(errors))
 		return
 	replay.seek(mini(24, replay.step_count()))
+
+
+func _capture_settings_scene(host: Control, tab: String) -> void:
+	var screen: UiSettingsScreen = load(
+			"res://ui/screens/settings/settings_screen.tscn").instantiate()
+	host.add_child(screen)
+	await get_tree().process_frame
+	screen.configure({"from_table": false, "usage": {}})
+	screen.open_tab(tab)
 
 
 func _capture_pause_scene(host: Control) -> void:

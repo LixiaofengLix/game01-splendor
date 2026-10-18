@@ -74,4 +74,5 @@ static func _session_info(fixture: Dictionary) -> Dictionary:
 		"replay_label": String(fixture.get("replay_label", "")),
 		"flash_cards": fixture.get("flash_cards", []),
 		"log_limit": int(fixture.get("log_limit", 0)),
+		"llm_waiting": fixture.get("llm_waiting", {}),
 	}

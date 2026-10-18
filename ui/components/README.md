@@ -29,15 +29,22 @@
 - `noble_tile.gd` — `UiNobleTile`：贵族牌（市场 / 大号 / 选中）。
 - `card_ref.gd` — `UiCardRef`：日志里的卡牌引用小块。
 - `hud.gd` — `UiHud`：高 44 的顶栏（标题、人数轮数、终局标签、回合胶囊、规则 / 菜单按钮）。
+  `update_pill_extra()` 只刷新胶囊右侧计时（大模型等待时每 0.1 秒一次，不整桌重画）。
 - `turn_pill.gd` — `UiTurnPill`：回合胶囊（轮到我 / 等别人 + 转圈 / 纯文字）。
+  `configure_waiting(..., extra_text)` 的 `extra_text` 用于“已等 12.4 秒”，`set_extra_text()` 刷新计时。
 - `card_popover.gd` — `UiCardPopover`：选中卡 / 牌堆后的浮层（宽 272），显示支付预览、
   “需要 / 已有”、买后变化与购买 / 预留按钮；`mode` 取 `market` / `deck` / `reserved`。
 - `bank_column.gd` — `UiBankColumn`：宽 100 的银行列，6 枚 lg 筹码 + 操作提示 + 确认 / 取消；
   `set_interactive()` / `set_clickable_colors()` / `set_selection()` 控制点击态，发出 `chip_clicked`。
 - `my_panel.gd` — `UiMyPanel`：左栏底部高 246 的面板：状态条 + 身份 / 资源 / 预留三列。
   顶部托盘有确认 / 取消（发出 `confirm_pressed` / `cancel_pressed`）；预留卡可点（`reserved_card_clicked`）。
+  `show_ids` 让预留卡显示卡牌 id（设置 15 的调试项）。
 - `opponent_panel.gd` — `UiOpponentPanel`：右栏对手面板：分数进度条、6 列折扣 + 宝石网格、预留标记。
+  `llm_waiting` 显示大模型等待块（配置档 · 第 N 次请求 + 已等 / 预算 + 紫色进度条）；
+  `update_llm_waiting()` 只刷新计时，`waiting_block_visible()` / `waiting_block_text()` 供测试。
 - `log_panel.gd` — `UiLogPanel`：对局日志，最新一条高亮，支持 `{card:id}` / `{gem:color}` 内联标记。
+  `reason` 用紫色竖线引在日志下（大模型理由）；`fallback_reason` / `fallback_bot` 生成 orange
+  “电脑代打”标签和原因说明。
 
 所有类名统一 `Ui` 前缀。陈列与截图见 `ui/dev/`；牌桌的组合方式见 `ui/screens/table/`。
 

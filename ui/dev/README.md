@@ -11,9 +11,11 @@
   $GODOT --path . ui/dev/capture.tscn --quit-after 300 -- --out /tmp/splendor_ui/g.png --width 1440 --height 900 --scale fractional --wait 8
   # 牌桌夹具（U2）
   $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --fixture g3_turn_mine --out /tmp/splendor_ui/g3_turn_mine.png --width 1280 --height 800 --wait 10
-  # 正式屏幕（U4）：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22
+  # 正式屏幕：main_menu / local_setup / save_browser / pause / hotseat / error21 / error22 /
+  #   replay / settings / settings_llm / settings_about
   $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --screen main_menu --out /tmp/splendor_ui/main_menu.png --width 1280 --height 800 --wait 10
   $GODOT --path . ui/dev/capture.tscn --quit-after 500 -- --screen replay --out /tmp/splendor_ui/replay.png --width 1280 --height 800 --wait 20
+  $GODOT --path . ui/dev/capture.tscn --quit-after 400 -- --screen settings --out /tmp/splendor_ui/settings.png --width 1280 --height 800 --wait 10
   ```
   `--scale` 可取 `fractional` / `integer`；`--scroll` 指定窗口截图的滚动位置。
   屏幕模式用临时 `user://capture_saves/` 生成读档数据，截图后清理。
@@ -45,5 +47,7 @@
   ```
   `views/*.json` 就是 `GameState.to_dict(viewer_seat)` 的格式。日志文本支持
   `{card:L2-R-01}`（卡牌引用）与 `{gem:red}`（宝石图标）。`strip` / `pill_text` / `mode` /
-  `replay_label` / `flash_cards` / `log_limit` 是可选的显示覆盖项。U3 的 `FakeBackend` 可以直接复用这些文件。
+  `replay_label` / `flash_cards` / `log_limit` / `llm_waiting` 是可选的显示覆盖项；
+  日志条目可以带 `reason`（大模型理由）和 `fallback_reason` / `fallback_bot`（电脑代打）。
+  `g3_llm_waiting` 是 U7 的大模型思考局面（座位 2 是大模型，等待块 + 理由 + 兜底标签）。
 U3 的临时开局入口 `quick_start.tscn` 已在 U4 删除；正式流程从 `ui/app/app.tscn` 的主菜单开始。

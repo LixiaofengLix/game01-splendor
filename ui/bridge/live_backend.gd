@@ -34,14 +34,15 @@ func attach(host: Node) -> void:
 		llm_fallback.emit(seat, reason, bot_type))
 
 
-func start_local(player_count: int, seed_value: int, seat_types: Array[String]) -> bool:
+func start_local(player_count: int, seed_value: int, seat_types: Array[String],
+		seat_options: Array[Dictionary] = []) -> bool:
 	if _controller == null:
 		push_error("UiLiveBackend：还没有 attach")
 		return false
 	var actual_seed: int = seed_value
 	if actual_seed < 0:
 		actual_seed = randi() & 0x7fffffff
-	return _controller.start_new_game(player_count, actual_seed, seat_types)
+	return _controller.start_new_game(player_count, actual_seed, seat_types, seat_options)
 
 
 func load_snapshot(state_data: Dictionary, errors: Array[String]) -> bool:

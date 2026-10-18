@@ -29,6 +29,8 @@
   - 交互：`interactive`、`selection`（颜色 → 枚数）、`clickable_colors`、
     `selected_kind`（`market` / `deck` / `reserved`）、`selected_id`、`selected_level`、
     `popover`（`UiCardPopover` 的数据）、`take_confirm_enabled`。
+  - U7：`llm_waiting`（`{seat, profile, attempt, elapsed_sec, limit_sec}`，当前大模型的等待块）、
+    `show_card_ids`（覆盖 `UiSettings.show_card_ids()`，用于调试 / 截图）。
 - 牌桌发出的信号：`gem_chip_clicked`、`confirm_pressed`、`cancel_pressed`、`card_clicked`、
   `blank_clicked`、`purchase_pressed`、`reserve_pressed`、`menu_requested`、`rules_requested`、
   `replay_continue_requested`、`replay_exit_requested`。
@@ -58,8 +60,15 @@
     保证补牌翻面对比的是正确的前一帧。
 - 同屏换人遮挡：`UiTableFlow` 按 `INTERACTION.md` 第 5 节判断，牌桌不渲染私密信息直到玩家点按钮。
   遮挡前会先把积压动效直接落完（盖屏期间不播）。
-- 存读档：`UiTableFlow` 在视图落地后写自动存档（`turn_ended` 触发），暂停菜单写快速存档，
-  `game_ended` 后转存 `finished/`；结算弹窗的【保存回放】在自动转存失败时补存。
+- 存读档：`UiTableFlow` 在视图落地后写自动存档（`turn_ended` 触发；设置 15 的“每回合自动存档”关掉后跳过），
+  暂停菜单写快速存档，`game_ended` 后转存 `finished/`；结算弹窗的【保存回放】在自动转存失败时补存。
   存档摘要取会话最新视图，不取落后一拍的动效画面。
+- U7 设置接到牌桌：动画速度 / 动效开关（`UiTableAnim` 读取）、购买前确认（关掉后点买得起的卡直接购买）、
+  显示卡牌 id、自动存档。设置屏返回时应用入口调用 `refresh()` 重画当前画面。
+- 大模型（17）：`UiTableFlow` 监听 `seat_status_changed`——
+  - `llm_waiting`：胶囊右侧“已等 12.4 秒”、该对手面板的等待块；`_process` 每 0.1 秒只刷新这两处。
+  - `llm_reason`：由 `UiTableSession` 挂到下一条动作日志，日志面板用紫色竖线显示。
+  - `llm_fallback`：我的面板顶条（事件态）显示“X 的大模型…　这一步已由困难电脑代打”，日志那条带
+    orange“电脑代打”标签；顶条停留 8 秒。等待与兜底状态在动作事件 / 换人视图到达时清掉。
 - 本机“我”的判定、盲抽隐私和缓存的边界见 `ui/bridge/README.md`。
 - 调试夹具与截图见 `ui/dev/`；自动检查在 `tests/ui_smoke.gd`。

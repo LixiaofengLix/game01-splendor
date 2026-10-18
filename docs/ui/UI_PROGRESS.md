@@ -33,7 +33,12 @@
   12 的“看回放”、22 的“读到第 N 步为止”、从这里接着玩已就位；`ui_smoke` **1360 项**全部通过。
   回放打开约 0.06 秒（4 人 188 步），时间轴颜色在后台逐帧补齐；下一步 / 播放会复用 U5 的飞行动效
   （事件由动作 + 前后视图合成）。时间轴颜色和四个吉祥物一致，并有一行图例。
-- 下一步：U7（设置 + 大模型界面）。U3 的试玩验收、U4 的人工走流程、U6 的回放手感仍可补做。
+- **U7（设置 + 大模型界面）：已完成并提交（2026-10-18）。**
+  `UiSettings` 持久化（`user://ui_settings.json`）、15 通用 / 16 大模型配置档 / 关于页、
+  02 的大模型座位与 `seat_options`、17 的等待计时 / 等待块 / 日志理由 / 兜底顶条与标签已就位；
+  阶段 5 / IR-08 已落地，因此 U7 直接接真、没有做 `FakeBackend`（见下）。
+  `ui_smoke` **1505 项**全部通过；设置三页与 `g3_llm_waiting` 截图已检查。
+- 下一步：U8（联网界面）。U3 的试玩验收、U4 的人工走流程、U6 的回放手感、U7 的手工设置 / 真实大模型验证仍可补做。
   **缩放方案已拍板选 b（整数缩放），在 U9 改 `project.godot`，U0–U8 不改项目设置。**
 - 上次更新：2026-10-18
 
@@ -713,3 +718,94 @@
 ### 新登记的 IR
 
 无。IR-03 仍是待排期状态，U6 用 `UiReplaySource` 临时实现跑通；IR 落地后只需替换桥接层内部。
+
+---
+
+## U7：设置 + 大模型界面
+
+### 已完成
+
+- `ui/bridge/ui_settings.gd`（`UiSettings`）：JSON 持久化，路径 `user://ui_settings.json`，带
+  `schema_version = 1`。
+  - 键：`default_name`、`anim_speed`、`animations_enabled`、`confirm_before_buy`、
+    `hotseat_cover_default`、`sfx`、`fullscreen`、`show_card_ids`、`autosave`。
+  - `load_from_disk()` 在应用入口启动时调用；每个 setter 立即生效并自动写盘。
+    坏文件 / 版本不匹配回退默认并记录 `last_error()`；未知动画速度回退标准。
+  - `apply_display()` 把全屏落到窗口；`path_override` 是测试钩子。
+- `ui/bridge/llm_bridge.gd`（`UiLlmBridge`）：包住 `AppConfig` 与 `LlmClient`。静态读取配置档，
+  实例负责新建 / 保存 / 删除 / `build_profile()` / `test_connection()`（15 秒超时）。
+- `ui/common/llm_text.gd`（`UiLlmText`）：等待计时、失败原因、兜底说明的文案拼装。
+- 设置屏（`ui/screens/settings/`）：
+  - `settings_screen.tscn/.gd`：顶栏【‹ 返回】+ 页签【通用】【大模型】【联网】【关于】；
+    联网页签禁用（U8）。
+  - `general_page.gd`：对局（昵称、动画速度、播放动效、购买前确认、同屏遮挡默认值）、
+    声音与显示（音效、全屏、显示卡牌 id）、存档（每回合自动存档、打开存档目录）。
+  - `llm_page.gd`：配置档列表（名称、模型 · 座位数、状态标签）、连接配置（名称 / BASE URL /
+    API KEY 密码框 / 模型名）、测试连接 / 保存 / 删除（二次确认）、思考上限 / 重试 / 温度、
+    最大回复 token / 单次请求超时、思考强度（`reasoning_effort`）、结构化输出、
+    兜底难度 / 性格；右栏可滚动（新增字段在 1280×800 下会超出）。
+  - `about_page.gd`：版本、字体许可证（Fusion Pixel / Press Start 2P / OFL）、卡表来源、设置文件与存档目录。
+- 入口与路由：
+  - 主菜单【设置】和暂停菜单【设置】启用；`UiTableFlow.settings_requested` 交给应用入口。
+  - 从牌桌打开设置时压栈、隐藏牌桌；返回后 `UiTableFlow.refresh()` 重画。
+  - 大模型页的“几个座位在用”来自 `UiTableSession.llm_profile_usage()`。
+- 02 本地开局设置：有配置档时“大模型”可选，座位后出现配置档下拉；
+  `start_data()` 生成 `seat_options`，`UiTableSession.start_local` → `UiLiveBackend` →
+  `GameController.start_new_game(..., seat_options)` 一路传下去；重开一局也保留。
+  默认昵称 / 同屏遮挡默认值取 `UiSettings`。
+- 17 牌桌大模型：
+  - `UiTableFlow` 监听 `seat_status_changed`：`llm_waiting` 显示胶囊“已等 N 秒”和对手面板等待块
+    （配置档 · 第 N 次请求、已等 / 预算、紫色进度条），每 0.1 秒只刷新这两处；
+  - `UiTableSession` 把 `llm_reason` / `llm_fallback` 暂存并挂到该座位下一条动作日志上；
+  - 日志面板用紫色竖线显示理由，兜底条目带 orange“电脑代打”标签和原因；
+  - 兜底时我的面板顶条显示“X 的大模型回复 N 次都没看懂　这一步已由困难电脑代打”，停留 8 秒。
+- 夹具与工具：`g3_llm_waiting`（大模型思考局面）；`capture --screen settings / settings_llm /
+  settings_about`；`fixture_loader` 与 `build_fixtures` 支持 `llm_waiting` 和日志理由 / 兜底字段。
+- `tests/ui_smoke.tscn` 从 1360 项扩到 **1505 项**：设置持久化 / 坏文件 / 版本 / 未知值、设置页结构与
+  即时生效、关于页、配置档 CRUD 与模拟服务器测试连接、大模型座位与 `seat_options`、等待块 / 胶囊 /
+  日志理由 / 兜底标签、显示 id / 购买前确认 / 自动存档，以及主菜单 / 暂停菜单的设置路由；
+  U7-04 覆盖最大 token / 单次超时 / 思考强度 / 结构化输出的回显与保存。
+- 文档：`docs/tests/ui_U7.md`；本文件；`ui/` 各目录 README；`CLAUDE.md` 截图屏幕列表；
+  `docs/ui/BRIDGE_AND_REQUESTS.md` 的 `UiSettings` 键说明。
+
+### 与计划的偏差
+
+1. **没有做 `FakeBackend`**：计划 U7 第 3 条按“阶段 5 未完成”设计，但阶段 5 / IR-08 已在 U7 前落地。
+   16 / 17 / 02 的大模型部分直接接真；测试连接用本地 `MockLlmServer` 验证。
+   `FakeBackend` 的剩余用途只剩 U8 的联网界面。
+2. **电脑思考延迟不显示**（计划允许）：IR-05 未落地，设置页没有这一项。
+3. **多了一个 `animations_enabled` 键**：U5 的动效总开关，计划里只列了动画速度；设置页同时暴露
+   “播放动效”和“动画速度”。
+4. **关于是设置屏的一个页签**，不是单独屏幕；SCREENS 15 也是这么列的。
+5. **配置档页多了【删除】**：SCREENS 16 只写【＋ 新建】。删除需要点两次（按钮变“确认删除”），
+   最后一个配置档不能删（AppConfig 的限制）。
+6. **测试连接固定 15 秒超时**（`UiLlmBridge.TEST_TIMEOUT_MS`），不跟随配置档的单次超时。
+7. **大模型理由 / 兜底挂在下一条日志上**：`reason_emitted` / `fallback_used` 先于动作事件到达，
+   桥接层暂存到该座位下一条动作日志；回合结束时清掉未挂上的。
+8. **兜底顶条停留 8 秒**；之后只保留日志标签。它是事件态，轮到我时不覆盖拿宝石托盘。
+9. **等待计时用 `_process` 轻量刷新**（0.1 秒），不整桌重画；等待状态在动作事件 / 换人视图到达时清掉。
+10. **`UiSettings.path_override` 是测试钩子**：应用入口启动时 `load_from_disk()` 会重置默认值，
+    测试需要显式关闭动效或指向临时文件；`ui_smoke` 统一使用 `user://ui_smoke_settings.json`。
+11. **设置页返回牌桌时重画**：`UiTableFlow.refresh()` 让“显示卡牌 id”等立即生效（否则要等下一次视图）。
+12. **新夹具 `g3_llm_waiting`**：座位 2 改成大模型，日志带一条理由和一条兜底记录，供截图检查 17。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **人工验收**：`docs/tests/ui_U7.md` 的 U7-07 至 U7-10（三张设置截图、17 截图、走一遍设置、全屏）。
+  真实大模型连接需要用户自己的 Key 或本地 Ollama（可选）。
+- **设置文件的位置与键**：`user://ui_settings.json`；`UiSettings.to_dict()` 是唯一来源。
+  改了键要同时改 `docs/ui/BRIDGE_AND_REQUESTS.md` 1.4 与设置页。
+- **IR-11（阶段 7）**：昵称、电脑延迟、大模型配置将来归 `AppConfig`；纯显示类留在 `UiSettings`。
+  迁移时保持 `UiSettings` 的读取接口不变，屏幕不用动。
+- **IR-05**：设置页的“电脑思考延迟”位置已经想好（对局面板），落地后在 `general_page.gd` 加一行，
+  值传到 `start_local` 的 `seat_options` / 开局选项。
+- **读档继续的大模型座位**：ui_meta 目前只有 `seat_types`，没有配置档 id；继续后所有座位恢复人类（IR-04），
+  重开一局时大模型座位用**当前激活配置档**。要精确保留配置档 id 需要在 ui_meta 里加字段（IR-04 / IR-11 一起）。
+- **全屏**：`UiSettings.set_fullscreen()` 在 headless 下跳过；窗口模式的截图/测试不受影响。
+- **U8 联网界面**：设置屏的联网页签已占位并禁用；主菜单的联网入口仍禁用。
+- **大模型测试的成本**：`ui_smoke` 的 `_check_u7_llm_live` 会真的发两次 HTTP 到本地 mock 服务器
+  （正常回复 + 乱回复兜底），不访问外网；它同时验证 `seat_options` 真的被使用（激活配置档指向关闭的端口）。
+
+### 新登记的 IR
+
+无。IR-08 已由阶段 5 落地并在 U7 使用；IR-05 / IR-11 仍待排期。

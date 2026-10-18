@@ -9,6 +9,7 @@ const LOCAL_SETUP_SCENE: String = "res://ui/screens/local_setup/local_setup.tscn
 const SAVE_BROWSER_SCENE: String = "res://ui/screens/save_browser/save_browser.tscn"
 const TABLE_SCENE: String = "res://ui/screens/table/table_screen.tscn"
 const REPLAY_SCENE: String = "res://ui/screens/replay/replay_screen.tscn"
+const SETTINGS_SCENE: String = "res://ui/screens/settings/settings_screen.tscn"
 
 @onready var screen_root: Control = $ScreenRoot
 @onready var modal_root: Control = $ModalLayer/ModalRoot
@@ -27,6 +28,7 @@ var _screen_stack: Array[Control] = []
 
 func _ready() -> void:
 	UiShortcuts.register()
+	UiSettings.load_from_disk()
 	_store = UiSaveStore.new()
 	_store.name = "SaveStore"
 	add_child(_store)
@@ -106,6 +108,7 @@ func show_main_menu() -> void:
 	menu.continue_pressed.connect(continue_last_game)
 	menu.local_pressed.connect(show_local_setup)
 	menu.saves_pressed.connect(func() -> void: show_save_browser(false))
+	menu.settings_pressed.connect(func() -> void: show_settings(false))
 	menu.quit_pressed.connect(func() -> void: get_tree().quit())
 	set_screen(menu)
 	menu.configure(_store.autosave_summary())
@@ -158,6 +161,31 @@ func continue_last_game() -> void:
 	if _resume_entry(entry, errors):
 		return
 	_show_save_error(entry, UiSaveEntry.REASON_VERIFY_FAILED, "\n".join(errors), 0, true)
+
+
+## 设置屏（15 / 16）：从主菜单打开是普通换屏；从牌桌暂停菜单打开时压栈，返回回到牌桌。
+func show_settings(from_table: bool) -> void:
+	var screen: UiSettingsScreen = load(SETTINGS_SCENE).instantiate()
+	screen.name = "Settings"
+	screen.configure({"from_table": from_table, "usage": _llm_usage()})
+	screen.back_requested.connect(func() -> void:
+		if from_table:
+			_pop_screen()
+			# 显示卡牌 id / 动画速度这类设置要立即反映到返回后的牌桌。
+			if _flow != null:
+				_flow.refresh()
+		else:
+			show_main_menu())
+	if from_table:
+		_push_screen(screen)
+	else:
+		set_screen(screen)
+
+
+func _llm_usage() -> Dictionary:
+	if _session == null:
+		return {}
+	return _session.llm_profile_usage()
 
 
 func show_save_browser(from_table: bool) -> void:
@@ -292,6 +320,7 @@ func _create_table_nodes(hotseat_cover: bool) -> void:
 	_flow.load_requested.connect(func() -> void: show_save_browser(true))
 	_flow.rematch_requested.connect(_on_rematch)
 	_flow.replay_requested.connect(_open_session_replay)
+	_flow.settings_requested.connect(func() -> void: show_settings(true))
 
 
 ## 结算弹窗的【看回放】：把当前会话的内存数据当成一份回放存档打开。
@@ -416,6 +445,10 @@ func local_setup() -> UiLocalSetup:
 
 func save_browser() -> UiSaveBrowser:
 	return _current_screen as UiSaveBrowser
+
+
+func settings_screen() -> UiSettingsScreen:
+	return _current_screen as UiSettingsScreen
 
 
 func replay_screen() -> UiReplayScreen:

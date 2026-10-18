@@ -88,9 +88,11 @@ func set_paused(paused: bool) -> void               # 暂停菜单；IR-12 前�
   - `autosave_summary()`：主菜单“继续上一局”用；没有进行中的自动存档时返回空。
   - 快照来源的局（预设局面）`can_save_replay()` 为 false，不自动存档，“保存”禁用并写原因（IR-10）。
 - **`UiReplaySource`**：回放屏用，接口见 IR-03。
-- **`UiSettings`**：UI 自有设置，存 `user://ui_settings.json`（带 `schema_version`）。
-  键：`default_name`、`anim_speed`（slow / normal / fast）、`confirm_before_buy`、`hotseat_cover_default`、`sfx`、
-  `fullscreen`、`show_card_ids`、`autosave`；IR-05 落地后加 `bot_delay_ms`。阶段 7 的 `AppConfig` 出来后迁移过去（IR-11）。
+- **`UiSettings`**：UI 自有设置，U7 起存 `user://ui_settings.json`（`schema_version = 1`）。
+  键：`default_name`、`anim_speed`（slow / normal / fast）、`animations_enabled`、`confirm_before_buy`、
+  `hotseat_cover_default`、`sfx`、`fullscreen`、`show_card_ids`、`autosave`；IR-05 落地后加 `bot_delay_ms`。
+  每个 setter 立即生效并自动写盘；`load_from_disk()` 在应用入口启动时调用；`path_override` 是测试钩子。
+  阶段 7 的 `AppConfig` 出来后迁移过去（IR-11）。
 - **`UiViewMath`**（`ui/common/view_math.gd`，纯静态函数，输入都是视图 + `CardCatalog` + `RulesConfig`）：
   `score(view, seat)`、`bonuses(view, seat)`、`token_total(view, seat)`、`shortfall(view, seat, card_id)`、
   `missing_by_color(...)`、`payment_preview(...)`、`affordable_by(view, card_id) -> Array[int]`（哪些座位买得起）、
@@ -113,7 +115,8 @@ func set_paused(paused: bool) -> void               # 暂停菜单；IR-12 前�
 
 ## 2. 假后端（`FakeBackend`）
 
-用途：阶段 5 / 6 还没做的界面（16–20、23）、难以在真实对局里稳定复现的局面（终局轮、掉线、兜底），以及截图。
+用途：阶段 6 还没做的联网界面（18–20、23）、难以在真实对局里稳定复现的局面（终局轮、掉线、兜底），以及截图。
+U7 没有做 LLM 假后端：阶段 5 / IR-08 已落地，16 / 17 直接接真；等 U8 做联网界面时再实现这一节。
 
 - 读取 `ui/dev/fixtures/<name>.json` 脚本，按时间发出和真实后端同形态的信号：
   ```
@@ -146,8 +149,8 @@ func set_paused(paused: bool) -> void               # 暂停菜单；IR-12 前�
 | 04–13、21 | 夹具（U2 静态）→ `LiveBackend`（U3） | U3 |
 | 01–03、22 | `LiveBackend` + `UiSaveStore` | U4 |
 | 14 | `UiReplaySource` 临时实现 | IR-03 落地时 |
-| 15 | `UiSettings` | U7（`AppConfig` 出来后迁移，IR-11） |
-| 16、17 | `FakeBackend` | 阶段 5 + IR-08 |
+| 15 | `UiSettings` | U7 |
+| 16、17 | `UiLlmBridge` + 真实 `LlmClient` | U7 已直接接真（IR-08 在阶段 5 落地）；没有做 LLM 假后端 |
 | 18–20、23 | `FakeBackend` | 阶段 6 + IR-09 |
 
 ## 4. 接口需求清单（IR）

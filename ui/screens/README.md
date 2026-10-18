@@ -10,6 +10,8 @@
 - `modals/` — 通用二次确认弹窗。
 - `errors/` — 21 数据加载失败、22 存档无法读取（含“读到第 N 步为止”）。
 - `replay/` — 14 回放：复用牌桌 + 底部播放条（`UiReplayBar` / `UiReplayTimeline`）。
-- `settings/`、`net/` — U7 / U8 的占位目录。
+- `settings/` — 15 / 16 设置：通用（`UiSettingsGeneralPage`）、大模型配置档（`UiSettingsLlmPage`）、
+  联网占位、关于（`UiSettingsAboutPage`）。
+- `net/` — U8 的占位目录。
 
 约定：屏幕只和 `ui/bridge/` 打交道，不直接调用 `GameController`；场景根节点自带主题和 Nearest 过滤。

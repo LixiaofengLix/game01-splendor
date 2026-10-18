@@ -17,6 +17,8 @@ var _catalog: CardCatalog = null
 var _rules: RulesConfig = null
 var _names: Array[String] = []
 var _types: Array[String] = []
+## 与座位一一对应的选项；大模型座位用 {"llm_profile": id}（IR-08）。
+var _seat_options: Array[Dictionary] = []
 var _local_seats: Array[int] = []
 var _me_seat: int = -1
 ## 当前行动者的原始视图（只有桥接层内部使用，用于算合法动作）。
@@ -27,6 +29,9 @@ var _display_view: Dictionary = {}
 var _blind_cache: Dictionary = {}
 ## 从新到旧；条目额外带 _at_ms / _merge 字段，输出时去掉。
 var _log: Array[Dictionary] = []
+## 大模型理由 / 兜底先于对应动作的事件到达，暂存到该座位下一条日志上。
+var _pending_llm_reason: Dictionary = {}
+var _pending_llm_fallback: Dictionary = {}
 var _ended: bool = false
 var _result: Dictionary = {}
 var _started_ms: int = 0
@@ -54,11 +59,14 @@ func start_local(setup: Dictionary) -> bool:
 	if seats.size() != count or count <= 0:
 		action_failed.emit("开局参数不正确：座位数 %d，人数 %d" % [seats.size(), count])
 		return false
+	var raw_options: Variant = setup.get("seat_options", [])
+	var setup_options: Array = raw_options if raw_options is Array else []
 	for seat: int in count:
 		var entry: Dictionary = seats[seat] if seats[seat] is Dictionary else {}
 		_names.append(String(entry.get("name", "")))
 		var seat_type: String = String(entry.get("type", "human"))
 		_types.append(seat_type)
+		_seat_options.append(_option_for(entry, setup_options, seat))
 		if seat_type == "human":
 			_local_seats.append(seat)
 	_original_types = _types.duplicate()
@@ -67,17 +75,32 @@ func start_local(setup: Dictionary) -> bool:
 		"count": count,
 		"seed": int(setup.get("seed", -1)),
 		"seats": seats.duplicate(true),
+		"seat_options": _seat_options.duplicate(true),
 		"hotseat_cover": _hotseat_cover,
 	}
 	_prepare()
 	_backend = UiLiveBackend.new()
 	_backend.attach(self)
 	_connect_backend()
-	var ok: bool = _backend.start_local(count, int(setup.get("seed", -1)), _types)
+	var ok: bool = _backend.start_local(count, int(setup.get("seed", -1)), _types,
+			_seat_options)
 	if not ok:
 		close()
 		return false
 	return true
+
+
+## 座位的附加选项：setup.seat_options 优先，否则从座位条目的 llm_profile 推。
+static func _option_for(entry: Dictionary, setup_options: Array, seat: int) -> Dictionary:
+	if seat < setup_options.size() and setup_options[seat] is Dictionary:
+		var explicit: Dictionary = setup_options[seat]
+		if not explicit.is_empty():
+			return explicit.duplicate(true)
+	var option: Dictionary = {}
+	var profile_id: String = String(entry.get("llm_profile", "")).strip_edges()
+	if not profile_id.is_empty():
+		option["llm_profile"] = profile_id
+	return option
 
 
 ## 从快照载入（预设局面 / 继续存档的雏形）。所有座位都恢复为人类控制器。
@@ -189,12 +212,15 @@ func close() -> void:
 		_backend = null
 	_names.clear()
 	_types.clear()
+	_seat_options.clear()
 	_local_seats.clear()
 	_me_seat = -1
 	_raw_view = {}
 	_display_view = {}
 	_blind_cache.clear()
 	_log.clear()
+	_pending_llm_reason.clear()
+	_pending_llm_fallback.clear()
 	_ended = false
 	_result = {}
 	_elapsed_offset_sec = 0
@@ -223,8 +249,10 @@ func _connect_backend() -> void:
 			"started_ms": Time.get_ticks_msec(), "limit_sec": limit_sec,
 		}))
 	_backend.llm_reason.connect(func(seat: int, text: String) -> void:
+		_pending_llm_reason[seat] = text
 		seat_status_changed.emit(seat, {"kind": "llm_reason", "text": text}))
 	_backend.llm_fallback.connect(func(seat: int, reason: String, bot_type: String) -> void:
+		_pending_llm_fallback[seat] = {"reason": reason, "bot": bot_type}
 		seat_status_changed.emit(seat, {"kind": "llm_fallback", "reason": reason, "bot": bot_type}))
 
 
@@ -322,9 +350,13 @@ static func update_blind_cache(cache: Dictionary, seat: int, event: Dictionary) 
 
 func _append_log(event: Dictionary) -> void:
 	var type: String = String(event.get("type", ""))
-	if type in ["turn_started", "turn_ended", "discard_required", "noble_choice_required"]:
-		return
 	var seat: int = int(event.get("seat", -1))
+	if type in ["turn_started", "turn_ended", "discard_required", "noble_choice_required"]:
+		# 回合边界之后不应再有上一条动作的理由 / 兜底残留。
+		if type == "turn_ended":
+			_pending_llm_reason.erase(seat)
+			_pending_llm_fallback.erase(seat)
+		return
 	if type == "gems_discarded":
 		var merge_key: String = "discard:%d" % seat
 		if not _log.is_empty() and String(_log[0].get("_merge", "")) == merge_key:
@@ -336,6 +368,7 @@ func _append_log(event: Dictionary) -> void:
 				UiEventText.name_of(seat, _names), UiEventText.discard_colors_text(colors),
 			]
 			_log[0]["_at_ms"] = Time.get_ticks_msec()
+			_attach_llm_note(seat, _log[0])
 			return
 	var text: String = UiEventText.text_for(event, _catalog, _names)
 	if text.is_empty():
@@ -346,7 +379,20 @@ func _append_log(event: Dictionary) -> void:
 	if type == "gems_discarded":
 		entry["_merge"] = "discard:%d" % seat
 		entry["_colors"] = [String(event.get("color", ""))]
+	_attach_llm_note(seat, entry)
 	_log.push_front(entry)
+
+
+## 把暂存的大模型理由 / 兜底信息挂到这条日志上（只挂一次）。
+func _attach_llm_note(seat: int, entry: Dictionary) -> void:
+	if _pending_llm_reason.has(seat):
+		entry["reason"] = String(_pending_llm_reason[seat])
+		_pending_llm_reason.erase(seat)
+	if _pending_llm_fallback.has(seat):
+		var fallback: Dictionary = _pending_llm_fallback[seat]
+		entry["fallback_reason"] = String(fallback.get("reason", ""))
+		entry["fallback_bot"] = String(fallback.get("bot", ""))
+		_pending_llm_fallback.erase(seat)
 
 
 ## 从新到旧的日志条目：{seat, text, time}。相对时间在读取时计算。
@@ -459,13 +505,48 @@ func rematch_setup() -> Dictionary:
 
 func _build_rematch_setup(count: int) -> Dictionary:
 	var seats: Array[Dictionary] = []
+	var options: Array[Dictionary] = []
 	for seat: int in count:
 		var seat_type: String = _original_types[seat] \
 				if seat < _original_types.size() else "human"
 		var seat_name: String = _names[seat] \
 				if seat < _names.size() else "座位 %d" % (seat + 1)
-		seats.append({"name": seat_name, "type": seat_type})
-	return {"count": count, "seed": -1, "seats": seats, "hotseat_cover": _hotseat_cover}
+		var entry: Dictionary = {"name": seat_name, "type": seat_type}
+		var option: Dictionary = {}
+		if seat_type == "llm":
+			var profile_id: String = ""
+			if seat < _seat_options.size():
+				profile_id = String(_seat_options[seat].get("llm_profile", ""))
+			if profile_id.is_empty():
+				profile_id = UiLlmBridge.active_profile_id()
+			if not profile_id.is_empty():
+				entry["llm_profile"] = profile_id
+				option["llm_profile"] = profile_id
+		seats.append(entry)
+		options.append(option)
+	return {
+		"count": count, "seed": -1, "seats": seats,
+		"seat_options": options, "hotseat_cover": _hotseat_cover,
+	}
+
+
+## 大模型配置档被多少个座位使用（设置页 16 的“几个座位在用”）。
+func llm_profile_usage() -> Dictionary:
+	var usage: Dictionary = {}
+	for seat: int in _types.size():
+		if _types[seat] != "llm" or seat >= _seat_options.size():
+			continue
+		var profile_id: String = String(_seat_options[seat].get("llm_profile", ""))
+		if profile_id.is_empty():
+			profile_id = UiLlmBridge.active_profile_id()
+		if profile_id.is_empty():
+			continue
+		usage[profile_id] = int(usage.get(profile_id, 0)) + 1
+	return usage
+
+
+func seat_options() -> Array[Dictionary]:
+	return _seat_options.duplicate(true)
 
 
 ## 读档继续前的座位类型（界面显示 / 存档 ui_meta 用）；新开局等于实际座位类型。

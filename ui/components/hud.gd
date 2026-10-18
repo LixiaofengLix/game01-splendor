@@ -140,10 +140,18 @@ func render(info: Dictionary) -> void:
 					int(pill.get("seat", 0)),
 					String(pill.get("name", "")),
 					String(pill.get("type_label", "")),
-					bool(pill.get("thinking", false)))
+					bool(pill.get("thinking", false)),
+					String(pill.get("extra_text", "")))
 		_:
 			_pill.configure_text(String(pill.get("text", "")))
 	_layout()
+
+
+## 大模型等待计时：只改胶囊右侧文字，不整桌重画。
+func update_pill_extra(text: String) -> void:
+	if _pill != null:
+		_pill.set_extra_text(text)
+		_layout()
 
 
 ## 终局轮标签（动效里跳动用）；不在终局时也不可见。
@@ -153,6 +161,10 @@ func endgame_tag_control() -> Control:
 
 func pill_text() -> String:
 	return _pill.text() if _pill != null else ""
+
+
+func pill_extra_text() -> String:
+	return _pill.extra_text() if _pill != null else ""
 
 
 func _layout() -> void:

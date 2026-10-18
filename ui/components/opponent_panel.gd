@@ -21,8 +21,14 @@ var _chips: Dictionary[int, UiGemChip] = {}
 var _tokens_label: Label
 var _nobles_label: Label
 var _markers: HBoxContainer
+## 大模型等待块（17）：配置档 · 第 N 次请求 + 已等 / 预算 + 进度条。
+var _llm_block: UiFrame
+var _llm_profile_label: Label
+var _llm_time_label: Label
+var _llm_progress: UiProgressBar
 
 var _last_data: Dictionary = {}
+var _llm_waiting: Dictionary = {}
 
 
 func _ready() -> void:
@@ -47,6 +53,7 @@ func _ready() -> void:
 	_progress.fill_color = UiPalette.PROGRESS_FILL
 	column.add_child(_progress)
 	_build_grid(column)
+	_build_llm_block(column)
 	_build_footer(column)
 
 
@@ -183,6 +190,45 @@ func _build_grid(column: VBoxContainer) -> void:
 		_chips[color] = chip
 
 
+func _build_llm_block(column: VBoxContainer) -> void:
+	_llm_block = UiFrame.new()
+	_llm_block.name = "LlmWaiting"
+	_llm_block.frame_texture = UiAssets.frame_s("ink")
+	_llm_block.frame_border = 2
+	_llm_block.background_color = UiPalette.TAG_PURPLE_BG
+	_llm_block.content_padding = Vector4i(7, 3, 7, 4)
+	_llm_block.visible = false
+	column.add_child(_llm_block)
+
+	var box := VBoxContainer.new()
+	box.name = "Box"
+	box.add_theme_constant_override("separation", 3)
+	_llm_block.content.add_child(box)
+
+	var row := HBoxContainer.new()
+	row.name = "Row"
+	row.add_theme_constant_override("separation", 6)
+	box.add_child(row)
+
+	_llm_profile_label = Label.new()
+	_llm_profile_label.name = "Profile"
+	_llm_profile_label.add_theme_color_override("font_color", UiPalette.TAG_PURPLE_TEXT)
+	_llm_profile_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_llm_profile_label.clip_text = true
+	row.add_child(_llm_profile_label)
+
+	_llm_time_label = Label.new()
+	_llm_time_label.name = "Time"
+	_llm_time_label.add_theme_color_override("font_color", UiPalette.TAG_PURPLE_TEXT)
+	row.add_child(_llm_time_label)
+
+	_llm_progress = UiProgressBar.new()
+	_llm_progress.name = "Progress"
+	_llm_progress.custom_minimum_size.y = 4
+	_llm_progress.fill_color = UiPalette.PURPLE
+	box.add_child(_llm_progress)
+
+
 func _build_footer(column: VBoxContainer) -> void:
 	var footer := HBoxContainer.new()
 	footer.name = "Footer"
@@ -266,8 +312,54 @@ func render(data: Dictionary) -> void:
 			UiPalette.DANGER if total_tokens >= max_tokens - 1 else UiPalette.INK_2)
 	_nobles_label.text = "· 贵族 %d" % int(data.get("noble_count", 0))
 
+	var raw_waiting: Variant = data.get("llm_waiting", {})
+	_render_llm_waiting(raw_waiting if raw_waiting is Dictionary else {})
+
 	var reserved: Array = data.get("reserved", [])
 	_render_markers(reserved, catalog)
+
+
+## 大模型等待块；data = {profile, attempt, elapsed_sec, limit_sec}。
+func _render_llm_waiting(waiting: Dictionary) -> void:
+	_llm_waiting = waiting.duplicate(true)
+	if _llm_block == null:
+		return
+	_llm_block.visible = not waiting.is_empty()
+	if waiting.is_empty():
+		return
+	_llm_profile_label.text = "%s · 第 %d 次请求" % [
+		String(waiting.get("profile", "大模型")), int(waiting.get("attempt", 1)),
+	]
+	update_llm_waiting(float(waiting.get("elapsed_sec", 0.0)),
+			float(waiting.get("limit_sec", 0.0)))
+
+
+## 只刷新计时和进度条（等待期间每 0.1 秒一次，不重建整块面板）。
+func update_llm_waiting(elapsed_sec: float, limit_sec: float) -> void:
+	if _llm_block == null or not _llm_block.visible:
+		return
+	_llm_waiting["elapsed_sec"] = elapsed_sec
+	_llm_waiting["limit_sec"] = limit_sec
+	_llm_time_label.text = UiLlmText.waiting_progress(elapsed_sec, limit_sec)
+	if limit_sec > 0.0:
+		_llm_progress.visible = true
+		_llm_progress.ratio = clampf(elapsed_sec / limit_sec, 0.0, 1.0)
+	else:
+		_llm_progress.visible = false
+
+
+func waiting_block_visible() -> bool:
+	return _llm_block != null and _llm_block.visible
+
+
+func waiting_block_text() -> String:
+	if _llm_block == null or not _llm_block.visible:
+		return ""
+	return "%s %s" % [_llm_profile_label.text, _llm_time_label.text]
+
+
+func waiting_info() -> Dictionary:
+	return _llm_waiting.duplicate(true)
 
 
 func _render_markers(reserved: Array, catalog: CardCatalog) -> void:

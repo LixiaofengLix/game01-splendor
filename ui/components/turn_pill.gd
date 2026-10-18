@@ -56,8 +56,9 @@ func configure_mine(seat: int, player_name: String) -> void:
 	_update_size()
 
 
+## extra_text 为空时写“思考中…”；大模型座位传“已等 12.4 秒”（U7）。
 func configure_waiting(seat: int, player_name: String, type_label: String,
-		thinking: bool) -> void:
+		thinking: bool, extra_text: String = "") -> void:
 	frame_texture = UiAssets.frame_s("ink")
 	background_color = UiPalette.CREAM
 	_avatar.texture = UiAssets.mascot(seat)
@@ -66,9 +67,23 @@ func configure_waiting(seat: int, player_name: String, type_label: String,
 	_label.add_theme_color_override("font_color", UiPalette.INK)
 	_spinner.visible = thinking
 	_extra.visible = thinking
-	_extra.text = "思考中…"
+	_extra.text = extra_text if not extra_text.is_empty() else "思考中…"
 	_extra.add_theme_color_override("font_color", UiPalette.INK_2)
 	_update_size()
+
+
+## 只更新右侧计时文字（大模型等待时每秒刷新，不整桌重画）。
+func set_extra_text(text: String) -> void:
+	if _extra == null:
+		return
+	var changed: bool = _extra.text != text
+	_extra.text = text
+	if changed:
+		_update_size()
+
+
+func extra_text() -> String:
+	return _extra.text if _extra != null and _extra.visible else ""
 
 
 ## 纯文字状态：对局结束、弃宝石、回放步数等。

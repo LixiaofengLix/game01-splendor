@@ -6,8 +6,9 @@ UI 与逻辑层之间的唯一接触面。屏幕和零件只认这一层；`ui/`
   `state_changed` / `events_emitted` / `game_finished` / `action_rejected` 和 IR-08 的大模型信号。
   只调用 `docs/UI_INTEGRATION.md` 的公开接口。载入支持 `load_snapshot()` / `load_replay()`。
 - `table_session.gd` — `UiTableSession`（Node，挂在牌桌宿主下）：
-  - `start_local({count, seed, seats: [{name, type}], hotseat_cover})` / `resume(entry, errors)` /
-    `resume_until(entry, step, errors)` / `load_snapshot(state, errors)` / `close()`。
+  - `start_local({count, seed, seats: [{name, type}], seat_options, hotseat_cover})` /
+    `resume(entry, errors)` / `resume_until(entry, step, errors)` / `load_snapshot(state, errors)` / `close()`。
+    U7 起 `seat_options` 与座位一一对应，大模型座位用 `{"llm_profile": id}`（IR-08）。
   - 信号：`view_updated(view, me_seat)`、`events_arrived(Array[Dictionary])`、`game_ended(result)`、
     `action_failed(message)`、`seat_status_changed(seat, status)`。
   - 动作与查询：`legal_actions()` / `submit(action)` / `submit_sequence(actions)` / `is_my_turn()` /
@@ -18,14 +19,27 @@ UI 与逻辑层之间的唯一接触面。屏幕和零件只认这一层；`ui/`
   - 隐私：别人的盲抽 id 一律置空；viewer 不是“我”时，viewer 自己的盲抽也置空；
     “我”的盲抽用缓存补上（见下）。
   - 日志：把事件整理成 `{seat, text, time}`（从新到旧），连续的弃宝石合并成一条。
+    U7 起大模型的 `llm_reason` / `llm_fallback` 会暂存并挂到该座位下一条动作日志上：
+    `reason`（模型理由）与 `fallback_reason` / `fallback_bot`（电脑代打）。回合结束时清掉未挂上的暂存。
+  - 大模型：转发 `seat_status_changed` 的 `llm_waiting` / `llm_reason` / `llm_fallback`；
+    `llm_profile_usage()` 给设置页统计“几个座位在用”，`seat_options()` 是开局选项。
   - 结算：`game_ended` 的 `result` 字段见 `docs/ui/BRIDGE_AND_REQUESTS.md` 1.2；`tiebreak` 由分数和卡牌数推出。
 - `save_entry.gd` — `UiSaveEntry`（RefCounted）：读档列表的一项。字段有 `kind`（replay / snapshot /
   unreadable）、`reason`、`ui_meta`、`display_name`、`player_count`、`action_count`、`saved_at`、
   `read_only`、以及选中时填写的 `verify_*`。屏幕只读它，不解析存档 JSON。
-- `ui_settings.gd` — `UiSettings`（RefCounted，全部静态）：UI 自有设置的运行时状态。
-  U5 只有 `anim_speed`（`slow` / `normal` / `fast`，倍率 1.5 / 1 / 0.5）、`animations_enabled`、
-  `sfx_enabled`、`confirm_before_buy`；`reset_defaults()` 供测试用。
-  持久化（`user://ui_settings.json`）按计划在 U7 做。
+- `ui_settings.gd` — `UiSettings`（RefCounted，全部静态）：UI 自有设置，U7 起持久化到
+  `user://ui_settings.json`（`schema_version = 1`）。
+  - 键：`default_name`、`anim_speed`（`slow` / `normal` / `fast`，倍率 1.5 / 1 / 0.5）、
+    `animations_enabled`、`confirm_before_buy`、`hotseat_cover_default`、`sfx`、`fullscreen`、
+    `show_card_ids`、`autosave`。
+  - `load_from_disk()` 在应用入口启动时调用；每个 setter 立即生效并在载入后自动写盘（设置页“改动立即保存”）。
+    坏文件 / 版本不匹配会回退默认值并记录 `last_error()`。
+  - `path_override` 是测试钩子；`reset_defaults()` 恢复默认并停止自动写盘。
+  - `apply_display()` 把全屏开关落到窗口；headless 下跳过。
+- `llm_bridge.gd` — `UiLlmBridge`（Node）：大模型配置档的唯一入口。静态读取
+  `profile_ids()` / `profile(id)` / `active_profile_id()` / `has_profiles()` / `new_profile_id()`；
+  实例负责 `build_profile()` / `save_profile()` / `delete_profile()` / `test_connection()`。
+  包装 `AppConfig` 与 `LlmClient`，屏幕不直接碰两者。测试连接发 `test_finished(ok, message, elapsed_ms)`。
 - `replay_source.gd` — `UiReplaySource`（Node）：14 回放屏的数据源。
   - `open(entry, errors)` / `open_data(data, ui_meta, player_count, errors)`；打开时载入最后一步并
     比对存档指纹，失败原因写进 errors。

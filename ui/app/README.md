@@ -11,6 +11,9 @@
     退出回放回到打开它的地方。结算弹窗的看回放用会话内存里的回放数据（不落盘）。
   - 22 的“读到第 N 步为止”由 `_resume_entry_until()` 截断存档后开一局；
     “从这里接着玩”也走同一条路径。
+  - `show_settings(from_table)`：主菜单打开设置是普通换屏；暂停菜单打开时把设置屏压在牌桌之上
+    （牌桌隐藏），返回后恢复牌桌并调用 `UiTableFlow.refresh()`。大模型页的“座位在用”由
+    `session.llm_profile_usage()` 提供。
   - 启动时检查 `DataRegistry.is_valid()`：失败显示 21 数据错误弹窗，不进主菜单。
   - 读档失败把错误交给 `UiErrorModal`（22），关闭后可回到读档列表。
 - `shortcuts.gd` — `UiShortcuts`：12 个 `spl_` 动作的唯一定义；牌桌交互和入口都会调用

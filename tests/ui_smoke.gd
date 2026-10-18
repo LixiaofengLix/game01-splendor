@@ -8,6 +8,8 @@ const APP_PATH := "res://ui/app/app.tscn"
 const BODY_FONT := "res://ui/theme/fonts/fusion_pixel_12px_proportional_zh_hans.ttf"
 const NUM_FONT := "res://ui/theme/fonts/press_start_2p.ttf"
 const PIXEL_DIR := "res://ui/assets/pixel/"
+## 测试用的设置文件：应用入口启动时会 load_from_disk()，不能让它读写真实用户设置。
+const U7_SETTINGS_PATH := "user://ui_smoke_settings.json"
 
 var _checks := 0
 var _failures := 0
@@ -15,6 +17,9 @@ var _failures := 0
 
 func _ready() -> void:
 	# U0–U4 的交互检查按“立即落地”编写；U5 的动效检查会显式打开动效。
+	UiSettings.path_override = U7_SETTINGS_PATH
+	if FileAccess.file_exists(U7_SETTINGS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(U7_SETTINGS_PATH))
 	UiSettings.reset_defaults()
 	UiSettings.set_animations_enabled(false)
 	UiSettings.set_sfx_enabled(false)
@@ -61,10 +66,21 @@ func _ready() -> void:
 	await _check_u6_error_modal()
 	await _check_u6_result_replay()
 	await _check_u6_app_replay()
+	await _check_u7_settings_store()
+	await _check_u7_settings_screen()
+	await _check_u7_llm_page()
+	await _check_u7_local_setup_llm()
+	await _check_u7_table_llm_display()
+	await _check_u7_llm_live()
+	await _check_u7_preferences_on_table()
+	await _check_u7_pause_and_app_settings()
 	UiSettings.reset_defaults()
 	UiSettings.set_animations_enabled(false)
 	UiSettings.set_sfx_enabled(false)
 	await _check_app()
+	UiSettings.path_override = ""
+	if FileAccess.file_exists(U7_SETTINGS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(U7_SETTINGS_PATH))
 	if _failures == 0:
 		print("ui_smoke：%d 项全部通过。" % _checks)
 		get_tree().quit(0)
@@ -1613,8 +1629,8 @@ func _check_u4_main_menu() -> void:
 	_check(menu.local_button() != null and not menu.local_button().disabled, "U4 本地游戏按钮可点")
 	_check(menu.online_button().disabled, "U4 联网入口禁用")
 	_check(menu.find_child("SettingsButton", true, false) != null
-			and (menu.find_child("SettingsButton", true, false) as Button).disabled,
-			"U4 设置入口禁用")
+			and not (menu.find_child("SettingsButton", true, false) as Button).disabled,
+			"U7 设置入口已开放")
 	_check(menu.still_life_card_ids().size() == 3, "U4 主菜单三张扇形卡")
 	menu.configure({"text": "3 人 · 第 9 轮 · 10 分钟前"})
 	_check(menu.continue_button().visible, "U4 有自动存档时显示继续")
@@ -1961,6 +1977,9 @@ func _check_u4_app_flow() -> void:
 	get_tree().root.add_child(app)
 	await get_tree().process_frame
 	await get_tree().process_frame
+	# 应用入口会 load_from_disk() 恢复默认动效；这批断言仍按“立即落地”编写。
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
 	_check(app.main_menu() != null, "U4 启动直接进主菜单")
 	_check(app.session() == null, "U4 主菜单没有会话")
 	app.show_local_setup()
@@ -2454,6 +2473,8 @@ func _check_app() -> void:
 	await get_tree().process_frame
 	get_tree().root.add_child(app)
 	await get_tree().process_frame
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
 	_check(app.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST, "入口根节点使用 Nearest 过滤")
 	_check(app.theme != null and app.theme.resource_path == THEME_PATH, "入口挂载主题")
 	_check(app.get_node_or_null("ScreenRoot") != null, "屏幕路由层存在")
@@ -2928,6 +2949,8 @@ func _check_u6_app_replay() -> void:
 	get_tree().root.add_child(app)
 	await get_tree().process_frame
 	await get_tree().process_frame
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
 	app.show_save_browser(false)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -3037,3 +3060,712 @@ func _check_u6_app_replay() -> void:
 	await get_tree().process_frame
 	UiSaveStore.root_override = ""
 	_u4_wipe(U4_SAVE_ROOT)
+
+
+# ---------------------------------------------------------------- U7：设置 + 大模型界面
+
+func _check_u7_settings_store() -> void:
+	var path := "user://ui_smoke_u7_store.json"
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	UiSettings.path_override = path
+	UiSettings.load_from_disk()
+	_check(UiSettings.default_name() == UiSettings.DEFAULT_NAME, "U7 设置默认昵称")
+	_check(UiSettings.anim_speed() == UiSettings.SPEED_NORMAL, "U7 设置默认动画速度")
+	_check(UiSettings.confirm_before_buy(), "U7 默认购买前确认")
+	_check(UiSettings.hotseat_cover_default(), "U7 默认同屏遮挡")
+	_check(UiSettings.autosave(), "U7 默认每回合自动存档")
+	_check(not UiSettings.show_card_ids(), "U7 默认不显示卡牌 id")
+	_check(UiSettings.last_error().is_empty(), "U7 没有设置文件时无错误")
+
+	UiSettings.set_default_name("阿青")
+	UiSettings.set_anim_speed(UiSettings.SPEED_FAST)
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	UiSettings.set_confirm_before_buy(false)
+	UiSettings.set_hotseat_cover_default(false)
+	UiSettings.set_show_card_ids(true)
+	UiSettings.set_autosave(false)
+	_check(FileAccess.file_exists(path), "U7 设置改动自动写盘")
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	_check(parsed is Dictionary and int((parsed as Dictionary).get("schema_version", 0)) == 1,
+			"U7 设置文件带 schema_version")
+	if parsed is Dictionary:
+		var data: Dictionary = parsed
+		_check(String(data.get("default_name", "")) == "阿青", "U7 设置文件保存昵称")
+		_check(String(data.get("anim_speed", "")) == UiSettings.SPEED_FAST,
+				"U7 设置文件保存动画速度")
+		_check(not bool(data.get("autosave", true)), "U7 设置文件保存自动存档开关")
+		_check(bool(data.get("show_card_ids", false)), "U7 设置文件保存卡牌 id 开关")
+
+	UiSettings.load_from_disk()
+	_check(UiSettings.default_name() == "阿青", "U7 重新载入昵称")
+	_check(UiSettings.anim_speed() == UiSettings.SPEED_FAST, "U7 重新载入动画速度")
+	_check(not UiSettings.animations_enabled(), "U7 重新载入动效开关")
+	_check(not UiSettings.sfx_enabled(), "U7 重新载入音效开关")
+	_check(not UiSettings.confirm_before_buy(), "U7 重新载入购买前确认")
+	_check(not UiSettings.hotseat_cover_default(), "U7 重新载入同屏遮挡默认")
+	_check(UiSettings.show_card_ids(), "U7 重新载入卡牌 id 开关")
+	_check(not UiSettings.autosave(), "U7 重新载入自动存档开关")
+
+	var corrupt := FileAccess.open(path, FileAccess.WRITE)
+	corrupt.store_string("{ 这不是 JSON")
+	corrupt.close()
+	UiSettings.load_from_disk()
+	_check(UiSettings.default_name() == UiSettings.DEFAULT_NAME, "U7 坏设置文件回退默认")
+	_check(UiSettings.last_error().contains("JSON"), "U7 坏设置文件记录原因")
+
+	var wrong_version := FileAccess.open(path, FileAccess.WRITE)
+	wrong_version.store_string(JSON.stringify({"schema_version": 99, "autosave": false}))
+	wrong_version.close()
+	UiSettings.load_from_disk()
+	_check(UiSettings.autosave(), "U7 版本不匹配时不采用文件内容")
+	_check(UiSettings.last_error().contains("schema_version"), "U7 版本不匹配记录原因")
+
+	var unknown_speed := FileAccess.open(path, FileAccess.WRITE)
+	unknown_speed.store_string(JSON.stringify({
+		"schema_version": 1, "anim_speed": "warp", "autosave": false,
+	}))
+	unknown_speed.close()
+	UiSettings.load_from_disk()
+	_check(UiSettings.anim_speed() == UiSettings.SPEED_NORMAL, "U7 未知动画速度回退标准")
+	_check(not UiSettings.autosave(), "U7 合法键仍然生效")
+
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	UiSettings.path_override = U7_SETTINGS_PATH
+	UiSettings.reset_defaults()
+
+
+func _check_u7_settings_screen() -> void:
+	if FileAccess.file_exists(U7_SETTINGS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(U7_SETTINGS_PATH))
+	UiSettings.path_override = U7_SETTINGS_PATH
+	UiSettings.load_from_disk()
+	var screen: UiSettingsScreen = load(
+			"res://ui/screens/settings/settings_screen.tscn").instantiate()
+	get_tree().root.add_child(screen)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(screen.current_tab() == UiSettingsScreen.TAB_GENERAL, "U7 设置默认打开通用页")
+	_check(screen.tab_segment().items.size() == 4, "U7 设置四个页签")
+	_check(screen.tab_segment().disabled_indices.has(2), "U7 联网页签禁用")
+
+	var page: UiSettingsGeneralPage = screen.general_page()
+	_check(page.nickname_input().text == UiSettings.DEFAULT_NAME, "U7 通用页显示默认昵称")
+	page.nickname_input().text = "阿青"
+	page.nickname_input().text_changed.emit("阿青")
+	_check(UiSettings.default_name() == "阿青", "U7 改昵称立即生效")
+	page.speed_segment().selected_changed.emit(2)
+	_check(UiSettings.anim_speed() == UiSettings.SPEED_FAST, "U7 改动画速度立即生效")
+	page.animations_switch().toggled.emit(false)
+	_check(not UiSettings.animations_enabled(), "U7 动效开关立即生效")
+	page.confirm_switch().toggled.emit(false)
+	_check(not UiSettings.confirm_before_buy(), "U7 购买前确认开关立即生效")
+	page.hotseat_switch().toggled.emit(false)
+	_check(not UiSettings.hotseat_cover_default(), "U7 同屏遮挡默认开关立即生效")
+	page.sfx_switch().toggled.emit(false)
+	_check(not UiSettings.sfx_enabled(), "U7 音效开关立即生效")
+	page.show_ids_switch().toggled.emit(true)
+	_check(UiSettings.show_card_ids(), "U7 显示卡牌 id 开关立即生效")
+	page.autosave_switch().toggled.emit(false)
+	_check(not UiSettings.autosave(), "U7 自动存档开关立即生效")
+	_check(page.save_dir_note().contains("saves"), "U7 存档目录写到页面")
+	_check(FileAccess.file_exists(U7_SETTINGS_PATH), "U7 设置页改动写盘")
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(U7_SETTINGS_PATH))
+	_check(parsed is Dictionary and String((parsed as Dictionary).get("default_name", "")) == "阿青",
+			"U7 设置页写盘内容正确")
+
+	screen.open_tab(UiSettingsScreen.TAB_ABOUT)
+	await get_tree().process_frame
+	_check(screen.current_tab() == UiSettingsScreen.TAB_ABOUT, "U7 切到关于页")
+	var about_text: String = screen.about_page().text()
+	_check(about_text.contains("Fusion Pixel"), "U7 关于页写 Fusion Pixel 许可证")
+	_check(about_text.contains("Press Start 2P"), "U7 关于页写 Press Start 2P 许可证")
+	_check(about_text.contains("OFL"), "U7 关于页写 OFL")
+	_check(about_text.contains("ui_settings.json"), "U7 关于页写设置文件路径")
+
+	screen.open_tab(UiSettingsScreen.TAB_NET)
+	_check(screen.current_tab() == UiSettingsScreen.TAB_NET, "U7 联网占位页可以显示")
+
+	var backs: Array[bool] = []
+	screen.back_requested.connect(func() -> void: backs.append(true))
+	screen.back_button().pressed.emit()
+	_check(backs == [true], "U7 设置页返回信号")
+	screen.queue_free()
+	await get_tree().process_frame
+	UiSettings.reset_defaults()
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	if FileAccess.file_exists(U7_SETTINGS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(U7_SETTINGS_PATH))
+
+
+# ---------------------------------------------------------------- U7：大模型配置档
+
+const U7_LLM_CONFIG_PATH := "user://ui_smoke_u7_config.json"
+
+
+func _u7_profile(base_url: String, display_name: String = "Mock") -> Dictionary:
+	return {
+		"display_name": display_name,
+		"base_url": base_url,
+		"api_key": "",
+		"model": "mock-model",
+		"temperature": 0.7,
+		"max_tokens": 300,
+		"request_timeout_ms": 4000,
+		"think_budget_ms": 4000,
+		"max_retries": 0,
+		"structured_output": "none",
+		"thinking_effort": "default",
+		"fallback_difficulty": "hard",
+		"personality": "balanced",
+	}
+
+
+func _u7_use_config(profiles: Dictionary, active: String) -> String:
+	var old_path: String = AppConfig.config_path
+	var file := FileAccess.open(U7_LLM_CONFIG_PATH, FileAccess.WRITE)
+	file.store_string(JSON.stringify({
+		"schema_version": 1,
+		"llm": {"active_profile": active, "profiles": profiles},
+	}, "  "))
+	file.close()
+	AppConfig.config_path = U7_LLM_CONFIG_PATH
+	AppConfig.load_config()
+	return old_path
+
+
+func _u7_restore_config(old_path: String) -> void:
+	AppConfig.config_path = old_path
+	AppConfig.load_config()
+	if FileAccess.file_exists(U7_LLM_CONFIG_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(U7_LLM_CONFIG_PATH))
+
+
+func _u7_wait_until(predicate: Callable, timeout_ms: int) -> bool:
+	var started: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - started < timeout_ms:
+		if bool(predicate.call()):
+			return true
+		await get_tree().process_frame
+	return bool(predicate.call())
+
+
+func _u7_has_log(session: UiTableSession, field: String) -> bool:
+	for entry: Dictionary in session.log_entries():
+		if not String(entry.get(field, "")).is_empty():
+			return true
+	return false
+
+
+func _check_u7_llm_page() -> void:
+	var server := MockLlmServer.new()
+	server.name = "U7MockServer"
+	add_child(server)
+	_check(server.start(0), "U7 模拟大模型服务器启动")
+	var page_profile: Dictionary = _u7_profile(server.base_url(), "Test 配置档")
+	page_profile["think_budget_ms"] = 30000
+	var old_path: String = _u7_use_config({"test": page_profile}, "test")
+	_check(AppConfig.has_llm_profiles(), "U7 测试配置档已载入")
+
+	var screen: UiSettingsScreen = load(
+			"res://ui/screens/settings/settings_screen.tscn").instantiate()
+	get_tree().root.add_child(screen)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	screen.open_tab(UiSettingsScreen.TAB_LLM)
+	await get_tree().process_frame
+	var page: UiSettingsLlmPage = screen.llm_page()
+	_check(page.profile_row_count() == 1, "U7 大模型页列出配置档")
+	_check(page.current_profile_id() == "test", "U7 默认选中第一个配置档")
+	_check(page.name_input().text == "Test 配置档", "U7 配置档名称显示")
+	_check(page.key_input().secret, "U7 API Key 是密码框")
+	_check(page.budget_segment().selected_index == 1, "U7 思考预算 30 秒对应选中")
+	_check(page.retry_segment().selected_index == 0, "U7 重试 0 次对应选中")
+	_check(page.fallback_segment().selected_index == 2, "U7 兜底难度困难对应选中")
+	_check(page.max_tokens_input().text == "300", "U7 最大回复 token 回显")
+	_check(page.request_timeout_input().text == "4000", "U7 单次请求超时回显")
+	_check(page.thinking_segment().selected_index == 0, "U7 思考强度默认选项回显")
+	_check(page.structured_segment().selected_index == 3, "U7 结构化输出 none 回显")
+
+	page.name_input().text = "Mock 测试"
+	page.max_tokens_input().text = "1024"
+	page.thinking_segment().selected_index = 2
+	page.structured_segment().selected_index = 0
+	page.save_button().pressed.emit()
+	_check(AppConfig.llm_profile("test").display_name == "Mock 测试", "U7 保存配置档名称")
+	_check(AppConfig.llm_profile("test").max_tokens == 1024, "U7 保存最大回复 token")
+	_check(AppConfig.llm_profile("test").thinking_effort == "low", "U7 保存思考强度")
+	_check(AppConfig.llm_profile("test").structured_output == "auto", "U7 保存结构化输出")
+	_check(page.status_text().contains("已保存"), "U7 保存后有状态提示")
+
+	page.url_input().text = server.base_url()
+	page.test_button().pressed.emit()
+	var connected: bool = await _u7_wait_until(
+			func() -> bool: return page.status_text().contains("连接成功"), 5000)
+	_check(connected, "U7 测试连接成功")
+	var result: Dictionary = page.test_result("test")
+	_check(bool(result.get("ok", false)), "U7 测试连接结果记录下来")
+	_check(server.request_count() > 0, "U7 测试连接真的发出了请求")
+
+	page.new_button().pressed.emit()
+	await get_tree().process_frame
+	_check(page.profile_row_count() == 2, "U7 新建配置档")
+	var new_id: String = page.current_profile_id()
+	_check(not new_id.is_empty() and new_id != "test", "U7 新建后选中新配置档")
+	page.delete_button().pressed.emit()
+	_check(page.delete_button().text == "确认删除", "U7 删除需要二次确认")
+	page.delete_button().pressed.emit()
+	await get_tree().process_frame
+	_check(page.profile_row_count() == 1, "U7 删除配置档后列表刷新")
+	_check(UiLlmBridge.profile_ids() == ["test"], "U7 删除后 AppConfig 只剩一个配置档")
+
+	screen.queue_free()
+	await get_tree().process_frame
+	server.stop()
+	server.queue_free()
+	await get_tree().process_frame
+	_u7_restore_config(old_path)
+
+
+func _check_u7_local_setup_llm() -> void:
+	var old_path: String = _u7_use_config({
+		"a": _u7_profile("http://127.0.0.1:1", "配置 A"),
+		"b": _u7_profile("http://127.0.0.1:1", "配置 B"),
+	}, "a")
+	UiSettings.set_default_name("阿青")
+	UiSettings.set_hotseat_cover_default(false)
+	var setup: UiLocalSetup = load(
+			"res://ui/screens/local_setup/local_setup.tscn").instantiate()
+	get_tree().root.add_child(setup)
+	await get_tree().process_frame
+	setup.apply_preset("standard")
+	setup.set_seat_type(1, "llm")
+	_check(setup.seat_llm_profile(1) == "a", "U7 大模型座位默认用激活配置档")
+	var data: Dictionary = setup.start_data()
+	var seats: Array = data.get("seats", [])
+	var options: Array = data.get("seat_options", [])
+	_check(String((seats[1] as Dictionary).get("type", "")) == "llm", "U7 开局设置含大模型座位")
+	_check(options.size() == 3 and String((options[1] as Dictionary).get("llm_profile", "")) == "a",
+			"U7 开局设置带 seat_options")
+	setup.set_seat_profile(1, "b")
+	var options_b: Array = setup.start_data()["seat_options"]
+	_check(String((options_b[1] as Dictionary).get("llm_profile", "")) == "b",
+			"U7 换配置档写进 seat_options")
+
+	setup.apply_preset("standard")
+	var seats_again: Array = setup.start_data()["seats"]
+	_check(String((seats_again[0] as Dictionary).get("name", "")) == "阿青",
+			"U7 默认昵称用于第一个人类座位")
+	setup.set_seat_type(1, "human")
+	_check(not bool(setup.start_data().get("hotseat_cover", true)),
+			"U7 同屏遮挡默认值关闭")
+	UiSettings.set_hotseat_cover_default(true)
+	setup.apply_preset("standard")
+	setup.set_seat_type(1, "human")
+	_check(bool(setup.start_data().get("hotseat_cover", false)),
+			"U7 同屏遮挡默认值打开")
+	setup.apply_preset("hotseat")
+	_check(bool(setup.start_data().get("hotseat_cover", false)), "U7 4 人同屏预设仍打开遮挡")
+	setup.queue_free()
+	await get_tree().process_frame
+
+	# 没有配置档时“大模型”分段禁用。
+	_u7_use_config({}, "")
+	var empty_setup: UiLocalSetup = load(
+			"res://ui/screens/local_setup/local_setup.tscn").instantiate()
+	get_tree().root.add_child(empty_setup)
+	await get_tree().process_frame
+	var type_segment := empty_setup.find_child("SeatType0", true, false) as UiSegmented
+	_check(type_segment != null and type_segment.disabled_indices.has(2),
+			"U7 没有大模型配置档时禁用大模型座位")
+	empty_setup.queue_free()
+	await get_tree().process_frame
+	_u7_restore_config(old_path)
+	UiSettings.reset_defaults()
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+
+
+# ---------------------------------------------------------------- U7：牌桌大模型显示
+
+func _check_u7_table_llm_display() -> void:
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	_check(UiLlmText.fallback_strip("紫晶", "timeout", "bot_hard", 1).contains("思考超时"),
+			"U7 超时兜底文案")
+	_check(UiLlmText.fallback_strip("紫晶", "network", "bot_hard", 1).contains("网络错误"),
+			"U7 网络错误兜底文案")
+	_check(UiLlmText.waiting_progress(12.4, 0.0) == "12.4 秒", "U7 不限预算的等待计时")
+	var parts: Array = await _u5_fixture_host("g3_bot_turn")
+	var table: UiTableScreen = parts[1]
+	var fixture: Dictionary = parts[2]
+	var view: Dictionary = fixture["view"]
+	var info: Dictionary = (fixture["session_info"] as Dictionary).duplicate(true)
+	var current: int = int(view.get("current_seat", 0))
+	info["llm_waiting"] = {
+		"seat": current, "profile": "DeepSeek", "attempt": 1,
+		"elapsed_sec": 12.4, "limit_sec": 30.0,
+	}
+	table.render(view, int(fixture["me_seat"]), info)
+	await get_tree().process_frame
+	_check(table.hud().pill_extra_text().contains("已等 12.4 秒"), "U7 胶囊显示大模型等待时间")
+	var panel: UiOpponentPanel = table.opponent_panel(current)
+	_check(panel != null and panel.waiting_block_visible(), "U7 对手面板出现等待块")
+	if panel != null:
+		_check(panel.waiting_block_text().contains("DeepSeek · 第 1 次请求"),
+				"U7 等待块写配置档和尝试次数")
+		_check(panel.waiting_block_text().contains("12.4 / 30 秒"), "U7 等待块写已等 / 预算")
+	table.update_llm_waiting(current, 15.0, 30.0)
+	_check(table.hud().pill_extra_text().contains("已等 15.0 秒"), "U7 等待计时可以刷新")
+	if panel != null:
+		_check(panel.waiting_block_text().contains("15.0 / 30 秒"), "U7 等待块计时可以刷新")
+
+	table.log_panel().render([{
+		"seat": 1, "text": "薄荷 购买 {card:L2-R-01}", "time": "刚刚",
+		"reason": "先拿蓝宝石，再买这张",
+		"fallback_reason": "parse_failed", "fallback_bot": "bot_hard",
+	}], 3, 7, table.catalog())
+	await get_tree().process_frame
+	var reason: Control = table.log_panel().find_child("LlmReason", true, false)
+	var fallback: Control = table.log_panel().find_child("LlmFallback", true, false)
+	_check(reason != null, "U7 日志显示大模型理由")
+	if reason != null:
+		_check(_node_text(reason).contains("先拿蓝宝石"), "U7 理由文案")
+	_check(fallback != null, "U7 日志显示兜底说明")
+	if fallback != null:
+		var fallback_text: String = _node_text(fallback)
+		_check(fallback_text.contains("电脑代打"), "U7 兜底标签")
+		_check(fallback_text.contains("解析失败"), "U7 兜底原因")
+		_check(fallback_text.contains("困难电脑"), "U7 兜底代打难度")
+	parts[0].queue_free()
+	await get_tree().process_frame
+
+	# 用真实会话发状态信号：等待 → 兜底顶条。
+	var host_parts: Array = await _u3_host(null)
+	var session: UiTableSession = host_parts[2]
+	var flow: UiTableFlow = host_parts[3]
+	var host_table: UiTableScreen = host_parts[1]
+	var seats: Array[Dictionary] = [
+		{"name": "小明", "type": "human"},
+		{"name": "薄荷", "type": "bot_hard"},
+	]
+	_check(session.start_local({"count": 2, "seed": 20261031, "seats": seats,
+			"seat_options": [{}, {}]}), "U7 大模型显示测试开局")
+	await get_tree().process_frame
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in mini(3, colors.size()):
+		flow.click_color(colors[index])
+	flow.confirm()
+	await get_tree().process_frame
+	session.seat_status_changed.emit(1, {
+		"kind": "llm_waiting", "profile": "DeepSeek", "attempt": 2,
+		"started_ms": Time.get_ticks_msec() - 12400, "limit_sec": 30.0,
+	})
+	var waiting: Dictionary = flow.llm_waiting_info()
+	_check(not waiting.is_empty() and String(waiting.get("profile", "")) == "DeepSeek",
+			"U7 会话转发大模型等待状态")
+	_check(flow.displayed_view().get("current_seat", -1) == 1
+			or int(session.view().get("current_seat", -1)) == 1, "U7 等待时轮到电脑")
+	session.seat_status_changed.emit(1, {
+		"kind": "llm_fallback", "reason": "parse_failed", "bot": "bot_hard",
+	})
+	var strip: String = flow.llm_fallback_strip()
+	_check(strip.contains("薄荷") and strip.contains("2 次都没看懂"),
+			"U7 兜底顶条写两次解析失败")
+	_check(strip.contains("困难电脑"), "U7 兜底顶条写代打难度")
+	_check(flow.llm_waiting_info().is_empty(), "U7 兜底后等待计时清掉")
+	var strip_label := host_table.my_panel().find_child("StripText", true, false) as RichTextLabel
+	_check(strip_label != null and strip_label.text.contains("电脑代打"),
+			"U7 我的面板顶条显示兜底")
+	await _u3_cleanup(host_parts)
+
+
+func _node_text(node: Node) -> String:
+	var text: String = ""
+	for item: Node in node.find_children("*", "Label", true, false):
+		text += (item as Label).text + "\n"
+	for item: Node in node.find_children("*", "RichTextLabel", true, false):
+		text += (item as RichTextLabel).text + "\n"
+	return text
+
+
+# ---------------------------------------------------------------- U7：大模型真实链路（模拟服务器）
+
+func _check_u7_llm_live() -> void:
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	var server := MockLlmServer.new()
+	server.name = "U7LiveServer"
+	server.mode = "action"
+	add_child(server)
+	_check(server.start(0), "U7 大模型链路模拟服务器启动")
+	var old_path: String = _u7_use_config({
+		"mock": _u7_profile(server.base_url(), "Mock"),
+		"other": _u7_profile("http://127.0.0.1:1", "关闭的地址"),
+	}, "other")
+
+	var parts: Array = await _u3_host(null)
+	var session: UiTableSession = parts[2]
+	var flow: UiTableFlow = parts[3]
+	var table: UiTableScreen = parts[1]
+	var seats: Array[Dictionary] = [
+		{"name": "小明", "type": "human"},
+		{"name": "薄荷", "type": "llm", "llm_profile": "mock"},
+	]
+	var started: bool = session.start_local({
+		"count": 2, "seed": 20261102, "seats": seats,
+		"seat_options": [{}, {"llm_profile": "mock"}],
+	})
+	_check(started, "U7 大模型座位能开局")
+	var colors: Array[int] = flow.clickable_colors()
+	for index: int in mini(3, colors.size()):
+		flow.click_color(colors[index])
+	flow.confirm()
+	# 动效关闭时视图与等待状态都在 confirm() 里同步落地；HTTP 回复至少还要一帧。
+	var waiting: Dictionary = flow.llm_waiting_info()
+	_check(not waiting.is_empty(), "U7 真人行动后大模型开始等待")
+	_check(String(waiting.get("profile", "")) == "Mock",
+			"U7 等待块用的是座位指定的配置档（seat_options 生效）")
+	var llm_panel: UiOpponentPanel = table.opponent_panel(1)
+	_check(llm_panel != null and llm_panel.waiting_block_visible(), "U7 大模型回合显示等待块")
+	_check(table.hud().pill_extra_text().contains("已等"), "U7 大模型回合胶囊显示计时")
+
+	var got_reason: bool = await _u7_wait_until(
+			func() -> bool: return _u7_has_log(session, "reason"), 5000)
+	_check(got_reason, "U7 大模型理由进入日志")
+	var reason_entry: Dictionary = {}
+	for entry: Dictionary in session.log_entries():
+		if not String(entry.get("reason", "")).is_empty():
+			reason_entry = entry
+	_check(String(reason_entry.get("reason", "")) == "模拟回复", "U7 日志理由来自模型回复")
+	_check(flow.llm_waiting_info().is_empty(), "U7 大模型出手后等待状态清掉")
+	_check(server.request_count() > 0, "U7 大模型请求真的发出")
+	_check(llm_panel != null and not llm_panel.waiting_block_visible(),
+			"U7 大模型出手后等待块消失")
+
+	# 第二轮：乱回复 → 解析失败 → 困难电脑兜底。
+	server.mode = "garbage"
+	var human_turn: bool = await _u7_wait_until(
+			func() -> bool: return session.is_my_turn(), 4000)
+	_check(human_turn, "U7 大模型回合结束后回到人类")
+	if human_turn:
+		var action: Action = null
+		for candidate: Action in session.legal_actions():
+			if candidate.type == Enums.ActionType.TAKE_THREE \
+					or candidate.type == Enums.ActionType.TAKE_TWO:
+				action = candidate
+				break
+		_check(action != null, "U7 第二轮有拿宝石动作")
+		if action != null:
+			session.submit(action)
+	var got_fallback: bool = await _u7_wait_until(
+			func() -> bool: return _u7_has_log(session, "fallback_reason"), 6000)
+	_check(got_fallback, "U7 解析失败触发兜底")
+	var fallback_entry: Dictionary = {}
+	for entry: Dictionary in session.log_entries():
+		if not String(entry.get("fallback_reason", "")).is_empty():
+			fallback_entry = entry
+	_check(String(fallback_entry.get("fallback_reason", "")) == "parse_failed",
+			"U7 兜底原因记为解析失败")
+	_check(String(fallback_entry.get("fallback_bot", "")) == "bot_hard",
+			"U7 兜底记录代打难度")
+	_check(flow.llm_fallback_strip().contains("电脑代打"), "U7 兜底顶条出现")
+	await get_tree().process_frame
+	_check(_node_text(table.log_panel()).contains("电脑代打"), "U7 日志渲染兜底标签")
+
+	await _u3_cleanup(parts)
+	server.stop()
+	server.queue_free()
+	await get_tree().process_frame
+	_u7_restore_config(old_path)
+
+
+# ---------------------------------------------------------------- U7：设置接到牌桌
+
+func _check_u7_preferences_on_table() -> void:
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+
+	# 显示卡牌 id：牌桌默认读 UiSettings，也可以由 session_info 覆盖。
+	UiSettings.set_show_card_ids(true)
+	var parts: Array = await _u5_fixture_host("g3_turn_mine")
+	var table: UiTableScreen = parts[1]
+	var fixture: Dictionary = parts[2]
+	var card := table.find_child("Card3_0", true, false) as UiDevCard
+	_check(card != null and card.show_id, "U7 设置打开后市场卡显示 id")
+	var info: Dictionary = (fixture["session_info"] as Dictionary).duplicate(true)
+	info["show_card_ids"] = false
+	table.render(fixture["view"], int(fixture["me_seat"]), info)
+	await get_tree().process_frame
+	card = table.find_child("Card3_0", true, false) as UiDevCard
+	_check(card != null and not card.show_id, "U7 session_info 可以覆盖显示 id")
+	UiSettings.set_show_card_ids(false)
+	parts[0].queue_free()
+	await get_tree().process_frame
+
+	# 购买前确认：关掉后点买得起的卡直接购买；打开后只选中。
+	var store: UiSaveStore = _u4_new_store()
+	var host_parts: Array = await _u3_host(store)
+	var session: UiTableSession = host_parts[2]
+	var flow: UiTableFlow = host_parts[3]
+	var errors: Array[String] = []
+	var loaded: bool = false
+	var purchase_id: String = ""
+	var purchase_level: int = 0
+	var boards: Dictionary = {}
+	for scenario: String in ["endgame", "token_limit", "two_nobles"]:
+		var snapshot: Dictionary = _u3_snapshot(scenario)
+		if snapshot.is_empty():
+			continue
+		if not session.load_snapshot(snapshot, errors):
+			continue
+		await get_tree().process_frame
+		purchase_id = _u7_market_purchase(session)
+		if not purchase_id.is_empty():
+			loaded = true
+			boards = session.view().get("boards", {})
+			for level: int in [1, 2, 3]:
+				if (boards.get(str(level), []) as Array).has(purchase_id):
+					purchase_level = level
+			break
+	_check(loaded, "U7 找得到可购买的预设局面")
+	if loaded:
+		var before_logs: int = session.log_entries().size()
+		UiSettings.set_confirm_before_buy(false)
+		flow.click_card("market", purchase_id, purchase_level)
+		await get_tree().process_frame
+		_check(flow.selected_card_id().is_empty(), "U7 关掉购买前确认后不进入选中")
+		_check(session.log_entries().size() > before_logs, "U7 关掉购买前确认后直接购买")
+
+		UiSettings.set_confirm_before_buy(true)
+		errors.clear()
+		_check(session.load_snapshot(_u3_snapshot("endgame"), errors), "U7 重载预设局面")
+		await get_tree().process_frame
+		purchase_id = _u7_market_purchase(session)
+		if not purchase_id.is_empty():
+			boards = session.view().get("boards", {})
+			purchase_level = 0
+			for level: int in [1, 2, 3]:
+				if (boards.get(str(level), []) as Array).has(purchase_id):
+					purchase_level = level
+			flow.click_card("market", purchase_id, purchase_level)
+			await get_tree().process_frame
+			_check(flow.selected_card_id() == purchase_id, "U7 打开购买前确认时只选中卡")
+	await _u3_cleanup(host_parts)
+	await _u4_free_store(store)
+	_u4_wipe(U4_SAVE_ROOT)
+
+	# 每回合自动存档开关。
+	var auto_store: UiSaveStore = _u4_new_store()
+	var auto_parts: Array = await _u3_host(auto_store)
+	var auto_session: UiTableSession = auto_parts[2]
+	var auto_flow: UiTableFlow = auto_parts[3]
+	_check(auto_session.start_local({"count": 2, "seed": 20261104,
+			"seats": _u3_seats(2), "seat_options": [{}, {}]}), "U7 自动存档开关测试开局")
+	await get_tree().process_frame
+	UiSettings.set_autosave(false)
+	var colors: Array[int] = auto_flow.clickable_colors()
+	for index: int in mini(3, colors.size()):
+		auto_flow.click_color(colors[index])
+	auto_flow.confirm()
+	await get_tree().process_frame
+	_check(auto_store.autosave_entry() == null, "U7 关掉自动存档后不写自动存档")
+	UiSettings.set_autosave(true)
+	colors = auto_flow.clickable_colors()
+	await _u7_wait_until(func() -> bool: return auto_session.is_my_turn(), 2000)
+	colors = auto_flow.clickable_colors()
+	for index: int in mini(3, colors.size()):
+		auto_flow.click_color(colors[index])
+	auto_flow.confirm()
+	await get_tree().process_frame
+	_check(auto_store.autosave_entry() != null, "U7 打开自动存档后恢复写盘")
+	await _u3_cleanup(auto_parts)
+	await _u4_free_store(auto_store)
+	_u4_wipe(U4_SAVE_ROOT)
+	UiSettings.reset_defaults()
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+
+
+func _u7_market_purchase(session: UiTableSession) -> String:
+	var boards: Dictionary = session.view().get("boards", {})
+	var market_ids: Array[String] = []
+	for level: int in [1, 2, 3]:
+		for item: Variant in boards.get(str(level), []):
+			if item != null:
+				market_ids.append(String(item))
+	for action: Action in session.legal_actions():
+		if action.type == Enums.ActionType.PURCHASE and market_ids.has(action.card_id):
+			return action.card_id
+	return ""
+
+
+# ---------------------------------------------------------------- U7：暂停菜单 / 应用入口的设置路由
+
+func _check_u7_pause_and_app_settings() -> void:
+	UiSaveStore.root_override = U4_SAVE_ROOT
+	_u4_wipe(U4_SAVE_ROOT)
+	if FileAccess.file_exists(U7_SETTINGS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(U7_SETTINGS_PATH))
+	UiSettings.path_override = U7_SETTINGS_PATH
+	UiSettings.load_from_disk()
+
+	var app: Control = load(APP_PATH).instantiate()
+	get_tree().root.add_child(app)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	_check(app.main_menu() != null, "U7 应用入口进入主菜单")
+	app.main_menu().settings_button().pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(app.settings_screen() != null, "U7 主菜单能打开设置")
+	if app.settings_screen() != null:
+		_check(app.settings_screen().current_tab() == UiSettingsScreen.TAB_GENERAL,
+				"U7 主菜单设置打开通用页")
+		app.settings_screen().back_button().pressed.emit()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_check(app.current_screen() == app.main_menu(), "U7 设置返回主菜单")
+
+	var setup: Dictionary = {
+		"count": 2, "seed": 20261105,
+		"seats": [{"name": "小明", "type": "human"}, {"name": "薄荷", "type": "human"}],
+		"seat_options": [{}, {}],
+		"hotseat_cover": false,
+	}
+	_check(app.start_game(setup), "U7 应用入口直接开局")
+	await get_tree().process_frame
+	var flow: UiTableFlow = app.flow()
+	flow.open_pause()
+	var pause: UiPauseMenu = flow.pause_menu()
+	_check(pause != null and not pause.settings_button().disabled, "U7 暂停菜单设置按钮启用")
+	if pause != null:
+		var signals: Array[bool] = []
+		flow.settings_requested.connect(func() -> void: signals.append(true))
+		pause.settings_button().pressed.emit()
+		await get_tree().process_frame
+		_check(signals == [true], "U7 暂停菜单发设置信号并关闭暂停")
+		_check(flow.pause_menu() == null, "U7 打开设置前关闭暂停菜单")
+	await get_tree().process_frame
+	_check(app.settings_screen() != null, "U7 暂停菜单能打开设置")
+	_check(app.screen_stack_size() == 1 and not app.table().visible,
+			"U7 设置压在牌桌之上且牌桌隐藏")
+	if app.settings_screen() != null:
+		app.settings_screen().back_button().pressed.emit()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_check(app.current_screen() == app.table() and app.table().visible,
+				"U7 从设置返回牌桌")
+	app.queue_free()
+	await get_tree().process_frame
+	UiSaveStore.root_override = ""
+	_u4_wipe(U4_SAVE_ROOT)
+	UiSettings.reset_defaults()
+	UiSettings.set_animations_enabled(false)
+	UiSettings.set_sfx_enabled(false)
+	if FileAccess.file_exists(U7_SETTINGS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(U7_SETTINGS_PATH))

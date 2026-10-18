@@ -329,14 +329,15 @@ func render(data: Dictionary) -> void:
 	_reserved_label.text = "预留 %d / %d" % [reserved.size(), max_reserved]
 	_render_reserved(reserved, catalog, bool(data.get("can_buy", false)),
 			bool(data.get("can_select_reserved", false)), max_reserved,
-			String(data.get("selected_kind", "")), String(data.get("selected_id", "")))
+			String(data.get("selected_kind", "")), String(data.get("selected_id", "")),
+			bool(data.get("show_ids", false)))
 
 	_render_strip(data.get("strip", {}), catalog)
 
 
 func _render_reserved(reserved: Array, catalog: CardCatalog, can_buy: bool,
 		can_select: bool, max_reserved: int, selected_kind: String,
-		selected_id: String) -> void:
+		selected_id: String, show_ids: bool = false) -> void:
 	for child in _reserved_cards.get_children():
 		_reserved_cards.remove_child(child)
 		child.queue_free()
@@ -354,6 +355,7 @@ func _render_reserved(reserved: Array, catalog: CardCatalog, can_buy: bool,
 			card.blind_label = not card_id.is_empty() and UiViewMath.is_blind(entry)
 			card.affordable = can_buy and bool(entry.get("affordable", false))
 			card.selected = selected_kind == "reserved" and card_id == selected_id
+			card.show_id = show_ids
 			if can_select and not card_id.is_empty():
 				card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 				card.gui_input.connect(_on_reserved_input.bind(card, card_id))

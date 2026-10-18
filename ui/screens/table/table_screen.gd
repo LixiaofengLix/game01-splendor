@@ -70,6 +70,8 @@ var _me_seat: int = -1
 var _session: Dictionary = {}
 var _catalog: CardCatalog = null
 var _rules: RulesConfig = null
+## 设置页的“显示卡牌 id”（调试用）。
+var _show_ids: bool = false
 
 
 func _ready() -> void:
@@ -496,6 +498,8 @@ func render(view: Dictionary, me_seat: int, session_info: Dictionary = {}) -> vo
 	_catalog = session_catalog if session_catalog is CardCatalog else DataRegistry.card_catalog()
 	var session_rules: Variant = session_info.get("rules")
 	_rules = session_rules if session_rules is RulesConfig else DataRegistry.rules()
+	var raw_show_ids: Variant = session_info.get("show_card_ids")
+	_show_ids = bool(raw_show_ids) if raw_show_ids is bool else UiSettings.show_card_ids()
 
 	_render_hud()
 	_render_market()
@@ -520,10 +524,17 @@ func _render_hud() -> void:
 		pill = {"kind": "mine", "seat": _me_seat, "name": _name(_me_seat)}
 	else:
 		var seat_type: String = _seat_type(current)
+		var waiting: Variant = _session.get("llm_waiting", {})
+		var extra_text: String = ""
+		if waiting is Dictionary and not (waiting as Dictionary).is_empty() \
+				and int((waiting as Dictionary).get("seat", -1)) == current:
+			extra_text = UiLlmText.waiting_short(
+					float((waiting as Dictionary).get("elapsed_sec", 0.0)))
 		pill = {
 			"kind": "waiting", "seat": current, "name": _name(current),
 			"type_label": UiViewMath.seat_type_label(seat_type),
 			"thinking": seat_type != "human",
+			"extra_text": extra_text,
 		}
 	_hud.render({
 		"player_count": int(_view.get("player_count", 2)),
@@ -566,6 +577,7 @@ func _render_market() -> void:
 			card.card_back = false
 			card.blind_label = false
 			card.show_status = playing_input
+			card.show_id = _show_ids
 			card.selected = selected_kind == "market" and card_id == selected_id
 			card.flash = (not card_id.is_empty() and card_id in flash_cards) \
 					or flash_slots.has(Vector2i(level, index))
@@ -699,6 +711,7 @@ func _render_bottom() -> void:
 		"can_select_reserved": playing_input,
 		"selected_kind": String(_session.get("selected_kind", "")),
 		"selected_id": String(_session.get("selected_id", "")),
+		"show_ids": _show_ids,
 		"strip": _strip_data(),
 	})
 
@@ -751,6 +764,11 @@ func _render_right() -> void:
 		_opponents.move_child(panel, index)
 		var seat_type: String = _seat_type(seat)
 		var replay: bool = String(_session.get("mode", "")) == "replay"
+		var raw_waiting: Variant = _session.get("llm_waiting", {})
+		var waiting: Dictionary = {}
+		if raw_waiting is Dictionary and not (raw_waiting as Dictionary).is_empty() \
+				and int((raw_waiting as Dictionary).get("seat", -1)) == seat:
+			waiting = (raw_waiting as Dictionary).duplicate(true)
 		panel.render({
 			"seat": seat,
 			"name": _name(seat),
@@ -765,14 +783,25 @@ func _render_right() -> void:
 			"catalog": _catalog,
 			"active": seat == current,
 			"thinking": seat == current and seat_type != "human" and not replay,
+			"llm_waiting": waiting,
 		})
 
 	var entries: Variant = _session.get("log", [])
+
 	var requested_limit: int = int(_session.get("log_limit", 0))
 	var default_limit: int = 4 if seats.size() >= 3 else 7
 	var limit: int = requested_limit if requested_limit > 0 else default_limit
 	_log.render(entries if entries is Array else [], UiViewMath.round_number(_view),
 			limit, _catalog)
+
+
+## 大模型等待期间的轻量刷新：只改胶囊计时和对手面板的等待块。
+func update_llm_waiting(seat: int, elapsed_sec: float, limit_sec: float) -> void:
+	if _hud != null and int(_view.get("current_seat", -1)) == seat:
+		_hud.update_pill_extra(UiLlmText.waiting_short(elapsed_sec))
+	var panel: UiOpponentPanel = _opponent_panels.get(seat)
+	if panel != null:
+		panel.update_llm_waiting(elapsed_sec, limit_sec)
 
 
 # ---------------------------------------------------------------- 浮层

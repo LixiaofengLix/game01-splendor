@@ -9,10 +9,16 @@ signal load_requested
 signal rematch_requested(setup: Dictionary)
 ## 结算弹窗的【看回放】（U6）。
 signal replay_requested
+## 暂停菜单的【设置】（U7）：应用入口把设置屏压在牌桌之上。
+signal settings_requested
 
 const FLASH_SECONDS := 1.5
 const FAILURE_SECONDS := 3.0
 const RESUME_NOTICE_SECONDS := 8.0
+## 大模型兜底说明在顶条停留的时间。
+const LLM_FALLBACK_SECONDS := 8.0
+## 等待计时刷新间隔（只改胶囊和等待块，不整桌重画）。
+const LLM_TICK_SECONDS := 0.1
 
 var _screen: UiTableScreen = null
 var _session: UiTableSession = null
@@ -69,6 +75,13 @@ var _cover_events: Array[Dictionary] = []
 var _autosave_pending: bool = false
 var _result_saved: bool = false
 
+## 大模型等待 / 兜底（U7）。等的是 current_seat 的那位；视图一换人就清掉。
+var _llm_waiting: Dictionary = {}
+var _llm_attempts: Dictionary[int, int] = {}
+var _llm_fallback: Dictionary = {}
+var _llm_fallback_at_ms: int = 0
+var _llm_tick_accum: float = 0.0
+
 
 func setup(screen: UiTableScreen, session: UiTableSession,
 		save_store: UiSaveStore = null, options: Dictionary = {}) -> void:
@@ -96,6 +109,7 @@ func setup(screen: UiTableScreen, session: UiTableSession,
 	_session.events_arrived.connect(_on_events)
 	_session.game_ended.connect(_on_game_ended)
 	_session.action_failed.connect(_on_action_failed)
+	_session.seat_status_changed.connect(_on_seat_status)
 
 	_screen.gem_chip_clicked.connect(click_color)
 	_screen.confirm_pressed.connect(confirm)
@@ -166,6 +180,8 @@ func _apply_view(view: Dictionary, me_seat: int, from_view: Dictionary = {},
 		_clear_selection()
 	elif me_seat >= 0:
 		_approved_seat = me_seat
+	if not _llm_waiting.is_empty() and current != int(_llm_waiting.get("seat", -1)):
+		_clear_llm_waiting()
 	_validate_selection()
 	_sync_modal()
 	_render()
@@ -220,6 +236,10 @@ func _on_events(events: Array[Dictionary]) -> void:
 		var type: String = String(event.get("type", ""))
 		if type == "turn_ended":
 			_autosave_pending = true
+		# 这位大模型的请求已经有结果（动作 / 弃宝石 / 回合结束），计时停下。
+		if not _llm_waiting.is_empty() and type != "turn_started" \
+				and int(event.get("seat", -1)) == int(_llm_waiting.get("seat", -1)):
+			_clear_llm_waiting()
 		if _hotseat_cover_enabled and _session.local_seats().size() >= 2:
 			_cover_events.append(event)
 		var text: String = UiEventText.text_for(event, _session.catalog(), _session.names())
@@ -259,12 +279,98 @@ func _on_game_ended(result: Dictionary) -> void:
 	_ended = true
 	_result = result
 	_result_dismissed = false
+	_clear_llm_waiting()
+	_llm_fallback.clear()
 	_save_finished_record()
 	_sync_modal()
 	_render()
 
 
+# ---------------------------------------------------------------- 大模型状态（17）
+
+func _on_seat_status(seat: int, status: Dictionary) -> void:
+	match String(status.get("kind", "")):
+		"llm_waiting":
+			var attempts: int = int(status.get("attempt", 1))
+			_llm_attempts[seat] = attempts
+			_llm_waiting = {
+				"seat": seat,
+				"profile": String(status.get("profile", "大模型")),
+				"attempt": attempts,
+				"limit_sec": float(status.get("limit_sec", 0.0)),
+				"started_ms": int(status.get("started_ms", Time.get_ticks_msec())),
+			}
+			# 新的等待开始：上一位的兜底说明已经过时。
+			_llm_fallback.clear()
+			_llm_tick_accum = LLM_TICK_SECONDS
+			_render()
+		"llm_fallback":
+			_llm_fallback = {
+				"seat": seat,
+				"reason": String(status.get("reason", "")),
+				"bot": String(status.get("bot", "")),
+				"attempts": int(_llm_attempts.get(seat, 0)),
+			}
+			_llm_fallback_at_ms = Time.get_ticks_msec()
+			_clear_llm_waiting()
+			_render()
+
+
+func _process(delta: float) -> void:
+	if not _llm_fallback.is_empty():
+		var age: float = float(Time.get_ticks_msec() - _llm_fallback_at_ms) / 1000.0
+		if age >= LLM_FALLBACK_SECONDS:
+			_llm_fallback.clear()
+			_render()
+	if _llm_waiting.is_empty():
+		return
+	if _screen == null or not _screen.is_visible_in_tree() or _session == null:
+		return
+	if int(_view.get("current_seat", -1)) != int(_llm_waiting.get("seat", -1)):
+		return
+	_llm_tick_accum += delta
+	if _llm_tick_accum < LLM_TICK_SECONDS:
+		return
+	_llm_tick_accum = 0.0
+	_screen.update_llm_waiting(int(_llm_waiting["seat"]), llm_elapsed_seconds(),
+			float(_llm_waiting.get("limit_sec", 0.0)))
+
+
+func llm_elapsed_seconds() -> float:
+	if _llm_waiting.is_empty():
+		return 0.0
+	return maxf(float(Time.get_ticks_msec() - int(_llm_waiting.get("started_ms", 0))) / 1000.0,
+			0.0)
+
+
+## 等待信息（测试 / 顶条用）：seat / profile / attempt / elapsed_sec / limit_sec。
+func llm_waiting_info() -> Dictionary:
+	if _llm_waiting.is_empty():
+		return {}
+	var info: Dictionary = _llm_waiting.duplicate(true)
+	info["elapsed_sec"] = llm_elapsed_seconds()
+	return info
+
+
+func llm_fallback_strip() -> String:
+	if _llm_fallback.is_empty():
+		return ""
+	return UiLlmText.fallback_strip(_name(int(_llm_fallback.get("seat", -1))),
+			String(_llm_fallback.get("reason", "")),
+			String(_llm_fallback.get("bot", "")), int(_llm_fallback.get("attempts", 0)))
+
+
+func _clear_llm_waiting() -> void:
+	_llm_waiting.clear()
+	_llm_tick_accum = 0.0
+
+
 # ---------------------------------------------------------------- 渲染
+
+## 设置页返回牌桌时调用：显示卡牌 id 这类设置要立即反映到当前画面。
+func refresh() -> void:
+	_render()
+
 
 func _render() -> void:
 	if _screen == null or _session == null or _view.is_empty():
@@ -293,6 +399,9 @@ func _render() -> void:
 		"pill_text": _pill_text(),
 		"flash_cards": _flash_cards,
 		"flash_slots": _flash_slots,
+		"llm_waiting": llm_waiting_info() if not _llm_waiting.is_empty()
+				and int(_view.get("current_seat", -1)) == int(_llm_waiting.get("seat", -1)) else {},
+		"show_card_ids": UiSettings.show_card_ids(),
 	}
 	_screen.render(_view, _me_seat, info)
 
@@ -312,6 +421,13 @@ func _strip_data() -> Dictionary:
 	var current: int = int(_view.get("current_seat", -1))
 	if not _failure_text.is_empty():
 		return {"kind": "note", "text": _failure_text}
+	if not _llm_fallback.is_empty() and not _session.is_my_turn():
+		return {
+			"kind": "event",
+			"seat": int(_llm_fallback.get("seat", -1)),
+			"text": "%s　现在轮到 %s" % [llm_fallback_strip(), _name(current)],
+			"right": "电脑代打",
+		}
 	if not _session.is_my_turn():
 		if phase == "discard":
 			return {"kind": "note", "text": "%s 正在弃宝石" % _name(current)}
@@ -539,6 +655,11 @@ func click_card(kind: String, card_id: String, level: int) -> void:
 	if kind == _selected_kind and card_id == _selected_id and level == _selected_level:
 		_clear_selected_card()
 		_render()
+		return
+	# 关掉“购买前确认”后，点一张买得起的卡直接购买（设置 15）。
+	if kind != "deck" and not UiSettings.confirm_before_buy() and _can_purchase(card_id):
+		_clear_selection()
+		_submit(Action.purchase(card_id))
 		return
 	_selection.clear()
 	_selected_kind = kind
@@ -925,6 +1046,9 @@ func open_pause() -> void:
 	_pause.load_pressed.connect(func() -> void:
 		close_pause()
 		load_requested.emit())
+	_pause.settings_pressed.connect(func() -> void:
+		close_pause()
+		settings_requested.emit())
 	_pause.exit_pressed.connect(func() -> void:
 		close_pause()
 		leave_requested.emit())
@@ -1069,6 +1193,9 @@ func _write_autosave(view: Dictionary) -> void:
 		return
 	_autosave_pending = false
 	if _store == null or not _session.can_save():
+		return
+	# 设置 15 的“每回合自动存档”关掉后不写自动存档；快速存档和结束转存不受影响。
+	if not UiSettings.autosave():
 		return
 	if String(view.get("phase", "")) == "finished":
 		return

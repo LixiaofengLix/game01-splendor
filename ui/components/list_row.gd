@@ -34,7 +34,8 @@ var _chosen: StyleBoxFlat
 func _ready() -> void:
 	focus_mode = Control.FOCUS_NONE
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	custom_minimum_size.y = 44
+	# 调用方可以在加入场景树之前指定更高的行（标题 + 副标题 + 状态）。
+	custom_minimum_size.y = maxf(custom_minimum_size.y, 44.0)
 	text = ""
 	_normal = _make_style(Color(0, 0, 0, 0), UiPalette.LINE)
 	_hover = _make_style(UiPalette.CARD_SOFT, UiPalette.LINE)

@@ -99,9 +99,13 @@ func _make_entry(entry: Variant, latest: bool, catalog: CardCatalog) -> Control:
 	style.anti_aliasing = false
 	panel.add_theme_stylebox_override("panel", style)
 
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 2)
+	panel.add_child(column)
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	panel.add_child(row)
+	column.add_child(row)
 
 	var seat: int = int(data.get("seat", -1))
 	if seat >= 0:
@@ -132,7 +136,54 @@ func _make_entry(entry: Variant, latest: bool, catalog: CardCatalog) -> Control:
 	time.add_theme_color_override("font_color", UiPalette.INK_3)
 	time.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	row.add_child(time)
+
+	var reason: String = String(data.get("reason", ""))
+	if not reason.is_empty():
+		column.add_child(_make_reason(reason))
+	var fallback_reason: String = String(data.get("fallback_reason", ""))
+	if not fallback_reason.is_empty():
+		column.add_child(_make_fallback_note(fallback_reason,
+				String(data.get("fallback_bot", ""))))
 	return panel
+
+
+## 大模型给的理由：紫色竖线引在这条日志下面（SCREENS 17）。
+func _make_reason(reason: String) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "LlmReason"
+	row.add_theme_constant_override("separation", 6)
+	var line := ColorRect.new()
+	line.custom_minimum_size = Vector2(3, 0)
+	line.color = UiPalette.PURPLE
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(line)
+	var label := Label.new()
+	label.add_theme_color_override("font_color", UiPalette.TAG_PURPLE_TEXT)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.text = reason
+	row.add_child(label)
+	return row
+
+
+## 兜底记录：orange 标签“电脑代打” + 原因。
+func _make_fallback_note(reason: String, bot_type: String) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "LlmFallback"
+	row.add_theme_constant_override("separation", 6)
+	var tag := UiTag.new()
+	tag.text = "电脑代打"
+	tag.variant = &"orange"
+	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(tag)
+	var label := Label.new()
+	label.name = "FallbackDetail"
+	label.add_theme_color_override("font_color", UiPalette.TAG_ORANGE_TEXT)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.text = UiLlmText.fallback_detail(reason, bot_type)
+	row.add_child(label)
+	return row
 
 
 func _make_bullet() -> Control:

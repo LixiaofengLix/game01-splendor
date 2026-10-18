@@ -6,6 +6,8 @@ extends Control
 signal continue_pressed
 signal save_pressed
 signal load_pressed
+## 设置页（U7）；由 UiTableFlow 关掉暂停菜单后交给应用入口打开。
+signal settings_pressed
 signal exit_pressed
 signal closed
 
@@ -15,6 +17,7 @@ var exit_note: String = ""
 
 var _frame: UiModalFrame
 var _save_button: UiButton
+var _settings_button: UiButton
 var _exit_row: HBoxContainer
 var _confirm_row: HBoxContainer
 var _rules: UiRulesPanel
@@ -69,11 +72,10 @@ func _ready() -> void:
 	load_button.pressed.connect(func() -> void: load_pressed.emit())
 	left.add_child(load_button)
 
-	var settings_button := _make_button("设置", &"ghost")
-	settings_button.name = "PauseSettings"
-	settings_button.disabled = true
-	settings_button.tooltip_text = "设置页将在后续版本开放"
-	left.add_child(settings_button)
+	_settings_button = _make_button("设置", &"ghost")
+	_settings_button.name = "PauseSettings"
+	_settings_button.pressed.connect(func() -> void: settings_pressed.emit())
+	left.add_child(_settings_button)
 
 	var line := ColorRect.new()
 	line.custom_minimum_size.y = 2
@@ -189,6 +191,10 @@ func _on_scrim_input(event: InputEvent) -> void:
 
 func save_button() -> UiButton:
 	return _save_button
+
+
+func settings_button() -> UiButton:
+	return _settings_button
 
 
 func rules_panel() -> UiRulesPanel:

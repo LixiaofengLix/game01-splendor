@@ -363,11 +363,19 @@ func _build_hotseat_panel(parent: VBoxContainer) -> void:
 # ---------------------------------------------------------------- 座位
 
 func _default_seat(index: int, seat_type: String = "bot") -> Dictionary:
-	return {
-		"name": DEFAULT_NAMES[index] if index < DEFAULT_NAMES.size() else "座位 %d" % (index + 1),
+	var seat_name: String = DEFAULT_NAMES[index] if index < DEFAULT_NAMES.size() \
+			else "座位 %d" % (index + 1)
+	# 设置页的默认昵称只用于第一个人类座位。
+	if index == 0 and seat_type == "human":
+		seat_name = UiSettings.default_name()
+	var entry: Dictionary = {
+		"name": seat_name,
 		"type": seat_type,
 		"difficulty": "normal",
 	}
+	if seat_type == "llm":
+		entry["llm_profile"] = UiLlmBridge.active_profile_id()
+	return entry
 
 
 func apply_preset(preset_key: String) -> void:
@@ -376,7 +384,7 @@ func apply_preset(preset_key: String) -> void:
 
 func _apply_preset(preset_key: String) -> void:
 	_seats.clear()
-	_hotseat_cover = false
+	_hotseat_cover = UiSettings.hotseat_cover_default()
 	_active_preset = preset_key
 	match preset_key:
 		"duel":
@@ -387,6 +395,7 @@ func _apply_preset(preset_key: String) -> void:
 			for index: int in 4:
 				_seats.append(_default_seat(index, "human"))
 			_hotseat_cover = true
+			# 4 人同屏默认打开遮挡；用户可在同屏面板里关掉。
 		"bots":
 			_seats.append(_default_seat(0, "bot"))
 			_seats.append(_default_seat(1, "bot"))
@@ -450,10 +459,15 @@ func _make_seat_row(index: int) -> Control:
 	var type_segment := UiSegmented.new()
 	type_segment.name = "SeatType%d" % index
 	type_segment.items = TYPE_LABELS
-	type_segment.disabled_indices = [2]
+	# 阶段 5 已落地：有配置档时“大模型”可选；没有配置档时保持禁用。
+	if not UiLlmBridge.has_profiles():
+		type_segment.disabled_indices = [2]
 	type_segment.selected_index = _type_index(String(entry.get("type", "human")))
 	type_segment.selected_changed.connect(func(selected: int) -> void: _on_type_changed(index, selected))
 	row.add_child(type_segment)
+
+	if String(entry.get("type", "human")) == "llm":
+		row.add_child(_make_llm_profile_option(index, entry))
 
 	if String(entry.get("type", "human")) == "bot":
 		var difficulty := UiSegmented.new()
@@ -492,6 +506,33 @@ func _make_seat_row(index: int) -> Control:
 	return row
 
 
+## 大模型座位的配置档下拉；显示名来自 AppConfig 的大模型配置档（桥接层）。
+func _make_llm_profile_option(index: int, entry: Dictionary) -> Control:
+	var option := OptionButton.new()
+	option.name = "SeatLlmProfile%d" % index
+	option.focus_mode = Control.FOCUS_NONE
+	option.tooltip_text = "失败时由配置档指定的电脑兜底；配置档在 设置 → 大模型 里管理。"
+	option.add_theme_color_override("font_color", UiPalette.INK)
+	option.custom_minimum_size.x = 132
+	var ids: Array[String] = UiLlmBridge.profile_ids()
+	var selected: String = String(entry.get("llm_profile", ""))
+	if selected.is_empty() or not ids.has(selected):
+		selected = UiLlmBridge.active_profile_id()
+	for id: String in ids:
+		var profile: LlmProfile = UiLlmBridge.profile(id)
+		var label: String = profile.display_name if profile != null else id
+		option.add_item(label)
+		option.set_item_metadata(option.item_count - 1, id)
+		if id == selected:
+			option.select(option.item_count - 1)
+	option.item_selected.connect(func(selected_index: int) -> void:
+		if index >= _seats.size():
+			return
+		var profile_id: String = String(option.get_item_metadata(selected_index))
+		_seats[index]["llm_profile"] = profile_id)
+	return option
+
+
 func _type_index(seat_type: String) -> int:
 	match seat_type:
 		"bot":
@@ -505,7 +546,12 @@ func _type_index(seat_type: String) -> int:
 func _on_type_changed(index: int, selected: int) -> void:
 	if index < 0 or index >= _seats.size():
 		return
-	_seats[index]["type"] = ["human", "bot", "llm"][selected]
+	var seat_type: String = ["human", "bot", "llm"][selected]
+	_seats[index]["type"] = seat_type
+	if seat_type == "llm":
+		var current_profile: String = String(_seats[index].get("llm_profile", ""))
+		if current_profile.is_empty() or UiLlmBridge.profile(current_profile) == null:
+			_seats[index]["llm_profile"] = UiLlmBridge.active_profile_id()
 	_active_preset = ""
 	_rebuild_seats()
 
@@ -586,11 +632,32 @@ func start_pressed() -> void:
 		_error_label.text = "种子必须是整数（留空则随机）"
 		_error_label.visible = true
 		return
+	var llm_error: String = _llm_seat_error()
+	if not llm_error.is_empty():
+		_error_label.text = llm_error
+		_error_label.visible = true
+		return
 	_error_label.visible = false
 	start_requested.emit(setup)
 
 
-## {count, seed, seats: [{name, type}], hotseat_cover}；种子不合法时返回 {}。
+func _llm_seat_error() -> String:
+	var ids: Array[String] = UiLlmBridge.profile_ids()
+	for index: int in _seats.size():
+		if String(_seats[index].get("type", "human")) != "llm":
+			continue
+		if ids.is_empty():
+			return "还没有大模型配置档：请到 设置 → 大模型 新建一个。"
+		var profile_id: String = String(_seats[index].get("llm_profile", ""))
+		if profile_id.is_empty():
+			profile_id = UiLlmBridge.active_profile_id()
+		if profile_id.is_empty() or not ids.has(profile_id):
+			return "座位 %d 的大模型配置档不可用，请重新选择。" % (index + 1)
+	return ""
+
+
+## {count, seed, seats: [{name, type, llm_profile?}], seat_options, hotseat_cover}；
+## 种子不合法时返回 {}。
 func start_data() -> Dictionary:
 	var seed_value: int = -1
 	var seed_text: String = _seed_input.text.strip_edges() if _seed_input != null else ""
@@ -599,6 +666,7 @@ func start_data() -> Dictionary:
 			return {}
 		seed_value = int(seed_text)
 	var seats: Array[Dictionary] = []
+	var options: Array[Dictionary] = []
 	var humans: int = 0
 	for index: int in _seats.size():
 		var entry: Dictionary = _seats[index]
@@ -606,17 +674,27 @@ func start_data() -> Dictionary:
 		if name.is_empty():
 			name = DEFAULT_NAMES[index] if index < DEFAULT_NAMES.size() else "座位 %d" % (index + 1)
 		var seat_type: String = "human"
+		var option: Dictionary = {}
 		if String(entry.get("type", "human")) == "bot":
 			seat_type = "bot_" + String(entry.get("difficulty", "normal"))
 		elif String(entry.get("type", "human")) == "llm":
 			seat_type = "llm"
+			var profile_id: String = String(entry.get("llm_profile", "")).strip_edges()
+			if profile_id.is_empty():
+				profile_id = UiLlmBridge.active_profile_id()
+			option["llm_profile"] = profile_id
 		if seat_type == "human":
 			humans += 1
-		seats.append({"name": name, "type": seat_type})
+		var seat_entry: Dictionary = {"name": name, "type": seat_type}
+		if seat_type == "llm":
+			seat_entry["llm_profile"] = String(option.get("llm_profile", ""))
+		seats.append(seat_entry)
+		options.append(option)
 	return {
 		"count": _seats.size(),
 		"seed": seed_value,
 		"seats": seats,
+		"seat_options": options,
 		"hotseat_cover": _hotseat_cover and humans >= 2,
 	}
 
@@ -642,7 +720,22 @@ func set_seat_type(index: int, seat_type: String) -> void:
 	if index < 0 or index >= _seats.size():
 		return
 	_seats[index]["type"] = seat_type
+	if seat_type == "llm" and String(_seats[index].get("llm_profile", "")).is_empty():
+		_seats[index]["llm_profile"] = UiLlmBridge.active_profile_id()
 	_rebuild_seats()
+
+
+func set_seat_profile(index: int, profile_id: String) -> void:
+	if index < 0 or index >= _seats.size():
+		return
+	_seats[index]["llm_profile"] = profile_id
+	_rebuild_seats()
+
+
+func seat_llm_profile(index: int) -> String:
+	if index < 0 or index >= _seats.size():
+		return ""
+	return String(_seats[index].get("llm_profile", ""))
 
 
 func set_seed_text(text: String) -> void:

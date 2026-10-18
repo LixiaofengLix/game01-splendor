@@ -130,8 +130,7 @@ func _build() -> void:
 
 	_settings_button = _make_small_button("设置")
 	_settings_button.name = "SettingsButton"
-	_settings_button.disabled = true
-	_settings_button.tooltip_text = "设置页将在后续版本开放"
+	_settings_button.pressed.connect(func() -> void: settings_pressed.emit())
 	row.add_child(_settings_button)
 
 	_quit_button = _make_small_button("退出")
@@ -270,6 +269,10 @@ func online_button() -> UiMenuButton:
 
 func saves_button() -> UiButton:
 	return _saves_button
+
+
+func settings_button() -> UiButton:
+	return _settings_button
 
 
 func still_life_card_ids() -> Array[String]:

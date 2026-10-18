@@ -132,6 +132,7 @@ func _ready() -> void:
 
 	_build_g3_turn_mine()
 	_build_g3_bot_turn()
+	_build_g3_llm_waiting()
 	_build_g3_spectator()
 	_build_g3_replay()
 	_build_g4_endgame()
@@ -159,6 +160,28 @@ func _build_g3_turn_mine() -> void:
 func _build_g3_bot_turn() -> void:
 	_write_fixture("g3_bot_turn", G3_SEATS, 0, _g3_view(2), G3_BOT_LOG, {
 		"flash_cards": ["L2-R-01"],
+		"strip": {
+			"kind": "event",
+			"seat": 1,
+			"text": "薄荷 预留了 {card:L2-R-01}　拿到 1 枚 {gem:gold} · 现在轮到紫晶",
+			"right": "刚刚",
+		},
+	})
+
+
+## U7 / 17：大模型思考中。座位 2 换成大模型，日志里带一条理由和一条兜底记录。
+func _build_g3_llm_waiting() -> void:
+	var seats: Array[Dictionary] = G3_SEATS.duplicate(true)
+	seats[2]["type"] = "llm"
+	var entries: Array[Dictionary] = G3_BOT_LOG.duplicate(true)
+	entries[0]["reason"] = "先拿蓝宝石，之后这张二级红很稳。"
+	entries[1]["fallback_reason"] = "parse_failed"
+	entries[1]["fallback_bot"] = "bot_hard"
+	_write_fixture("g3_llm_waiting", seats, 0, _g3_view(2), entries, {
+		"llm_waiting": {
+			"seat": 2, "profile": "DeepSeek", "attempt": 1,
+			"elapsed_sec": 12.4, "limit_sec": 30.0,
+		},
 		"strip": {
 			"kind": "event",
 			"seat": 1,
@@ -376,7 +399,8 @@ func _write_fixture(fixture_name: String, seats: Array[Dictionary], me_seat: int
 		"log": log_entries,
 		"steps": [{"at_ms": 0, "view": "views/%s.json" % fixture_name}],
 	}
-	for key: String in ["strip", "pill_text", "mode", "replay_label", "flash_cards", "log_limit"]:
+	for key: String in ["strip", "pill_text", "mode", "replay_label", "flash_cards",
+			"log_limit", "llm_waiting"]:
 		if extra.has(key):
 			fixture[key] = extra[key]
 	_write_json(view_path, view)
