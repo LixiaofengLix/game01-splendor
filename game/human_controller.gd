@@ -22,3 +22,6 @@ func submit(action: Action) -> bool:
 
 func is_waiting() -> bool:
 	return _waiting
+
+func cancel_pending() -> void:
+	_waiting = false

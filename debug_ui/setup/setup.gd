@@ -1,4 +1,5 @@
-## 开局设置：人数、种子、每个座位的类型。阶段 3 只开放"人类"，其余类型先置灰。
+## 开局设置：人数、种子、每个座位的类型。阶段 4 开放人类与三档电脑，
+## 大模型 / 远程继续置灰；默认座位 0 是人类，其余座位是普通电脑。
 ## 开始按钮只发出 start_requested，由主界面负责创建对局。
 class_name SetupScreen
 extends Control
@@ -6,12 +7,14 @@ extends Control
 signal start_requested(player_count: int, seed: int, seat_types: Array[String])
 
 const MAX_SEATS: int = 4
-## [显示名, 座位类型, 是否禁用]。阶段 4 / 5 / 6 再把对应的禁用去掉。
+const DEFAULT_HUMAN_SEAT_TYPE: String = "human"
+const DEFAULT_BOT_SEAT_TYPE: String = "bot_normal"
+## [显示名, 座位类型, 是否禁用]。阶段 5 / 6 再把对应的禁用去掉。
 const SEAT_TYPE_ITEMS: Array = [
 	["人类", "human", false],
-	["电脑（简单）", "bot_easy", true],
-	["电脑（普通）", "bot_normal", true],
-	["电脑（困难）", "bot_hard", true],
+	["电脑（简单）", "bot_easy", false],
+	["电脑（普通）", "bot_normal", false],
+	["电脑（困难）", "bot_hard", false],
 	["大模型", "llm", true],
 	["远程", "remote", true],
 ]
@@ -64,7 +67,7 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", 24)
 	column.add_child(title)
 	var hint := Label.new()
-	hint.text = "阶段 3：同屏轮流，所有座位均为人类。"
+	hint.text = "阶段 4：人类与电脑可以混合；大模型 / 远程将在后续阶段开放。"
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.custom_minimum_size = Vector2(0, 22)
 	hint.modulate = Color(1, 1, 1, 0.7)
@@ -111,6 +114,10 @@ func _build_ui() -> void:
 		seats_grid.add_child(row)
 		_seat_rows.append(row)
 		_seat_options.append(option)
+	# 默认人机对战：座位 0 是人类，其余座位是普通电脑。
+	for seat: int in MAX_SEATS:
+		var default_type: String = DEFAULT_HUMAN_SEAT_TYPE if seat == 0 else DEFAULT_BOT_SEAT_TYPE
+		_select_seat_type(_seat_options[seat], default_type)
 
 	_start_button = Button.new()
 	_start_button.text = "开始游戏"
@@ -151,6 +158,12 @@ func _on_start_pressed() -> void:
 
 func _selected_player_count() -> int:
 	return _count_option.get_item_id(_count_option.selected)
+
+func _select_seat_type(option: OptionButton, seat_type: String) -> void:
+	for index: int in option.item_count:
+		if String(option.get_item_metadata(index)) == seat_type:
+			option.select(index)
+			return
 
 func _label(text: String) -> Label:
 	var label := Label.new()

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "normal",
+  "display_name": "Normal",
+  "strategy": "one_step",
+  "seed_salt": 2202,
+  "thinking_delay_ms": 350,
+  "random_noise": 0,
+  "mistake_chance": 0,
+  "search": {
+    "top_k": 1,
+    "opponent_top_m": 0,
+    "max_nodes": 0,
+    "timeout_ms": 100
+  },
+  "weights": {
+    "points": 100,
+    "card_bonus": 10,
+    "token": 3,
+    "gold": 8,
+    "noble_gap": 12,
+    "target_points": 60,
+    "target_bonus": 8,
+    "target_gap": 20,
+    "affordable": 4,
+    "opponent_threat": 4,
+    "block_bonus": 15,
+    "reserve_gap": 10,
+    "waste": 3,
+    "win": 1000
+  }
+}

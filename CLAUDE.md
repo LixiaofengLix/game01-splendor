@@ -80,6 +80,12 @@
 # 界面冒烟测试（实例化设置界面和棋盘，按按钮走关键流程；改完 debug_ui/ 必跑）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/board_smoke.tscn
 
+# AI 自检（三档配置 / 全 AI 对局 / 可复现 / 弃宝石选贵族 / 困难耗时；改完 ai/ 必跑）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/ai_selfcheck.tscn
+# AI 批量模拟（每个种子镜像交换座位；--sim 必须是偶数，难度个数 = 人数）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/ai_sim.tscn -- --sim 100 easy normal
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/ai_sim.tscn -- --sim 100 normal hard
+
 # 重新生成 tests/scenarios/ 的预设局面（改完卡表或规则后）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/scenarios/build_scenarios.tscn
 ```

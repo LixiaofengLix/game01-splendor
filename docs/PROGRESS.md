@@ -7,11 +7,106 @@
 - **阶段 1（工程骨架与数据层）：已验收并提交（`37b708c`）**
 - **阶段 2（核心规则引擎 + 文本调试台）：已验收并提交**（2026-10-17；规则解释经用户确认无异议）
 - **阶段 3（对局流程、座位控制器与最小可视化界面）：已验收并提交**（2026-10-17；用户确认提交）。
-  2 人局可以用鼠标试玩；完整 3/4 人局仍建议等阶段 4 有 AI 补座位后再做。
-- 人工验收的分工与结果：规则解释 ✓；阶段 3 界面已验收（用户 2026-10-17 确认提交）；
-  **完整 3/4 人局试玩留到阶段 4 的 AI 补座位之后**（用户明确不要一个人控制所有座位打完整局）；
+- **阶段 4（程序 AI）：已验收并提交（2026-10-18；用户确认提交）**。
+  三档电脑座位、人机对战、批量模拟和自动自检都已就位；完整 3/4 人局现在可以由 AI 补座位试玩。
+- 人工验收的分工与结果：规则解释 ✓；阶段 3 界面已验收；阶段 4 用户 2026-10-18 确认提交；
   卡表对照实体卡仍是可选待办。
-- 上次更新：2026-10-17
+- 上次更新：2026-10-18
+
+---
+
+## 阶段 4：程序 AI
+
+### 已完成
+
+- `ai/`：
+  - `ai_profile.gd` — 从 `data/ai/*.json` 解析的静态类型配置；权重用整数（厘分），
+    校验 schema、id、策略、搜索预算、权重键集合（拼错会报错）。
+  - `evaluator.gd` — 只从过滤视图重建局面并推演：一步评分 + 目标卡规划 + 贵族缺口 +
+    对手威胁 / 阻挡 + 浪费惩罚；三档策略 `greedy` / `one_step` / `two_ply`。
+  - `bot_controller.gd` — 继承 `PlayerController`；正常回合有可配置思考延迟，
+    弃宝石 / 选贵族立即处理；子 `Timer` + 请求代数，取消 / 重开后旧动作不会注入新局。
+- `data/ai/{easy,normal,hard}.json`：三档权重、搜索预算、思考延迟、随机种子盐。
+- `autoload/data_registry.gd`：启动时加载并校验三档 AI 配置，`is_valid()` 包含它们；
+  新增 `ai_profile(id)` / `ai_profile_ids()` / `ai_profiles()`。
+- `game/`：
+  - `GameController.start_new_game()` 支持 `bot_easy` / `bot_normal` / `bot_hard`；
+  - 新增 `is_current_human()`；
+  - `PlayerController.cancel_pending()`（人类清等待、AI 停计时器）；
+    `_reset_controllers()` 在移除控制器前调用它。
+- `debug_ui/setup/`：三档电脑选项启用；默认座位 0 人类、其余普通电脑（用户已确认）。
+- `debug_ui/board/`：电脑回合禁用所有动作按钮、顶栏显示“电脑思考中…”、
+  不显示电脑的弃宝石 / 选贵族弹窗；遮蔽当前电脑自己盲抽预留的牌。
+- 新增 `tests/ai_selfcheck.gd/.tscn`、`tests/ai_sim.gd/.tscn`；
+  `tests/board_smoke.gd` 增加人类 vs 电脑的回合切换检查。
+- `data/rules.json` 新增 `max_turns_safety`（见“偏差”第 3 条）。
+- 各目录 README、`docs/UI_INTEGRATION.md`、`CLAUDE.md` 常用命令已更新。
+
+### 自动验证结果（2026-10-17）
+
+- `tests/ai_selfcheck.tscn`：149 项检查通过，约 5.7 秒；
+  困难 AI 思考 p50 18ms / p95 30ms / max 35ms（164 次决策），超时 / 节点预算回退 0 次。
+- `tests/flow_selfcheck.tscn`：8647 项检查通过，约 3.3 秒。
+- `tests/board_smoke.tscn`：93 项检查通过，约 0.5 秒（含人类 vs 普通电脑的回合切换）。
+- `tests/rules_selfcheck.tscn -- 2000`：523273 项检查通过，136.0 秒（最长一局 273 步；
+  与阶段 3 基线完全一致，说明 `max_turns_safety` 没有被正常随机对局触发）。
+- `tests/data_report.tscn`：通过，AI 配置与 `max_turns_safety` 都参与校验。
+- `tests/ai_sim.tscn`（100 局 = 50 个种子 × 2 局，镜像交换座位）：
+  - easy vs normal：normal 63.5% / easy 36.5%（3 平）；stalled 1/100。
+  - normal vs hard：hard 60.5% / normal 39.5%（1 平）；stalled 3/100。
+  - easy vs hard：hard 67.0% / easy 33.0%（2 平）；stalled 0/100。
+  - 3 人 easy/normal/hard（20 局）：easy 20% / normal 30% / hard 50%，stalled 0 局。
+  - 4 人 easy/normal/hard/hard（20 局，hard 占 2 席）：easy 0% / normal 25% / hard 37.5%，
+    stalled 0 局。
+  - 困难 AI 思考 p50 约 18–19ms / p95 约 31–33ms / max 约 66ms（4 人局）；
+    非法动作、AI 回退、超时回退均为 0。
+
+### 与计划的偏差 / 本阶段定的约定
+
+1. **多一个 `ai/ai_profile.gd`**：计划只写了 evaluator / bot_controller；把 JSON 解析成静态类型
+   对象，避免热循环里到处查字典，也让“权重键拼错”能被数据校验抓到。
+2. **批量模拟命令带场景路径**：按项目约定写成
+   `tests/ai_sim.tscn -- --sim 100 easy normal`（计划原文少了 `.tscn`）；
+   `--sim` 必须是偶数，每个种子跑两局并反转座位列表，抵消先手优势。
+3. **`max_turns_safety` 保险丝（core 改动）**：批量模拟发现过病态对局——双方都满 10 枚宝石、
+   银行只剩 1 种颜色、所有卡都买不起且预留已满，唯一合法动作是“拿 1 枚再弃 1 枚”，
+   状态原地循环；现有 `stalled` 保险丝只处理“没有合法动作”，抓不到这种情况。
+   现在 `rules.json` 增加 `max_turns_safety = 150`：任一玩家到 150 回合且所有人回合数相同时，
+   以 `stalled` 结束并按分数结算。正常对局约 35 回合，随机自检最长约 136 回合/人，不会触发。
+   该判定只依赖 `turn_counts`，重放可复现。
+4. **AI 权重在模拟后调过**：初版权重会让 AI 在前几步预留 3 张三级牌并囤宝石，容易进入上述死锁。
+   调整后：`target_gap` 提高（更偏向短期买得起的牌）、新增 `reserve_gap` 惩罚（预留短期买不起的牌）、
+   `opponent_threat` / `block_bonus` 降低（减少为阻挡而阻挡）。最终三档胜率见上。
+5. **困难搜索参数**：`top_k=8` / `opponent_top_m=12` / `max_nodes=300` / `timeout=700ms`。
+   试过 12 / 16 / 500，胜率反而降到 57.5% 且平均回合从 39.6 涨到 61.8，已回退。
+6. **思考延迟只用于正常回合**：弃宝石 / 选贵族不等待，否则一次弃 3 枚要等 1.5 秒。
+7. **电脑回合界面完全不可操作**：`is_current_human()` 为 false 时所有动作按钮禁用；
+   电脑的弃宝石 / 选贵族弹窗不显示；当前电脑的盲抽预留牌显示为 `?级（盲抽）`。
+8. **异步取消**：`PlayerController.cancel_pending()` 是阶段 5 / 6 的通用接口；
+   大模型 HTTP 和远程等待也要覆盖它。
+9. **默认座位**：座位 0 人类、其余普通电脑（用户确认）；设置界面仍可逐座位改。
+10. **AI 配置纳入 `DataRegistry.is_valid()`**：AI JSON 坏了会阻止所有开局（fail-fast），
+    与卡表 / 规则数据的处理方式一致。
+
+### 遗留问题 / 下一阶段需要知道的事
+
+- **两层的范围**：困难 AI 只模拟“我方一步 + 下一位对手最佳回应”，3/4 人局不是完整极小化极大；
+  这是计划里的剪枝设计，不是 bug。
+- **对手盲抽预留不可见**：AI 从过滤视图重建局面，把对手盲抽预留当未知牌，因此对手模型略偏保守；
+  这是“AI 不能看隐藏信息”的必然结果。
+- **`load_snapshot` / `load_replay` 仍重建人类控制器**：阶段 6 的远端座位 / 客户端镜像需要
+  另一条控制器装配路径；`start_with_controllers()` 仍是正式注入点。
+- **模拟样本量**：100 局配对约 ±10% 的 95% 置信区间；normal vs hard 的 60.5% 是真实但不算悬殊的
+  梯度。阶段 5 若要拿困难 AI 做兜底，这个强度够用；想再拉开差距，先改评估特征，不要盲目加大搜索
+  （试过，见偏差第 5 条）。
+- **病态对局**：100 局里偶尔出现 0~3 局 `stalled`（easy vs normal 1/100、normal vs hard 3/100、
+  easy vs hard 0/100）；这是双方都买不起的真实死锁，保险丝会正常结算。
+  正常人类对局几乎不会遇到（人不会把自己和对手同时逼进这种状态）。
+- **阶段 5 的大模型控制器**：必须实现 `cancel_pending()`；兜底可以直接创建
+  `BotController` 或用 `GameController.start_with_controllers()` 注入。
+- **阶段 7 导出**：`data/ai/*.json` 是运行时读取的 JSON，导出时要确保它们被打进包里
+  （和 `data/*.json`、`tests/scenarios/*.json` 一样）。
+- 卡表对照实体卡仍是阶段 1 的可选待办。
 
 ---
 
@@ -218,6 +313,6 @@
 
 ---
 
-## 阶段 4 及以后
+## 阶段 5 及以后
 
-未开始。下一阶段是程序 AI（阶段 4），计划见 `docs/DEVELOPMENT_PLAN.md`。
+未开始。下一阶段是大模型 AI（阶段 5），计划见 `docs/DEVELOPMENT_PLAN.md`。

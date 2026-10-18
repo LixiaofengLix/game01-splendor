@@ -18,6 +18,9 @@ var max_reserved: int = 0
 var board_slots_per_level: int = 0
 ## 拿两枚同色时，该颜色在银行里至少要有这么多枚。
 var take_two_min_remaining: int = 0
+## 保险丝：任一玩家进行到这么多回合、且所有人回合数相同时，以 stalled 结束。
+## 远高于正常对局（约 35 回合），只用来兜底“双方都买不起、反复拿 1 枚再弃 1 枚”的病态循环。
+var max_turns_safety: int = 0
 ## 规则细节开关，含义见 data/README.md。
 var switches: Dictionary[String, bool] = {}
 
@@ -36,6 +39,7 @@ static func from_dict(data: Dictionary) -> RulesConfig:
 	config.max_reserved = int(data.get("max_reserved", 0))
 	config.board_slots_per_level = int(data.get("board_slots_per_level", 0))
 	config.take_two_min_remaining = int(data.get("take_two_min_remaining", 0))
+	config.max_turns_safety = int(data.get("max_turns_safety", 0))
 	var raw_switches: Dictionary = data.get("switches", {})
 	for switch_name: String in raw_switches:
 		config.switches[switch_name] = bool(raw_switches[switch_name])

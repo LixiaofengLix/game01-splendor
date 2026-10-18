@@ -11,6 +11,7 @@
   "max_reserved": 3,
   "board_slots_per_level": 4,
   "take_two_min_remaining": 4,
+  "max_turns_safety": 150,
   "switches": {
     "allow_take_fewer_when_colors_short": true,
     "reserve_takes_gold": true,

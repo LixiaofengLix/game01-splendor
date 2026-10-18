@@ -19,6 +19,8 @@ var _game: GameController
 var _view: Dictionary = {}
 var _legal: Array[Action] = []
 var _scenario_names: Array[String] = []
+## 当前座位是人类时才接受点击；电脑回合所有动作按钮禁用。
+var _accepts_input: bool = false
 
 var _status_label: Label
 var _bank_box: HBoxContainer
@@ -75,6 +77,7 @@ func reset() -> void:
 	_game.reset()
 	_view = {}
 	_legal.clear()
+	_accepts_input = false
 	_log.clear()
 	_clear(_overlay_buttons)
 	_overlay.visible = false
@@ -198,6 +201,7 @@ func _build_overlay() -> void:
 func _on_state_changed(view: Dictionary) -> void:
 	_view = view
 	_legal = Rules.get_legal_actions(view, DataRegistry.card_catalog(), DataRegistry.rules())
+	_accepts_input = _game.is_current_human()
 	_refresh()
 
 func _on_events_emitted(events: Array[GameEvent]) -> void:
@@ -241,6 +245,8 @@ func _refresh_status() -> void:
 			int(_view.get("current_seat", 0))]
 	if bool(_view.get("endgame_triggered", false)) and phase != "finished":
 		text += " · 终局已触发（本轮打完结算）"
+	if phase != "finished" and not _accepts_input:
+		text += " · 电脑思考中…"
 	_status_label.text = text
 
 func _refresh_bank() -> void:
@@ -269,9 +275,15 @@ func _refresh_actions() -> void:
 	_clear(_actions_box)
 	match String(_view.get("phase", "")):
 		"discard":
-			_actions_label.text = "弃宝石（也可以在上方选择框里操作）"
+			if _accepts_input:
+				_actions_label.text = "弃宝石（也可以在上方选择框里操作）"
+			else:
+				_actions_label.text = "电脑正在弃宝石…"
 		"choose_noble":
-			_actions_label.text = "选贵族（也可以在上方选择框里操作）"
+			if _accepts_input:
+				_actions_label.text = "选贵族（也可以在上方选择框里操作）"
+			else:
+				_actions_label.text = "电脑正在选贵族…"
 		"finished":
 			_actions_label.text = "对局已结束"
 		_:
@@ -293,17 +305,22 @@ func _refresh_players() -> void:
 	var current_seat: int = int(_view.get("current_seat", -1))
 	var finished: bool = String(_view.get("phase", "")) == "finished"
 	for index: int in players.size():
-		_players_box.add_child(_player_panel(players[index], index == current_seat and not finished))
+		# 画面显示的是当前玩家的视图；轮到电脑时，它的盲抽预留牌对同屏人类应保持隐藏。
+		var mask_blind: bool = index == current_seat and not _accepts_input
+		_players_box.add_child(_player_panel(players[index],
+				index == current_seat and not finished, mask_blind))
 
 func _refresh_overlay() -> void:
 	_clear(_overlay_buttons)
 	_overlay.visible = false
 	match String(_view.get("phase", "")):
 		"discard":
-			_show_choice_overlay(_discard_title(), _filter_actions(Enums.ActionType.DISCARD))
+			if _accepts_input:
+				_show_choice_overlay(_discard_title(), _filter_actions(Enums.ActionType.DISCARD))
 		"choose_noble":
-			_show_choice_overlay("同时满足多位贵族，请选择一位（一回合最多一位）",
-					_filter_actions(Enums.ActionType.CHOOSE_NOBLE))
+			if _accepts_input:
+				_show_choice_overlay("同时满足多位贵族，请选择一位（一回合最多一位）",
+						_filter_actions(Enums.ActionType.CHOOSE_NOBLE))
 		"finished":
 			_show_result_overlay()
 
@@ -323,7 +340,7 @@ func _level_row(level: int) -> Control:
 	deck_column.add_child(_label("剩 %d 张" % int(deck_entry.get("count", 0))))
 	var blind_action := Action.reserve_blind(level)
 	var blind_button := _action_button("盲抽预留", blind_action)
-	blind_button.disabled = not _has_action(blind_action)
+	_enable_action_button(blind_button, blind_action)
 	deck_column.add_child(blind_button)
 	row.add_child(deck_panel)
 	var board: Array = (_view.get("boards", {}) as Dictionary).get(str(level), [])
@@ -350,11 +367,11 @@ func _card_panel(slot: Variant) -> Control:
 	column.add_child(buttons)
 	var buy_action := Action.purchase(card.id)
 	var buy_button := _action_button("购买", buy_action)
-	buy_button.disabled = not _has_action(buy_action)
+	_enable_action_button(buy_button, buy_action)
 	buttons.add_child(buy_button)
 	var reserve_action := Action.reserve_card(card.id)
 	var reserve_button := _action_button("预留", reserve_action)
-	reserve_button.disabled = not _has_action(reserve_action)
+	_enable_action_button(reserve_button, reserve_action)
 	buttons.add_child(reserve_button)
 	return panel
 
@@ -372,7 +389,7 @@ func _noble_panel(noble: NobleData) -> Control:
 		column.add_child(_action_button("选择", choose_action))
 	return panel
 
-func _player_panel(player: Dictionary, is_current: bool) -> Control:
+func _player_panel(player: Dictionary, is_current: bool, mask_blind: bool) -> Control:
 	var seat: int = int(player.get("seat", 0))
 	var tokens: Dictionary = player.get("tokens", {})
 	var purchased: Array = player.get("purchased", [])
@@ -415,17 +432,17 @@ func _player_panel(player: Dictionary, is_current: bool) -> Control:
 	else:
 		column.add_child(_label("预留："))
 		for entry: Variant in reserved:
-			column.add_child(_reserved_row(entry, is_current))
+			column.add_child(_reserved_row(entry, is_current, mask_blind))
 	return panel
 
-func _reserved_row(entry: Variant, is_current: bool) -> Control:
+func _reserved_row(entry: Variant, is_current: bool, mask_blind: bool) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	var data: Dictionary = entry
 	var card_id: Variant = data.get("id")
 	var level: int = int(data.get("level", 0))
 	var text: String = "?%d 级（盲抽）" % level
-	if card_id != null:
+	if card_id != null and not mask_blind:
 		var card: CardData = DataRegistry.card_catalog().card(String(card_id))
 		if card == null:
 			text = String(card_id)
@@ -434,10 +451,10 @@ func _reserved_row(entry: Variant, is_current: bool) -> Control:
 	var label := _label(text)
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
-	if is_current and card_id != null:
+	if is_current and card_id != null and _accepts_input and not mask_blind:
 		var action := Action.purchase(String(card_id))
 		var button := _action_button("购买", action)
-		button.disabled = not _has_action(action)
+		_enable_action_button(button, action)
 		row.add_child(button)
 	return row
 
@@ -614,6 +631,9 @@ func _has_action(action: Action) -> bool:
 			return true
 	return false
 
+func _enable_action_button(button: Button, action: Action) -> void:
+	button.disabled = not _accepts_input or not _has_action(action)
+
 func _filter_actions(type: Enums.ActionType) -> Array[Action]:
 	var result: Array[Action] = []
 	for action: Action in _legal:
@@ -626,6 +646,7 @@ func _action_button(text: String, action: Action, font_size: int = 13) -> Button
 	button.text = text
 	button.add_theme_font_size_override("font_size", font_size)
 	button.set_meta("action", action)
+	button.disabled = not _accepts_input
 	button.pressed.connect(_submit.bind(action))
 	return button
 

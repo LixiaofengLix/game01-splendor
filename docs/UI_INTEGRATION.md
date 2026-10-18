@@ -18,9 +18,10 @@ signal action_rejected(message: String)                # 控制器交了非法 /
 ```
 
 ```gdscript
-start_new_game(player_count, seed, seat_types) -> bool  # 阶段 3 只支持 "human"
-start_with_controllers(player_count, seed, controllers) -> bool  # AI / 远程 / 测试
+start_new_game(player_count, seed, seat_types) -> bool  # "human" / "bot_easy" / "bot_normal" / "bot_hard"
+start_with_controllers(player_count, seed, controllers) -> bool  # AI / 远程 / 测试 / 自定义控制器
 submit_action(action) -> bool                           # 界面提交人类动作
+is_current_human() -> bool                             # 当前座位是否人类（界面据此启用按钮）
 current_view() -> Dictionary                           # 最近一次 state_changed 的视图
 load_snapshot(state_data, errors) -> bool
 load_replay(data, verbose, errors) -> Array[String]     # 返回日志行；成功后再发信号
@@ -44,11 +45,25 @@ reset()
 
 ```gdscript
 func request_action(view: Dictionary, legal_actions: Array[Action]) -> void
+func cancel_pending() -> void
 signal action_decided(action: Action)
 ```
 
 人类控制器是异步的（等点击），AI 可以同步决定（`GameController` 内部有动作泵，不会递归爆栈）。
-大模型可以异步返回；超时由控制器自己兜底。
+大模型可以异步返回；超时由控制器自己兜底。异步控制器必须实现 `cancel_pending()`：
+`GameController` 在换局 / 载入 / 返回设置前调用它，避免旧计时器或旧 HTTP 响应把动作注入新局。
+
+### 电脑座位（阶段 4）
+
+- 座位类型 `bot_easy` / `bot_normal` / `bot_hard`；AI 配置在 `data/ai/*.json`。
+- 电脑座位由 `GameController` 创建，界面**不要**替它调用 `submit_action()`。
+  电脑回合 `is_current_human()` 返回 false，动作按钮应全部禁用。
+- 电脑有思考延迟时，`state_changed` 在它决定后立即发出，界面只需按信号刷新；
+  顶栏可以显示“电脑思考中…”。
+- 同屏旁观时注意隐藏电脑的私密信息：`state_changed` 发出的是当前行动者的视图，
+  轮到电脑时会包含它自己盲抽预留的牌；调试棋盘会把这一项显示为 `?级（盲抽）`，
+  正式 UI 也应这样做。
+- 预设局面 / 读档 / 重放目前会把所有座位重建为人类控制器（阶段 6 再改装配路径）。
 
 ## 事件与存档
 

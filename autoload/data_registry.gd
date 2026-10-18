@@ -7,6 +7,9 @@ extends Node
 const CARDS_PATH: String = "res://data/cards.json"
 const NOBLES_PATH: String = "res://data/nobles.json"
 const RULES_PATH: String = "res://data/rules.json"
+const AI_DIR: String = "res://data/ai"
+## 三档 AI 配置的固定 id；GameController 的座位类型和设置界面都依赖它们。
+const AI_PROFILE_IDS: Array[String] = ["easy", "normal", "hard"]
 const SUPPORTED_SCHEMA_VERSION: int = 1
 
 ## 官方基础版的卡牌分布：每级总张数、每级每种颜色的张数。
@@ -33,6 +36,7 @@ var _cards_by_level: Dictionary = {}
 var _nobles: Array[NobleData] = []
 var _rules: RulesConfig = null
 var _catalog: CardCatalog = null
+var _ai_profiles: Dictionary[String, AIProfile] = {}
 var _errors: Array[String] = []
 
 func _ready() -> void:
@@ -44,11 +48,13 @@ func load_all() -> void:
 	_cards_by_id.clear()
 	_cards_by_level.clear()
 	_nobles.clear()
+	_ai_profiles.clear()
 	_rules = null
 	_catalog = null
 	_load_rules()
 	_load_cards()
 	_load_nobles()
+	_load_ai_profiles()
 
 # ---------------------------------------------------------------- 对外接口
 
@@ -83,6 +89,20 @@ func cards_in_level(level: int) -> Array[CardData]:
 
 func all_nobles() -> Array[NobleData]:
 	return _nobles.duplicate()
+
+## 取一档 AI 配置；未知 id 返回 null（调用方负责报错）。
+func ai_profile(profile_id: String) -> AIProfile:
+	return _ai_profiles.get(profile_id)
+
+func ai_profile_ids() -> Array[String]:
+	return AI_PROFILE_IDS.duplicate()
+
+func ai_profiles() -> Array[AIProfile]:
+	var result: Array[AIProfile] = []
+	for profile_id: String in AI_PROFILE_IDS:
+		if _ai_profiles.has(profile_id):
+			result.append(_ai_profiles[profile_id])
+	return result
 
 func is_valid() -> bool:
 	return _errors.is_empty()
@@ -150,6 +170,8 @@ func _load_rules() -> void:
 		_errors.append("rules.json：board_slots_per_level 应为正数")
 	if _rules.take_two_min_remaining <= 0:
 		_errors.append("rules.json：take_two_min_remaining 应为正数")
+	if _rules.max_turns_safety <= 0:
+		_errors.append("rules.json：max_turns_safety 应为正数（病态循环的保险丝）")
 
 	for player_count: int in [2, 3, 4]:
 		var gems: int = _rules.gems_per_color_for(player_count)
@@ -368,3 +390,20 @@ func _parse_noble(entry: Dictionary, index: int, seen_ids: Dictionary) -> NobleD
 	if failed:
 		return null
 	return NobleData.from_dict(entry)
+
+## 加载 data/ai/{easy,normal,hard}.json。三个文件都必须在；坏配置并入 _errors。
+func _load_ai_profiles() -> void:
+	for profile_id: String in AI_PROFILE_IDS:
+		var path: String = "%s/%s.json" % [AI_DIR, profile_id]
+		var data: Variant = _read_json(path)
+		if data == null:
+			continue
+		if not data is Dictionary:
+			_errors.append("ai/%s.json：顶层必须是一个对象" % profile_id)
+			continue
+		var profile_errors: Array[String] = []
+		var profile: AIProfile = AIProfile.from_dict(data, profile_id, profile_errors)
+		if profile == null:
+			_errors.append_array(profile_errors)
+			continue
+		_ai_profiles[profile_id] = profile

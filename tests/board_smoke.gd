@@ -1,6 +1,6 @@
-## 阶段 3 的界面冒烟测试（无界面）：直接实例化设置界面和棋盘，按按钮走关键流程。
+## 界面冒烟测试（无界面）：直接实例化设置界面和棋盘，按按钮走关键流程。
 ## 覆盖：启动新局、合法 / 非法按钮的启用状态、拿宝石、预留、弃宝石弹窗、选贵族弹窗、
-##       终局结算弹窗、存档 / 读档 / 重放、设置界面的默认参数。
+##       终局结算弹窗、存档 / 读档 / 重放、设置界面的默认参数、人类 vs 电脑的回合切换。
 ## 用法：godot --headless --path . tests/board_smoke.tscn
 extends Node
 
@@ -25,6 +25,7 @@ func _ready() -> void:
 	_check_endgame_overlay()
 	_check_save_load_replay()
 	_check_setup_screen()
+	await _check_human_vs_bot()
 	var elapsed: float = float(Time.get_ticks_msec() - started) / 1000.0
 	print("")
 	if _failures == 0:
@@ -196,17 +197,20 @@ func _check_setup_screen() -> void:
 	setup.start_requested.connect(_on_setup_start)
 	var start_button: Button = _find_button_by_text(setup, "开始游戏")
 	_check(start_button != null, "设置界面有开始按钮")
-	var seat_style_disabled: bool = false
+	var bot_enabled: bool = false
+	var llm_disabled: bool = false
 	for node: Node in _all_nodes(setup):
 		if node is OptionButton and (node as OptionButton).item_count == 6:
-			seat_style_disabled = (node as OptionButton).is_item_disabled(1)
+			bot_enabled = not (node as OptionButton).is_item_disabled(1)
+			llm_disabled = (node as OptionButton).is_item_disabled(4)
 			break
-	_check(seat_style_disabled, "电脑座位选项应置灰（阶段 3）")
+	_check(bot_enabled, "电脑座位选项应启用（阶段 4）")
+	_check(llm_disabled, "大模型座位选项应继续置灰")
 	if start_button != null:
 		start_button.pressed.emit()
 		_check(_setup_player_count == 2, "默认人数应为 2")
 		_check(_setup_types.size() == 2 and _setup_types[0] == "human"
-				and _setup_types[1] == "human", "默认两个座位都是人类")
+				and _setup_types[1] == "bot_normal", "默认座位 0 人类、座位 1 普通电脑")
 		_check(_setup_seed >= 0, "默认种子应为整数")
 	setup.queue_free()
 
@@ -214,6 +218,34 @@ func _on_setup_start(player_count: int, seed: int, seat_types: Array[String]) ->
 	_setup_player_count = player_count
 	_setup_seed = seed
 	_setup_types = seat_types
+
+# ---------------------------------------------------------------- 人类 vs 电脑
+
+## 人类走一步后，电脑自动思考并行动；电脑回合界面不能替它点击。
+func _check_human_vs_bot() -> void:
+	var board := _make_board()
+	_check(board.start_new_game(2, 13579, ["human", "bot_normal"]), "人机局能启动")
+	_check(int(board.current_view().get("current_seat", -1)) == 0, "人机局从人类座位 0 开始")
+	_check(board._game.is_current_human(), "座位 0 是人类，界面应接受输入")
+	var take_button: Button = _find_enabled(board, [Enums.ActionType.TAKE_THREE,
+			Enums.ActionType.TAKE_TWO])
+	_check(take_button != null, "人机局人类回合有拿宝石按钮")
+	if take_button == null:
+		board.queue_free()
+		return
+	take_button.pressed.emit()
+	_check(not board._game.is_current_human(), "人类行动后轮到电脑")
+	var any_enabled: bool = _find_enabled(board, [Enums.ActionType.PURCHASE,
+			Enums.ActionType.RESERVE, Enums.ActionType.TAKE_THREE,
+			Enums.ActionType.TAKE_TWO]) != null
+	_check(not any_enabled, "电脑回合所有动作按钮应禁用")
+	var waited: int = 0
+	while waited < 40 and not board._game.is_current_human():
+		await get_tree().create_timer(0.1).timeout
+		waited += 1
+	_check(board._game.is_current_human(), "电脑行动结束后回到人类回合")
+	_check(int((board.current_view()["turn_counts"] as Array)[1]) >= 1, "电脑座位已完成至少一个回合")
+	board.queue_free()
 
 # ---------------------------------------------------------------- 工具
 

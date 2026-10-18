@@ -327,6 +327,9 @@ static func _end_of_turn(state: GameState, events: Array[GameEvent], noble_step_
 	if state.endgame_triggered and _turn_counts_equal(state):
 		_finish_game(state, events, "win_points")
 		return
+	if _safety_limit_reached(state):
+		_finish_game(state, events, "stalled")
+		return
 	_advance(state, events)
 
 ## 贵族来访。返回 true 表示同时满足多位、进入了选择阶段（回合末流程挂起等玩家挑）。
@@ -388,6 +391,9 @@ static func _advance(state: GameState, events: Array[GameEvent]) -> void:
 		if state.endgame_triggered and _turn_counts_equal(state):
 			_finish_game(state, events, "win_points")
 			return
+		if _safety_limit_reached(state):
+			_finish_game(state, events, "stalled")
+			return
 		if skips >= state.player_count:
 			_finish_game(state, events, "stalled")
 			return
@@ -428,6 +434,16 @@ static func _turn_counts_equal(state: GameState) -> bool:
 		if count != state.turn_counts[0]:
 			return false
 	return true
+
+## 保险丝：任一玩家达到回合上限，且所有人回合数相同（终局时回合数仍然相等）。
+## 只用来兜底没有“合法动作”可触发 stalled 的病态循环；正常对局远达不到这个上限。
+static func _safety_limit_reached(state: GameState) -> bool:
+	if state.config.max_turns_safety <= 0:
+		return false
+	var highest: int = 0
+	for count: int in state.turn_counts:
+		highest = maxi(highest, count)
+	return highest >= state.config.max_turns_safety and _turn_counts_equal(state)
 
 # ---------------------------------------------------------------- 视图解析
 

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "easy",
+  "display_name": "Easy",
+  "strategy": "greedy",
+  "seed_salt": 1101,
+  "thinking_delay_ms": 500,
+  "random_noise": 60,
+  "mistake_chance": 0.1,
+  "search": {
+    "top_k": 1,
+    "opponent_top_m": 0,
+    "max_nodes": 0,
+    "timeout_ms": 100
+  },
+  "weights": {
+    "points": 100,
+    "card_bonus": 6,
+    "token": 2,
+    "gold": 5,
+    "noble_gap": 6,
+    "target_points": 40,
+    "target_bonus": 5,
+    "target_gap": 12,
+    "affordable": 3,
+    "opponent_threat": 0,
+    "block_bonus": 0,
+    "reserve_gap": 5,
+    "waste": 2,
+    "win": 1000
+  }
+}

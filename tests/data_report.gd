@@ -24,10 +24,10 @@ func _ready() -> void:
 func _print_stats() -> void:
 	var rules: RulesConfig = DataRegistry.rules()
 	print("=== 璀璨宝石 数据统计 ===")
-	print("规则：2/3/4 人每色宝石 %d/%d/%d，金币 %d，胜利分 %d，持币上限 %d，预留上限 %d，每级场面 %d 张"
+	print("规则：2/3/4 人每色宝石 %d/%d/%d，金币 %d，胜利分 %d，持币上限 %d，预留上限 %d，每级场面 %d 张，回合保险丝 %d"
 			% [rules.gems_per_color_for(2), rules.gems_per_color_for(3), rules.gems_per_color_for(4),
 			rules.gold_count, rules.win_points, rules.max_tokens, rules.max_reserved,
-			rules.board_slots_per_level])
+			rules.board_slots_per_level, rules.max_turns_safety])
 	print("")
 	print("发展卡：%d 张" % DataRegistry.all_cards().size())
 	for level: int in [1, 2, 3]:
@@ -53,6 +53,13 @@ func _print_stats() -> void:
 	print("贵族：%d 位" % DataRegistry.all_nobles().size())
 	for noble: NobleData in DataRegistry.all_nobles():
 		print("  %s" % noble.describe())
+	print("")
+	var profiles: Array[AIProfile] = DataRegistry.ai_profiles()
+	print("AI 配置：%d 档" % profiles.size())
+	for profile: AIProfile in profiles:
+		print("  %s（%s）：策略 %s，思考延迟 %dms，搜索 top_k=%d opponent_top_m=%d max_nodes=%d timeout=%dms"
+				% [profile.id, profile.display_name, profile.strategy, profile.thinking_delay_ms,
+				profile.top_k, profile.opponent_top_m, profile.max_nodes, profile.timeout_ms])
 
 func _write_card_list() -> bool:
 	var lines: PackedStringArray = []

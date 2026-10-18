@@ -12,8 +12,11 @@ signal action_rejected(message: String)
 
 const ORIGIN_NEW: String = "replay"
 const ORIGIN_SNAPSHOT: String = "snapshot"
-## 座位类型。阶段 3 只有人类；阶段 4 / 5 / 6 在这里扩展。
+## 座位类型。阶段 4 增加三档电脑；阶段 5 / 6 再增加大模型与远程。
 const SEAT_TYPE_HUMAN: String = "human"
+const SEAT_TYPE_BOT_EASY: String = "bot_easy"
+const SEAT_TYPE_BOT_NORMAL: String = "bot_normal"
+const SEAT_TYPE_BOT_HARD: String = "bot_hard"
 ## 同步控制器连续提交非法动作时，最多重试这么多次就停下（防止死循环）。
 const MAX_REJECT_STREAK: int = 8
 
@@ -37,9 +40,14 @@ func start_new_game(player_count: int, seed: int, seat_types: Array[String]) -> 
 	if seat_types.size() != player_count:
 		_fail_start("座位类型数量 %d 与人数 %d 不一致" % [seat_types.size(), player_count])
 		return false
+	# 先整体校验，避免创建到一半失败留下半套控制器。
+	for seat: int in seat_types.size():
+		if not _is_supported_seat_type(seat_types[seat]):
+			_fail_start("座位 %d 的类型 \"%s\" 在本阶段不可用" % [seat, seat_types[seat]])
+			return false
 	var controllers: Array[PlayerController] = []
 	for seat: int in player_count:
-		var controller: PlayerController = _create_controller(seat, seat_types[seat])
+		var controller: PlayerController = _create_controller(seat, seat_types[seat], seed)
 		if controller == null:
 			return false
 		controllers.append(controller)
@@ -158,6 +166,16 @@ func current_view() -> Dictionary:
 func is_running() -> bool:
 	return _state != null
 
+## 当前行动座位是否由人类控制。界面用它决定动作按钮能否点击；
+## 对局未开始 / 已结束 / 座位越界时一律返回 false。
+func is_current_human() -> bool:
+	if _state == null or _state.is_finished():
+		return false
+	var seat: int = _state.current_seat
+	if seat < 0 or seat >= _controllers.size():
+		return false
+	return _controllers[seat] is HumanController
+
 ## 这局是否来自"种子 + 动作序列"（新开局或重放存档），可以再存成重放文件。
 func can_save_replay() -> bool:
 	return _state != null and _origin == ORIGIN_NEW
@@ -275,14 +293,40 @@ func _emit_finished() -> void:
 	winners.assign(_state.winners)
 	game_finished.emit(winners, scores)
 
-func _create_controller(seat: int, seat_type: String) -> PlayerController:
+func _create_controller(seat: int, seat_type: String, seed: int) -> PlayerController:
 	match seat_type:
 		SEAT_TYPE_HUMAN:
 			return HumanController.new()
-	push_error("GameController：座位 %d 的类型 \"%s\" 在本阶段不可用（只有 human）"
-			% [seat, seat_type])
-	action_rejected.emit("座位 %d 的类型 %s 尚未支持" % [seat, seat_type])
-	return null
+	var profile_id: String = _bot_profile_id(seat_type)
+	if profile_id.is_empty():
+		push_error("GameController：座位 %d 的类型 \"%s\" 在本阶段不可用" % [seat, seat_type])
+		action_rejected.emit("座位 %d 的类型 %s 尚未支持" % [seat, seat_type])
+		return null
+	var profile: AIProfile = DataRegistry.ai_profile(profile_id)
+	if profile == null:
+		push_error("GameController：找不到 AI 配置 \"%s\"（data/ai 校验失败？）" % profile_id)
+		action_rejected.emit("座位 %d 的 AI 配置 %s 不可用" % [seat, profile_id])
+		return null
+	var bot := BotController.new()
+	bot.configure(profile, DataRegistry.card_catalog(), DataRegistry.rules(),
+			BotController.derive_seed(seed, seat, profile.seed_salt))
+	return bot
+
+func _is_supported_seat_type(seat_type: String) -> bool:
+	if seat_type == SEAT_TYPE_HUMAN:
+		return true
+	var profile_id: String = _bot_profile_id(seat_type)
+	return not profile_id.is_empty() and DataRegistry.ai_profile(profile_id) != null
+
+func _bot_profile_id(seat_type: String) -> String:
+	match seat_type:
+		SEAT_TYPE_BOT_EASY:
+			return "easy"
+		SEAT_TYPE_BOT_NORMAL:
+			return "normal"
+		SEAT_TYPE_BOT_HARD:
+			return "hard"
+	return ""
 
 func _add_controller(seat: int, controller: PlayerController) -> void:
 	controller.seat = seat
@@ -300,6 +344,7 @@ func _reset_controllers() -> void:
 	for controller: PlayerController in _controllers:
 		if not is_instance_valid(controller):
 			continue
+		controller.cancel_pending()
 		if controller.get_parent() == self:
 			remove_child(controller)
 		controller.queue_free()
