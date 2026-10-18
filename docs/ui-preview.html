@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI-dict · 全部界面（grok-style）</title>
+<!--
+  界面样张，不是产品代码：直接把文件拖进浏览器看。
+  风格完全照 docs/mockup/grok-style.html（参考 B站 BV1tfHx65EWD），这里把它铺到 AI-dict 的全部界面上。
+-->
+<style>
+  :root {
+    --bg: #f0efec;
+    --bg-soft: #e7e6e2;
+    --card: #ffffff;
+    --card-soft: #fbfaf8;
+    --ink: #111111;
+    --ink-2: #6c6a66;
+    --ink-3: #a3a09a;
+    --line: #e9e7e3;
+    --orange: #ff6a2b;
+    --mint: #2fd3a8;
+    --purple: #7b6cf6;
+    --danger: #ff4d4d;
+    --r-card: 22px;
+    --r-inner: 14px;
+    --r-pill: 999px;
+    --shadow-card: 0 8px 24px rgb(20 18 15 / 0.06);
+    --shadow-pop: 0 24px 60px rgb(20 18 15 / 0.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 64px 40px 96px;
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', sans-serif;
+    -webkit-font-smoothing: antialiased; position: relative; overflow-x: hidden;
+  }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+  p { margin: 0; }
+
+  /* 背景装饰 */
+  .deco { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .deco span { position: absolute; border-radius: 50%; background: #fff; opacity: .55; }
+  .deco .ring { background: none; border: 2px solid #dedcd7; opacity: .9; }
+  .wrap { position: relative; z-index: 1; max-width: 1360px; margin: 0 auto; }
+
+  /* 页头 */
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff; border-radius: var(--r-pill); padding: 7px 16px; font-size: 13px; font-weight: 600; }
+  .eyebrow i { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); display: inline-block; }
+  h1 { font-size: 54px; line-height: 1.05; font-weight: 800; letter-spacing: -.03em; margin: 22px 0 10px; }
+  h1 em { font-style: normal; background: var(--ink); color: #fff; border-radius: 18px; padding: 0 18px; display: inline-block; }
+  .lede { font-size: 17px; color: var(--ink-2); max-width: 680px; line-height: 1.6; }
+  .head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 30px; flex-wrap: wrap; }
+  .mascots { display: flex; align-items: flex-end; gap: 18px; }
+
+  section { margin-top: 64px; }
+  .h2 { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 6px; }
+  .h2 b { width: 10px; height: 10px; background: var(--orange); display: inline-block; transform: rotate(45deg); }
+  .h2-sub { font-size: 14px; color: var(--ink-2); margin: 0 0 22px 20px; }
+
+  .screens { display: flex; flex-wrap: wrap; gap: 46px 40px; align-items: flex-start; }
+  figure { margin: 0; }
+  figcaption { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }
+  .cap { background: var(--ink); color: #fff; border-radius: var(--r-pill); padding: 8px 20px; font-size: 13px; font-weight: 700; }
+  .cap u { text-decoration: none; color: var(--orange); }
+  .cap-note { font-size: 12px; color: var(--ink-2); max-width: 400px; text-align: center; line-height: 1.6; }
+
+  /* 窗口外壳 */
+  .popup { width: 420px; height: 560px; background: var(--card); border-radius: var(--r-card); border: 1px solid var(--line); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; overflow: hidden; }
+  .bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--ink-3); flex-shrink: 0; }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .bar-actions { display: flex; gap: 14px; }
+  .bar-actions button { color: var(--ink-3); font-weight: 600; }
+  .bar-actions button:hover { color: var(--ink); }
+  .bar-actions button.on { color: var(--orange); }
+  .body { flex: 1; min-height: 0; padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; margin-right: -8px; padding-right: 8px; }
+  .scroll::-webkit-scrollbar { width: 5px; }
+  .scroll::-webkit-scrollbar-thumb { background: var(--bg-soft); border-radius: 3px; }
+
+  /* 零件 */
+  .btn { border-radius: var(--r-pill); padding: 11px 22px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .btn-sm { padding: 7px 16px; font-size: 13px; }
+  .btn-dark { background: var(--ink); color: #fff; }
+  .btn-accent { background: var(--orange); color: #fff; }
+  .btn-ghost { background: #fff; color: var(--ink); border: 2px solid var(--ink); }
+  .btn-quiet { background: var(--bg-soft); color: var(--ink); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  .tag { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--r-pill); padding: 5px 12px; font-size: 12px; font-weight: 700; background: var(--bg-soft); color: var(--ink); white-space: nowrap; }
+  .tag.mint { background: #d8fbef; color: #0d7a5f; }
+  .tag.orange { background: #ffe7db; color: #b23c05; }
+  .tag.purple { background: #e9e5ff; color: #4b39c4; }
+  .tag.dark { background: var(--ink); color: #fff; }
+
+  .label { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px 2px; }
+  .label i { width: 8px; height: 8px; background: var(--mint); display: inline-block; transform: rotate(45deg); }
+  .label.muted { color: #b9b5ae; }
+  .label.muted i { background: #cfcbc4; }
+  .label .tools { margin-left: auto; letter-spacing: 0; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-inner); padding: 14px 16px; }
+  .card.soft { background: var(--card-soft); }
+  .card.quiet { border-color: #f0eeea; }
+  .card.feature { border: 2.5px solid var(--ink); border-radius: 18px; box-shadow: 0 6px 0 rgb(17 17 17 / .08); }
+  .card.dark { background: var(--ink); border-color: var(--ink); border-radius: 18px; color: #fff; box-shadow: 0 6px 0 rgb(17 17 17 / .08); }
+  .card.dark b { color: #fff; }
+  .card.dark .tr { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgb(255 255 255 / .16); }
+  .card.dark .tr span { color: var(--ink-3); font-weight: 700; margin-right: 4px; }
+  .t-body { font-size: 15px; line-height: 1.75; }
+  .t-quiet { font-size: 14px; line-height: 1.75; color: var(--ink-2); }
+  .t-cap { font-size: 12px; color: var(--ink-3); line-height: 1.6; }
+  .t-head { font-size: 15px; font-weight: 700; }
+  .bullets { display: flex; flex-direction: column; gap: 6px; }
+  .bullets p { display: flex; gap: 9px; }
+  .bullets p::before { content: ''; width: 6px; height: 6px; background: var(--ink); flex-shrink: 0; margin-top: .72em; }
+  b.k { color: var(--ink); font-weight: 700; }
+
+  .regen { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--bg-soft); border-radius: var(--r-pill); padding: 4px 10px; }
+  .regen svg { width: 12px; height: 12px; }
+  .regen.spin svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .caret { display: inline-block; width: 8px; height: 1em; background: var(--orange); border-radius: 2px; vertical-align: -2px; margin-left: 3px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .skel { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--bg-soft), #f4f3f0, var(--bg-soft)); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  /* 词头 */
+  .word-head { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .word-head h2 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.03em; display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+  .word-head .from { color: var(--ink-3); font-weight: 400; }
+  .word-head .arrow { font-size: 18px; color: var(--ink-3); }
+  .phonetic { background: var(--bg-soft); border-radius: var(--r-pill); padding: 5px 12px; font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--ink-2); display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .star { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--ink); background: var(--orange); display: grid; place-items: center; flex: none; color: #fff; }
+  .star.off { background: #fff; color: var(--ink); }
+  .star.disabled { background: #fff; border-color: var(--line); color: var(--ink-3); cursor: default; }
+  .star svg { width: 17px; height: 17px; }
+  .back { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--bg-soft); border-radius: var(--r-pill); padding: 6px 12px 6px 8px; flex-shrink: 0; }
+  .back svg { width: 14px; height: 14px; }
+
+  .segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--bg-soft); border-radius: var(--r-inner); padding: 4px; flex-shrink: 0; }
+  .segment button { text-align: center; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--ink-2); border-radius: 10px; }
+  .segment button.on { background: var(--ink); color: #fff; }
+
+  .sense { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .sense:first-child { padding-top: 0; }
+  .sense:last-child { border-bottom: 0; padding-bottom: 0; }
+  .pos { color: var(--orange); font-style: italic; font-weight: 700; margin-right: 6px; }
+  .m { font-size: 15px; font-weight: 600; }
+  .def { font-size: 13px; color: var(--ink-2); margin: 3px 0 0; }
+  .ex { margin: 8px 0 0; padding-left: 12px; border-left: 2px solid var(--bg-soft); font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+  .ex b { color: var(--ink); font-weight: 600; }
+  .more { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); padding-top: 12px; }
+
+  .forms { display: flex; flex-wrap: wrap; gap: 8px; }
+  .form { min-width: 78px; display: flex; flex-direction: column; gap: 1px; padding: 8px 14px; border-radius: var(--r-inner); border: 1px solid var(--line); background: #fff; }
+  .form small { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: .04em; }
+  .form span { font-weight: 700; }
+  .form.on { background: var(--orange); border: 2px solid var(--ink); color: #fff; }
+  .form.on small { color: #fff; opacity: .85; }
+  .diff { margin-top: 8px; background: var(--card-soft); border-radius: 10px; padding: 8px 12px; font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+  .diff b { display: block; font-size: 11px; color: var(--ink-3); letter-spacing: .06em; }
+
+  /* 原句 */
+  .sentence { font-size: 17px; line-height: 1.85; font-weight: 500; }
+  .sentence w { cursor: pointer; border-bottom: 2px dotted #d7d4ce; padding-bottom: 1px; }
+  .sentence w:hover { border-bottom-color: var(--ink-3); }
+  .sentence w.on { background: #d8fbef; border-bottom-color: var(--mint); border-radius: 4px; padding: 1px 4px; }
+  .sentence.plain { font-weight: 500; }
+
+  /* 输入区 */
+  .input-row { display: flex; gap: 8px; align-items: flex-start; flex-shrink: 0; }
+  .field { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-inner); padding: 11px 14px; font-size: 14px; color: var(--ink); background: var(--card-soft); font-family: inherit; outline: none; resize: none; }
+  .field::placeholder { color: var(--ink-3); }
+  .field.bubble { border-radius: 16px 16px 16px 4px; }
+  .field:focus { border-color: var(--ink); }
+  .note { font-size: 12px; font-weight: 600; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+  .note i { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); display: inline-block; }
+
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+  .center h3 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+
+  /* 主窗口 */
+  .main-win { width: 940px; background: var(--card); border-radius: var(--r-card); border: 1px solid var(--line); box-shadow: var(--shadow-pop); overflow: hidden; display: flex; flex-direction: column; }
+  .main-win .bar { background: var(--card-soft); }
+  .main-nav { display: flex; gap: 6px; }
+  .main-nav button { font-size: 13px; font-weight: 700; color: var(--ink-2); padding: 5px 14px; border-radius: var(--r-pill); }
+  .main-nav button.on { background: var(--ink); color: #fff; }
+  .cols { display: grid; grid-template-columns: 1fr 400px; min-height: 560px; }
+  .list { padding: 24px 26px; border-right: 1px solid var(--line); }
+  .detail { padding: 24px 26px; background: var(--card-soft); }
+  .list-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .list-head h2, .page-title { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+  .count { font-size: 13px; font-weight: 700; color: var(--ink-2); background: var(--bg-soft); border-radius: var(--r-pill); padding: 5px 12px; }
+  .search { width: 100%; margin: 16px 0 6px; border: 1px solid var(--line); background: var(--card-soft); border-radius: var(--r-pill); padding: 11px 18px; font-size: 14px; font-family: inherit; outline: none; }
+  .search:focus { border-color: var(--ink); }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 12px; border-bottom: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+  .row:hover { background: var(--card-soft); }
+  .row.on { background: var(--card-soft); border-bottom-color: transparent; outline: 2px solid var(--ink); }
+  .row .meta { flex: 1; min-width: 0; }
+  .row b { font-size: 16px; font-weight: 700; }
+  .row .ph { font-size: 12px; color: var(--ink-3); margin-left: 8px; }
+  .row .mn { margin: 3px 0 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .sub { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+  .row .del { font-size: 12px; font-weight: 700; color: var(--ink-3); padding: 5px 10px; border-radius: var(--r-pill); }
+  .row .del:hover { color: var(--danger); background: #ffecec; }
+  .ctx { border-left: 3px solid var(--mint); padding: 2px 0 2px 12px; margin-top: 10px; font-size: 13px; color: var(--ink-2); line-height: 1.65; }
+  .ctx-s { font-size: 13px; color: var(--ink-2); line-height: 1.7; }
+  .ctx-s em { font-style: normal; background: #d8fbef; border-radius: 4px; padding: 0 3px; color: var(--ink); }
+
+  .settings { padding: 28px 34px 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px 30px; align-items: start; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 22px 24px; box-shadow: var(--shadow-card); }
+  .panel.feature { border: 2.5px solid var(--ink); box-shadow: 0 6px 0 rgb(17 17 17 / .08); }
+  .panel h3 { margin: 0 0 16px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
+  .fl { font-size: 12px; font-weight: 700; color: var(--ink-3); letter-spacing: .04em; margin: 0 0 6px 4px; }
+  .fgroup + .fgroup { margin-top: 14px; }
+  .pill-field { width: 100%; border: 1px solid var(--line); background: var(--card-soft); border-radius: var(--r-pill); padding: 11px 18px; font-size: 14px; font-family: inherit; outline: none; }
+  .pill-field:focus { border-color: var(--ink); }
+  .kbd-field { display: flex; gap: 6px; align-items: center; border: 1px solid var(--line); background: var(--card-soft); border-radius: var(--r-pill); padding: 7px 8px; }
+  .kbd { background: #fff; border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 9px; padding: 3px 10px; font-size: 13px; font-weight: 700; }
+  .pref { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .pref:last-child { border-bottom: 0; padding-bottom: 0; }
+  .pref:first-of-type { padding-top: 0; }
+  .switch { width: 46px; height: 28px; border-radius: var(--r-pill); background: var(--bg-soft); position: relative; flex: none; border: 2px solid var(--ink); }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); transition: .2s; }
+  .switch.on { background: var(--orange); }
+  .switch.on::after { left: 20px; background: #fff; }
+  .status-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #0d7a5f; }
+  .banner { margin: 16px 26px 0; display: flex; gap: 14px; align-items: center; border: 2.5px solid var(--ink); border-radius: 18px; padding: 14px 18px; background: #fff3ee; box-shadow: 0 6px 0 rgb(17 17 17 / .08); }
+  .banner p { font-size: 14px; font-weight: 600; }
+  .banner .t-cap { font-weight: 500; color: var(--ink-2); }
+
+  .numbered { display: grid; grid-template-columns: 1fr; }
+  .numbered div { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 600; }
+  .numbered div:last-child { border-bottom: 0; }
+  .numbered b { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .numbered i { margin-left: auto; width: 7px; height: 7px; background: var(--ink); display: inline-block; }
+
+  .foot { margin-top: 64px; font-size: 13px; color: var(--ink-3); line-height: 1.8; }
+
+  /* ---------- 紧凑字阶：窗口内整体缩小约 15%，一屏多放内容 ---------- */
+  .bar { padding: 8px 12px; font-size: 11px; }
+  .body { padding: 12px; gap: 10px; }
+  .scroll { gap: 10px; }
+  .btn { padding: 8px 18px; font-size: 13px; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .tag { padding: 3px 9px; font-size: 11px; }
+  .label { font-size: 11px; margin: 0 0 6px 2px; }
+  .label i { width: 7px; height: 7px; }
+  .card { padding: 10px 12px; }
+  .card.feature, .card.dark { border-radius: 16px; }
+  .card.dark .tr { margin-top: 8px; padding-top: 8px; }
+  .t-body { font-size: 13px; line-height: 1.65; }
+  .t-quiet { font-size: 12.5px; line-height: 1.65; }
+  .t-cap { font-size: 11px; line-height: 1.55; }
+  .t-head { font-size: 13px; }
+  .regen { font-size: 11px; padding: 3px 8px; }
+  .regen svg { width: 11px; height: 11px; }
+  .word-head { gap: 8px; }
+  .word-head h2 { font-size: 22px; gap: 7px; }
+  .word-head .arrow { font-size: 14px; }
+  .phonetic { font-size: 12px; padding: 3px 9px; gap: 5px; }
+  .star { width: 30px; height: 30px; }
+  .star svg { width: 14px; height: 14px; }
+  .segment { padding: 3px; gap: 3px; border-radius: 12px; }
+  .segment button { font-size: 12.5px; padding: 5px 0; border-radius: 9px; }
+  .sense { padding: 8px 0; }
+  .m { font-size: 13px; }
+  .pos { margin-right: 4px; font-size: 12.5px; }
+  .def { font-size: 12px; margin-top: 2px; }
+  .ex { font-size: 12px; margin-top: 5px; padding-left: 10px; line-height: 1.55; }
+  .more { font-size: 12px; padding-top: 8px; }
+  .forms { gap: 6px; }
+  .form { min-width: 66px; padding: 5px 10px; border-radius: 12px; }
+  .form small { font-size: 10px; }
+  .form span { font-size: 13px; }
+  .diff { font-size: 12px; padding: 6px 10px; margin-top: 6px; }
+  .diff b { font-size: 10px; }
+  .sentence { font-size: 14.5px; line-height: 1.75; }
+  .field { font-size: 13px; padding: 9px 12px; }
+  .note { font-size: 11px; }
+  .center { gap: 10px; }
+  .center h3 { font-size: 18px; }
+  .main-nav button { font-size: 12px; padding: 4px 12px; }
+  .cols { min-height: 480px; }
+  .list, .detail { padding: 18px 20px; }
+  .list-head h2, .page-title { font-size: 22px; }
+  .count { font-size: 11px; padding: 3px 10px; }
+  .search { font-size: 13px; padding: 8px 14px; margin: 12px 0 4px; }
+  .row { padding: 9px 10px; gap: 10px; }
+  .row b { font-size: 14px; }
+  .row .ph { font-size: 11px; }
+  .row .mn { font-size: 12px; margin-top: 2px; }
+  .row .sub { font-size: 11px; margin-top: 2px; }
+  .row .del { font-size: 11px; padding: 4px 8px; }
+  .ctx { font-size: 12px; margin-top: 8px; padding-left: 10px; }
+  .ctx-s { font-size: 12px; }
+  .settings { padding: 20px 24px 26px; gap: 20px 22px; }
+  .panel { padding: 16px 18px; }
+  .panel h3 { font-size: 16px; margin-bottom: 12px; }
+  .fl { font-size: 10.5px; margin-bottom: 4px; }
+  .fgroup + .fgroup { margin-top: 10px; }
+  .pill-field { font-size: 13px; padding: 8px 14px; }
+  .kbd-field { padding: 5px 6px; }
+  .kbd { font-size: 12px; padding: 2px 8px; }
+  .pref { padding: 10px 0; }
+  .switch { width: 40px; height: 24px; }
+  .switch::after { width: 16px; height: 16px; }
+  .switch.on::after { left: 18px; }
+  .status-ok { font-size: 12px; }
+  .banner { margin: 12px 20px 0; padding: 10px 14px; gap: 10px; }
+  .banner p { font-size: 13px; }
+  .numbered div { font-size: 12.5px; padding: 7px 0; gap: 10px; }
+  .numbered b { font-size: 11px; }
+  .foot b { color: var(--ink-2); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-speaker" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.4-5.8-3-5.8 3 1.1-6.4L2.6 9.4l6.5-.9z"/></symbol>
+  <symbol id="i-star-o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.4-5.8-3-5.8 3 1.1-6.4L2.6 9.4l6.5-.9z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="m-black" viewBox="0 0 76 76"><circle cx="38" cy="38" r="38" fill="#111"/><ellipse cx="28" cy="34" rx="5.5" ry="9" fill="#fff"/><ellipse cx="48" cy="34" rx="5.5" ry="9" fill="#fff"/></symbol>
+  <symbol id="m-mint" viewBox="0 0 58 58"><circle cx="29" cy="29" r="29" fill="#2fd3a8"/><ellipse cx="21" cy="26" rx="4" ry="7" fill="#fff"/><ellipse cx="37" cy="26" rx="4" ry="7" fill="#fff"/></symbol>
+  <symbol id="m-purple" viewBox="0 0 62 58"><path d="M31 4 58 54H4Z" fill="#7b6cf6"/><ellipse cx="24" cy="40" rx="4" ry="6.5" fill="#fff"/><ellipse cx="38" cy="40" rx="4" ry="6.5" fill="#fff"/></symbol>
+  <symbol id="m-orange" viewBox="0 0 44 44"><circle cx="22" cy="22" r="22" fill="#ff6a2b"/><ellipse cx="17" cy="20" rx="3" ry="5" fill="#fff"/><ellipse cx="28" cy="20" rx="3" ry="5" fill="#fff"/></symbol>
+  <symbol id="m-sleepy" viewBox="0 0 76 76"><circle cx="38" cy="38" r="38" fill="#111"/><path d="M22 36q6 5 12 0M42 36q6 5 12 0" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="deco">
+  <span style="width:420px;height:420px;left:-140px;top:120px"></span>
+  <span style="width:260px;height:260px;right:-80px;top:480px"></span>
+  <span class="ring" style="width:180px;height:180px;right:220px;top:40px"></span>
+  <span class="ring" style="width:90px;height:90px;left:120px;bottom:60px"></span>
+</div>
+
+<div class="wrap">
+  <header class="head-row">
+    <div>
+      <span class="eyebrow"><i></i>界面样张 · 风格照 grok-style.html</span>
+      <h1>AI-dict 的<br /><em>全部界面</em></h1>
+      <p class="lede">两个窗口、十三屏：划词弹窗（句子模式、单词模式、输入翻译、各种引导）和主窗口（生词本、设置）。浅灰底 + 白色大圆角卡片，重点卡黑色粗描边，橙色只给选中和主按钮。</p>
+    </div>
+    <div class="mascots">
+      <svg width="76" height="76"><use href="#m-black"/></svg>
+      <svg width="58" height="58"><use href="#m-mint"/></svg>
+      <svg width="62" height="58"><use href="#m-purple"/></svg>
+      <svg width="44" height="44"><use href="#m-orange"/></svg>
+    </div>
+  </header>
+
+  <!-- ================= 01 句子模式 ================= -->
+  <section>
+    <p class="h2"><b></b>划句翻译 · 句子模式</p>
+    <p class="h2-sub">原句钉在顶部，每个词都能点；点词后译文区换成词卡</p>
+    <div class="screens">
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="card soft" data-words>
+              <p class="sentence">The <w>alarm</w> <w>went</w> <w>off</w> <w>just</w> <w>as</w> <w>I</w> <w>was</w> <w>about</w> <w>to</w> <w>leave</w>.</p>
+            </div>
+            <div class="scroll">
+              <div>
+                <p class="label"><i></i>中文翻译<span class="tools"><span class="regen spin"><svg><use href="#i-refresh"/></svg>生成中</span></span></p>
+                <div class="card dark"><p class="t-body">我正要出门的时候，闹钟<b>响了</b><span class="caret"></span></p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">01 句子模式 · <u>译文</u></span><span class="cap-note">中文翻译是黑底白字卡，流式输出，橙色光标在跑</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button class="on" data-pin>已固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="card soft" data-words>
+              <p class="sentence">The <w>alarm</w> <w class="on">went</w> <w>off</w> <w>just</w> <w>as</w> <w>I</w> <w>was</w> <w>about</w> <w>to</w> <w>leave</w>.</p>
+            </div>
+            <div class="scroll">
+              <div>
+                <p class="label"><i></i>语境释义</p>
+                <div class="card dark">
+                  <p class="t-body">went 在这里和 off 组成短语动词 <b>go off</b>，指闹钟<b>「响了」</b>。主语多为闹钟、警报、炸弹。</p>
+                  <p class="t-body tr"><span>译文：</span>我正要出门的时候，闹钟响了。</p>
+                </div>
+              </div>
+              <div class="segment"><button class="on">AI 词典</button><button>单词簇</button><button>常见搭配</button></div>
+              <div class="word-head">
+                <h2 style="font-size:20px"><span class="from">went</span><span class="arrow">→</span>go
+                  <span class="phonetic">/ɡoʊ/<svg width="13" height="13"><use href="#i-speaker"/></svg></span>
+                </h2>
+                <button class="star" data-star><svg><use href="#i-star"/></svg></button>
+              </div>
+              <div>
+              <p class="label"><i></i>AI 词典<span class="tools"><span class="regen"><svg><use href="#i-refresh"/></svg>重新生成</span></span></p>
+              <div class="card">
+                <div class="sense"><p><span class="pos">v.</span><span class="m">去，走；离开</span></p><p class="def">to move or travel from one place to another</p><p class="ex">She <b>went</b> to Paris last summer. 她去年夏天去了巴黎。</p></div>
+                <div class="sense"><p><span class="pos">v.</span><span class="m">（钟、警报等）响</span></p><p class="def">to make a sound as a signal</p><p class="ex">The fire alarm <b>went off</b> at midnight. 半夜火警响了。</p></div>
+                <p class="more">展开全部 7 条释义 ⌄</p>
+              </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">02 句子模式 · <u>点词后</u></span><span class="cap-note">当前词青绿底；语境释义黑底白字，下面带整句译文；词头在 Tab 下面，橙色星 = 这句话里已收藏</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="card soft"><p class="sentence plain">这个方案看起来不错，但落地成本太高了。</p></div>
+            <div style="display:flex;gap:8px"><span class="tag dark">中译英</span><span class="tag">原句不可点</span></div>
+            <div class="scroll">
+              <div>
+                <p class="label"><i></i>英文翻译<span class="tools"><span class="regen"><svg><use href="#i-refresh"/></svg>重新生成</span></span></p>
+                <div class="card dark"><p class="t-body">This plan looks good on paper, but it would be too costly to <b>put into practice</b>.</p></div>
+              </div>
+              <div>
+                <p class="label muted"><i></i>句意解释</p>
+                <div class="card quiet bullets">
+                  <p class="t-quiet"><span>「看起来不错」译成 <b class="k">looks good on paper</b>，暗含「实际未必」，和后半句的转折呼应。</span></p>
+                  <p class="t-quiet"><span>「落地」不要直译成 land，用 <b class="k">put into practice</b> 或 implement。</span></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">03 句子模式 · <u>中译英</u></span><span class="cap-note">英文翻译是黑底白字卡；句意解释讲选词</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 02 单词模式 ================= -->
+  <section>
+    <p class="h2"><b></b>划词查词 · 单词模式</p>
+    <p class="h2-sub">没有原句和语境释义；第一张的三个 Tab 可以点</p>
+    <div class="screens">
+
+      <figure>
+        <div class="popup" data-tabs>
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="segment"><button class="on" data-tab="dict">AI 词典</button><button data-tab="cluster">单词簇</button><button data-tab="col">常见搭配</button></div>
+            <div class="word-head">
+              <h2>give up<span class="phonetic">/ɡɪv ʌp/<svg width="13" height="13"><use href="#i-speaker"/></svg></span></h2>
+              <button class="star off" data-star><svg><use href="#i-star-o"/></svg></button>
+            </div>
+            <div class="scroll">
+              <div data-pane="dict">
+                <p class="label"><i></i>AI 词典<span class="tools"><span class="regen"><svg><use href="#i-refresh"/></svg>重新生成</span></span></p>
+                <div class="card">
+                  <div class="sense"><p><span class="pos">phr.</span><span class="m">放弃（努力、尝试）</span></p><p class="def">to stop trying to do something</p><p class="ex">Don't <b>give up</b> — you're almost there. 别放弃，你就快成功了。</p></div>
+                  <div class="sense"><p><span class="pos">phr.</span><span class="m">戒掉（习惯）</span></p><p class="def">to stop doing something you do regularly</p><p class="ex">He <b>gave up</b> smoking last year. 他去年戒了烟。</p></div>
+                  <div class="sense"><p><span class="pos">phr.</span><span class="m">让出；交出</span></p><p class="def">to let someone else have something</p><p class="ex">She <b>gave up</b> her seat to an old man. 她把座位让给了一位老人。</p></div>
+                  <div class="sense"><p><span class="pos">phr.</span><span class="m">对……不再抱希望</span></p><p class="def">to stop hoping that something will happen</p><p class="ex">We'd <b>given up on</b> you. 我们还以为你不来了。</p></div>
+                  <p class="more">展开全部 6 条释义 ⌄</p>
+                </div>
+              </div>
+              <div data-pane="cluster" hidden>
+                <p class="label"><i></i>变形词<span class="tools"><span class="regen"><svg><use href="#i-refresh"/></svg>重新生成</span></span></p>
+                <div class="forms">
+                  <div class="form on"><small>原形</small><span>give up</span></div>
+                  <div class="form"><small>过去式</small><span>gave up</span></div>
+                  <div class="form"><small>过去分词</small><span>given up</span></div>
+                  <div class="form"><small>现在分词</small><span>giving up</span></div>
+                </div>
+                <p class="label" style="margin-top:18px"><i></i>同根词 / 派生词</p>
+                <div class="card">
+                  <div class="sense"><p><span class="m">giver</span><span class="pos" style="margin-left:8px">n.</span></p><p class="def" style="color:var(--ink)">给予者</p><p class="ex">He's a generous <b>giver</b> to charity. 他向慈善机构慷慨捐赠。</p></div>
+                </div>
+                <p class="label" style="margin-top:18px"><i></i>易混词</p>
+                <div class="card">
+                  <div class="sense"><p><span class="m">give in</span></p><p class="def" style="color:var(--ink)">屈服；让步</p>
+                    <div class="diff"><b>区别</b>give in 是在压力下妥协；give up 是主动停止努力。</div>
+                    <p class="ex">They refused to <b>give in</b> to the demands. 他们拒绝让步。</p></div>
+                </div>
+              </div>
+              <div data-pane="col" hidden>
+                <p class="label"><i></i>常见搭配<span class="tools"><span class="regen"><svg><use href="#i-refresh"/></svg>重新生成</span></span></p>
+                <div class="card">
+                  <div class="sense"><p><span class="m">give up on sb / sth</span></p><p class="def" style="color:var(--ink)">对……失去信心</p><p class="ex">Never <b>give up on</b> your dreams. 永远不要放弃你的梦想。</p></div>
+                  <div class="sense"><p><span class="m">give up doing sth</span></p><p class="def" style="color:var(--ink)">戒掉做某事</p><p class="ex">I <b>gave up drinking</b> coffee. 我戒了咖啡。</p></div>
+                  <div class="sense"><p><span class="m">give oneself up</span></p><p class="def" style="color:var(--ink)">自首；投降</p><p class="ex">The suspect <b>gave himself up</b>. 嫌疑人自首了。</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">04 单词模式 · <u>三个 Tab</u></span><span class="cap-note">分段控件选中项黑底反白；白底黑框星 = 还没收藏</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="segment"><button class="on">AI 词典</button><button>单词簇</button><button>常见搭配</button></div>
+            <div class="word-head">
+              <h2>serendipity</h2>
+              <button class="star disabled"><svg><use href="#i-star-o"/></svg></button>
+            </div>
+            <div>
+              <p class="label"><i></i>AI 词典<span class="tools"><span class="regen spin"><svg><use href="#i-refresh"/></svg>生成中</span></span></p>
+              <div class="card" style="display:flex;flex-direction:column;gap:22px">
+                <div style="display:flex;flex-direction:column;gap:8px"><div class="skel" style="width:38%"></div><div class="skel"></div><div class="skel" style="width:78%"></div></div>
+                <div style="display:flex;flex-direction:column;gap:8px"><div class="skel" style="width:32%"></div><div class="skel"></div><div class="skel" style="width:66%"></div></div>
+                <div style="display:flex;flex-direction:column;gap:8px"><div class="skel" style="width:42%"></div><div class="skel" style="width:88%"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">05 单词模式 · <u>加载中</u></span><span class="cap-note">骨架屏；词典没回来时词头只写查的词，星标禁用</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="segment"><button class="on">AI 词典</button><button>单词簇</button><button>常见搭配</button></div>
+            <div class="word-head">
+              <h2>ubiquitous</h2>
+              <button class="star disabled"><svg><use href="#i-star-o"/></svg></button>
+            </div>
+            <div class="center">
+              <svg width="64" height="64"><use href="#m-sleepy"/></svg>
+              <h3>AI 请求失败</h3>
+              <p class="t-cap" style="max-width:17rem">请求超时（30 秒没有响应）。检查网络或 Base URL 后再试一次。</p>
+              <button class="btn btn-dark">重试</button>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">06 单词模式 · <u>请求失败</u></span><span class="cap-note">说清原因，给一个重试；小角色只出现在留白里</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 03 输入与引导 ================= -->
+  <section>
+    <p class="h2"><b></b>输入翻译和引导</p>
+    <p class="h2-sub">输入翻译在屏幕正中弹出；取词失败、没权限、没配 AI 各有一屏</p>
+    <div class="screens">
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="input-row">
+              <textarea class="field bubble" rows="5" placeholder="输入或粘贴单词、句子"></textarea>
+            </div>
+            <div class="center">
+              <div class="mascots" style="gap:12px"><svg width="58" height="58"><use href="#m-mint"/></svg><svg width="44" height="44"><use href="#m-orange"/></svg></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+                <span class="tag">回车提交</span><span class="tag">Shift + 回车换行</span><span class="tag">Esc 关闭</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">07 输入翻译 · <u>空状态</u></span><span class="cap-note">只有一个 5 行高的气泡输入框，回车提交</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="input-row">
+              <textarea class="field bubble" rows="5" placeholder="输入或粘贴单词、句子"></textarea>
+            </div>
+            <span class="note"><i></i>没取到选中的文字，直接输入也一样。</span>
+            <div class="center">
+              <div class="mascots" style="gap:12px"><svg width="58" height="58"><use href="#m-mint"/></svg><svg width="44" height="44"><use href="#m-orange"/></svg></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+                <span class="tag">回车提交</span><span class="tag">Shift + 回车换行</span><span class="tag">Esc 关闭</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">08 取词失败 → <u>输入</u></span><span class="cap-note">和输入翻译空状态一样，输入框下面多一行取词失败的提示</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body" style="justify-content:center">
+            <svg width="76" height="76" style="align-self:center"><use href="#m-black"/></svg>
+            <div class="card feature">
+              <span class="tag orange">macOS · 辅助功能</span>
+              <p style="margin-top:10px;font-size:16px;font-weight:800;letter-spacing:-.02em;line-height:1.35">取词要用「辅助功能」权限，现在还没开。</p>
+              <div class="numbered" style="margin-top:10px">
+                <div><b>01</b>点下面的按钮，系统会先弹一次提示<i></i></div>
+                <div><b>02</b>在「隐私与安全性 → 辅助功能」打开 AI-dict<i></i></div>
+                <div><b>03</b>回来再按一次快捷键，不用重启<i></i></div>
+              </div>
+              <p class="t-cap" style="margin-top:6px">开发期从终端启动时，这个权限算在终端头上。</p>
+            </div>
+            <button class="btn btn-accent" style="align-self:center">打开系统设置</button>
+          </div>
+        </div>
+        <figcaption><span class="cap">09 <u>辅助功能权限</u>引导</span><span class="cap-note">仅 macOS；步骤用 01~03 编号清单</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="bar-actions"><button data-pin>固定</button><button>关闭</button></span>
+          </div>
+          <div class="body">
+            <div class="center">
+              <div class="mascots"><svg width="76" height="76"><use href="#m-black"/></svg><svg width="62" height="58"><use href="#m-purple"/></svg></div>
+              <h3>还没有配置 AI 服务</h3>
+              <p class="t-cap" style="max-width:17rem;font-size:12px">查词内容由 AI 生成。填写自己的 API Key 后，就能看到 AI 词典、单词簇和常见搭配。</p>
+              <button class="btn btn-accent">去设置 API Key</button>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">10 <u>未配置 AI</u></span><span class="cap-note">整个弹窗换成引导，按钮直接跳主窗口的设置</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 04 主窗口 ================= -->
+  <section>
+    <p class="h2"><b></b>主窗口 · 生词本和设置</p>
+    <p class="h2-sub">从托盘打开；顶栏右侧胶囊切页</p>
+    <div class="screens">
+
+      <figure>
+        <div class="main-win">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="main-nav"><button class="on">生词本</button><button>设置</button></span>
+          </div>
+          <div class="cols">
+            <div class="list">
+              <div class="list-head"><h2>生词本</h2><span class="count">共 12 个</span></div>
+              <input class="search" type="search" placeholder="搜索单词或释义" />
+              <div data-rows>
+                <div class="row on">
+                  <div class="meta"><b>go</b><span class="ph">/ɡoʊ/</span><p class="mn">去，走；（钟、警报等）响；逐条核对</p><p class="sub">3 条语境 · 刚刚</p></div>
+                  <button class="del">删除</button>
+                </div>
+                <div class="row">
+                  <div class="meta"><b>mitigate</b><span class="ph">/ˈmɪtɪɡeɪt/</span><p class="mn">缓解，减轻（风险、影响）</p><p class="sub">1 条语境 · 昨天</p></div>
+                  <span style="display:flex;gap:6px;align-items:center"><button class="btn btn-danger btn-sm">删除</button><button class="btn btn-quiet btn-sm">取消</button></span>
+                </div>
+                <div class="row">
+                  <div class="meta"><b>line by line</b><p class="mn">逐行地，一行一行地</p><p class="sub">1 条语境 · 10-08</p></div>
+                  <button class="del">删除</button>
+                </div>
+                <div class="row">
+                  <div class="meta"><b>ballpark</b><span class="ph">/ˈbɔːlpɑːrk/</span><p class="mn">大致范围；约莫的</p><p class="sub">2 条语境 · 10-07</p></div>
+                  <button class="del">删除</button>
+                </div>
+                <div class="row">
+                  <div class="meta"><b>nuance</b><span class="ph">/ˈnuːɑːns/</span><p class="mn">细微差别；微妙之处</p><p class="sub">单词模式收藏 · 10-05</p></div>
+                  <button class="del">删除</button>
+                </div>
+              </div>
+            </div>
+            <div class="detail">
+              <div class="word-head" style="gap:8px">
+                <h2 style="font-size:20px">go<span class="phonetic">/ɡoʊ/<svg width="13" height="13"><use href="#i-speaker"/></svg></span></h2>
+              </div>
+              <p class="label" style="margin-top:20px"><i></i>AI 词典</p>
+              <div class="card">
+                <div class="sense"><p><span class="pos">v.</span><span class="m">去，走；离开</span></p><p class="def">to move or travel from one place to another</p></div>
+                <div class="sense"><p><span class="pos">v.</span><span class="m">（钟、警报等）响</span></p><p class="def">to make a sound as a signal</p></div>
+                <div class="sense"><p><span class="pos">v.</span><span class="m">进行，进展</span></p><p class="def">to happen or develop in a particular way</p></div>
+              </div>
+              <p class="label" style="margin-top:20px"><i></i>全部语境 · 3</p>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="card">
+                  <p class="ctx-s">The alarm <em>went</em> off just as I was about to leave.</p>
+                  <p class="ctx">和 off 组成 go off，指闹钟「响了」。</p>
+                  <p class="t-cap" style="margin-top:6px">刚刚</p>
+                </div>
+                <div class="card">
+                  <p class="ctx-s">The team <em>went</em> over the numbers before the launch.</p>
+                  <p class="ctx">这里 go over 是「逐条核对」，不是「走过去」。</p>
+                  <p class="t-cap" style="margin-top:6px">昨天</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">11 主窗口 · <u>生词本 + 详情</u></span><span class="cap-note">选中行黑框；删除要二次确认（第二行）；右边是词典和全部语境</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="main-win">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="main-nav"><button>生词本</button><button class="on">设置</button></span>
+          </div>
+          <div class="settings">
+            <div class="panel feature" style="grid-row:span 2">
+              <h3>AI 服务配置 <span class="tag mint">已连接</span></h3>
+              <div class="fgroup"><p class="fl">API KEY</p><input class="pill-field" type="password" value="sk-xxxxxxxxxxxxxxxx" /></div>
+              <div class="fgroup"><p class="fl">BASE URL</p><input class="pill-field" value="https://api.deepseek.com/v1" /></div>
+              <div class="fgroup"><p class="fl">模型名</p><input class="pill-field" value="deepseek-chat" /></div>
+              <p class="t-cap" style="margin:10px 4px 0">支持兼容 OpenAI 接口格式的服务。API Key 只存在本机的数据库里，不会发到别处。</p>
+              <div class="fgroup" style="margin-top:20px"><p class="fl">思考模式</p>
+                <div class="segment" style="grid-template-columns:repeat(4,1fr)"><button class="on">None</button><button>Low</button><button>High</button><button>Max</button></div>
+              </div>
+              <p class="t-cap" style="margin:8px 4px 0">DeepSeek 的思考强度，None 为关闭思考。开启后更严谨但慢很多；查词、翻译建议选 None。</p>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:22px">
+                <button class="btn btn-ghost">测试连接</button>
+                <button class="btn btn-accent">保存</button>
+                <span class="status-ok" style="margin-left:auto">✓ 连接成功</span>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>快捷键</h3>
+              <div class="fgroup"><p class="fl">划词翻译</p><div class="kbd-field"><span class="kbd">Alt</span><span class="kbd">D</span></div></div>
+              <div class="fgroup"><p class="fl">输入翻译</p><div class="kbd-field"><span class="kbd">Alt</span><span class="kbd">A</span></div></div>
+              <p class="t-cap" style="margin:10px 4px 0">写法如 Alt+D、CmdOrCtrl+Shift+A。保存后立即重新注册，被占用时保持原来的。</p>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:16px">
+                <button class="btn btn-dark btn-sm">保存快捷键</button>
+                <span class="status-ok">已保存，立即生效</span>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>偏好</h3>
+              <div class="pref">
+                <div><p class="t-head">发音口音</p><p class="t-cap">单词朗读和查词音标都按它来</p></div>
+                <div class="segment" style="grid-template-columns:1fr 1fr;width:150px"><button class="on">美音</button><button>英音</button></div>
+              </div>
+              <div class="pref">
+                <div><p class="t-head">开机时自动启动</p><p class="t-cap">开机后驻留托盘，等快捷键呼出</p></div>
+                <button class="switch on" data-switch></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">12 主窗口 · <u>设置</u></span><span class="cap-note">AI 配置是重点卡（黑描边）；快捷键显示成键帽；开关也是黑描边</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="main-win">
+          <div class="bar">
+            <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+            <span class="main-nav"><button class="on">生词本</button><button>设置</button></span>
+          </div>
+          <div class="banner">
+            <svg width="44" height="44" style="flex:none"><use href="#m-orange"/></svg>
+            <div>
+              <p>这几个快捷键被别的程序占用了，没能注册：</p>
+              <p class="t-cap" style="margin-top:4px"><span class="kbd" style="margin-right:6px">Alt</span><span class="kbd" style="margin-right:8px">D</span>划词翻译 —— 去「设置」换一个</p>
+            </div>
+            <button class="btn btn-dark btn-sm" style="margin-left:auto">去设置</button>
+          </div>
+          <div class="cols" style="min-height:400px">
+            <div class="list">
+              <div class="list-head"><h2>生词本</h2><span class="count">共 0 个</span></div>
+              <input class="search" type="search" placeholder="搜索单词或释义" />
+              <div class="center" style="padding:50px 0 20px">
+                <div class="mascots" style="gap:12px"><svg width="76" height="76"><use href="#m-black"/></svg><svg width="58" height="58"><use href="#m-mint"/></svg></div>
+                <h3>还没有生词</h3>
+                <p class="t-cap" style="font-size:12px;max-width:20rem">在词卡上点 <span class="tag orange" style="padding:2px 8px">★ 星标</span>，生词连同所在的句子、语境释义就会收到这里。</p>
+              </div>
+            </div>
+            <div class="detail" style="display:flex;align-items:center;justify-content:center">
+              <p class="t-cap">选一个生词看详情</p>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">13 <u>快捷键冲突</u> + 生词本空状态</span><span class="cap-note">启动时注册失败把主窗口叫出来，顶部黑描边提示条</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <p class="foot">
+    <b>和现在代码的差别：</b>生词本在代码里是「列表 → 点进详情」两页，这里照样张画成了左右两栏；弹窗顶栏多了三个圆点、按钮全是胶囊、输入框是气泡圆角、星标加了黑描边——这些都要改组件，不只是换 <b>src/index.css</b> 的变量。<br />
+    <b>没有画的：</b>深色模式（样张里没有给出深色的样子）。
+  </p>
+</div>
+
+<script>
+  document.querySelectorAll('[data-tabs]').forEach((win) => {
+    const buttons = win.querySelectorAll('[data-tab]');
+    buttons.forEach((btn) => btn.addEventListener('click', () => {
+      buttons.forEach((b) => b.classList.toggle('on', b === btn));
+      win.querySelectorAll('[data-pane]').forEach((pane) => { pane.hidden = pane.dataset.pane !== btn.dataset.tab; });
+    }));
+  });
+  document.querySelectorAll('[data-words]').forEach((box) => box.addEventListener('click', (e) => {
+    const w = e.target.closest('w');
+    if (!w) return;
+    box.querySelectorAll('w').forEach((x) => x.classList.toggle('on', x === w));
+  }));
+  document.querySelectorAll('[data-star]').forEach((s) => s.addEventListener('click', () => {
+    const on = s.classList.toggle('off') === false;
+    s.querySelector('use').setAttribute('href', on ? '#i-star' : '#i-star-o');
+  }));
+  document.querySelectorAll('[data-pin]').forEach((b) => b.addEventListener('click', () => {
+    b.textContent = b.classList.toggle('on') ? '已固定' : '固定';
+  }));
+  document.querySelectorAll('[data-switch]').forEach((s) => s.addEventListener('click', () => s.classList.toggle('on')));
+  document.querySelectorAll('.segment').forEach((seg) => {
+    if (seg.closest('[data-tabs]')) return;
+    seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    }));
+  });
+  document.querySelectorAll('[data-rows] .row').forEach((row, _, rows) => row.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    rows.forEach((r) => r.classList.toggle('on', r === row));
+  }));
+</script>
+</body>
+</html>

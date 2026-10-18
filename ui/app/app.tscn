@@ -1,0 +1,96 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://ui/app/app.gd" id="1_app"]
+[ext_resource type="Theme" path="res://ui/theme/pixel_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://ui/assets/pixel/tile_paper.png" id="3_paper"]
+
+[node name="App" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture_filter = 1
+theme = ExtResource("2_theme")
+script = ExtResource("1_app")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_paper")
+texture_repeat = 2
+stretch_mode = 1
+
+[node name="Placeholder" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -96.0
+offset_right = 300.0
+offset_bottom = 96.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="Title" type="Label" parent="Placeholder"]
+layout_mode = 2
+theme_type_variation = &"UiHero"
+text = "璀璨宝石"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Placeholder"]
+layout_mode = 2
+theme_type_variation = &"UiTitle"
+text = "正式 UI · U0 工程骨架"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="Placeholder"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.7)
+text = "屏幕与零件将在 U1 起接入"
+horizontal_alignment = 1
+
+[node name="ScreenRoot" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ModalLayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="ModalRoot" type="Control" parent="ModalLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ToastLayer" type="CanvasLayer" parent="."]
+layer = 20
+
+[node name="ToastRoot" type="Control" parent="ToastLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2

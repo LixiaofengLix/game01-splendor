@@ -16,6 +16,7 @@
   脚本以 `quit(0/1)` 返回结果，失败时退出码非 0。
 - 无界面脚本一律用 `.tscn` 场景跑（`tests/xxx.tscn`）：`godot -s script.gd` 模式下 autoload 不加载，脚本里访问不到 `DataRegistry`。参数用 `-- 2000` 传给 `OS.get_cmdline_user_args()`。
 - 版本管理：每阶段验收通过后提交一次。
+- 正式 UI 线与逻辑线并行：UI 线约定见 `docs/ui/`，进度见 `docs/ui/UI_PROGRESS.md`；`ui/` 归 UI 线，逻辑层目录不要动。
 
 ## 架构原则（开发计划第 1 节，摘录）
 
@@ -91,4 +92,17 @@
 
 # 重新生成 tests/scenarios/ 的预设局面（改完卡表或规则后）
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/scenarios/build_scenarios.tscn
+
+# 正式 UI：启动空壳 / 无界面启动自检
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/app/app.tscn
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . ui/app/app.tscn --quit-after 10
+# 正式 UI 冒烟测试（主题 / 字体 / 贴图 / 零件 / 入口结构 / 快捷键；改完 ui/ 必跑）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . tests/ui_smoke.tscn
+# 零件全状态陈列（带窗口）
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/gallery.tscn
+# 陈列截图：整页 / 指定窗口与缩放方案（截图必须带窗口，不能 --headless）
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 400 -- --full --out /tmp/splendor_ui/gallery_full.png --width 1280 --wait 8
+/Applications/Godot.app/Contents/MacOS/Godot --path . ui/dev/capture.tscn --quit-after 300 -- --out /tmp/splendor_ui/g.png --width 1440 --height 900 --scale fractional --wait 8
+# 重新生成像素贴图（改点阵定义后；结果写入 ui/assets/pixel/）
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . ui/tools/build_pixel_assets.tscn
 ```

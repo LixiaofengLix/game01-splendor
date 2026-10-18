@@ -1,0 +1,1947 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>璀璨宝石 · 全部界面样张 V4 像素风</title>
+<!-- 像素字体：中文用缝合像素字体 Fusion Pixel 12px（OFL，Godot 版直接打包进项目），数字用 Press Start 2P（OFL） -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vp-tw/cjk-web-fonts-fusion-pixel-font@0.0.1/dist/12px/proportional/zh_hans/Fusion-Pixel-12px-Proportional-Simplified-Chinese.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/press-start-2p/index.css" />
+<!--
+  界面样张，不是产品代码：直接把文件拖进浏览器看。
+  风格照 docs/ui-preview.html（浅灰底 + 白色大圆角卡片，重点卡黑色粗描边，橙色只给选中和主按钮）。
+  游戏窗口按 1280×800 画（project.godot 的默认窗口）；牌桌由页面底部的 JS 按真实卡表数据渲染。
+-->
+<style>
+  :root {
+    --bg: #f0efec; --bg-soft: #e7e6e2; --card: #ffffff; --card-soft: #fbfaf8;
+    --ink: #111111; --ink-2: #6c6a66; --ink-3: #a3a09a; --line: #e9e7e3;
+    --orange: #ff6a2b; --mint: #2fd3a8; --purple: #7b6cf6; --danger: #ff4d4d;
+    --r-card: 22px; --r-inner: 14px; --r-pill: 999px;
+    --shadow-card: 0 8px 24px rgb(20 18 15 / 0.06);
+    --shadow-pop: 0 24px 60px rgb(20 18 15 / 0.14);
+    --hard: 0 6px 0 rgb(17 17 17 / .08);
+    --z: .8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 64px 40px 96px; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', sans-serif;
+    -webkit-font-smoothing: antialiased; position: relative; overflow-x: hidden;
+  }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+  input, select { font: inherit; }
+  p { margin: 0; }
+
+  /* ---------- 页面骨架（照 ui-preview.html） ---------- */
+  .deco { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .deco span { position: absolute; border-radius: 50%; background: #fff; opacity: .55; }
+  .deco .ring { background: none; border: 2px solid #dedcd7; opacity: .9; }
+  .wrap { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff; border-radius: var(--r-pill); padding: 7px 16px; font-size: 13px; font-weight: 600; }
+  .eyebrow i { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); display: inline-block; }
+  h1 { font-size: 54px; line-height: 1.05; font-weight: 800; letter-spacing: -.03em; margin: 22px 0 10px; }
+  h1 em { font-style: normal; background: var(--ink); color: #fff; border-radius: 18px; padding: 0 18px; display: inline-block; }
+  .lede { font-size: 17px; color: var(--ink-2); max-width: 720px; line-height: 1.6; }
+  .head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 30px; flex-wrap: wrap; }
+  .mascots { display: flex; align-items: flex-end; gap: 18px; }
+  .zoom-box { display: flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+  section { margin-top: 64px; }
+  .h2 { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 6px; }
+  .h2 b { width: 10px; height: 10px; background: var(--orange); display: inline-block; transform: rotate(45deg); }
+  .h2-sub { font-size: 14px; color: var(--ink-2); margin: 0 0 22px 20px; }
+  .screens { display: flex; flex-wrap: wrap; gap: 46px 40px; align-items: flex-start; }
+  figure { margin: 0; }
+  figcaption { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }
+  .cap { background: var(--ink); color: #fff; border-radius: var(--r-pill); padding: 8px 20px; font-size: 13px; font-weight: 700; }
+  .cap u { text-decoration: none; color: var(--orange); }
+  .cap-note { font-size: 12px; color: var(--ink-2); max-width: 760px; text-align: center; line-height: 1.6; }
+
+  /* ---------- 通用零件（照 ui-preview.html 紧凑字阶） ---------- */
+  .btn { border-radius: var(--r-pill); padding: 8px 18px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-lg { padding: 13px 26px; font-size: 15px; }
+  .btn-dark { background: var(--ink); color: #fff; }
+  .btn-accent { background: var(--orange); color: #fff; }
+  .btn-ghost { background: #fff; color: var(--ink); border: 2px solid var(--ink); }
+  .btn-quiet { background: var(--bg-soft); color: var(--ink); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .tag { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--r-pill); padding: 3px 9px; font-size: 11px; font-weight: 700; background: var(--bg-soft); color: var(--ink); white-space: nowrap; }
+  .tag.mint { background: #d8fbef; color: #0d7a5f; }
+  .tag.orange { background: #ffe7db; color: #b23c05; }
+  .tag.purple { background: #e9e5ff; color: #4b39c4; }
+  .tag.red { background: #ffe4e1; color: #c22020; }
+  .tag.dark { background: var(--ink); color: #fff; }
+  .label { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 6px 2px; }
+  .label i { width: 7px; height: 7px; background: var(--mint); display: inline-block; transform: rotate(45deg); flex: none; }
+  .label .tools { margin-left: auto; letter-spacing: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-inner); padding: 10px 12px; }
+  .card.soft { background: var(--card-soft); }
+  .card.feature { border: 2.5px solid var(--ink); border-radius: 16px; box-shadow: var(--hard); }
+  .card.dark { background: var(--ink); border-color: var(--ink); border-radius: 16px; color: #fff; }
+  .t-body { font-size: 13px; line-height: 1.65; }
+  .t-quiet { font-size: 12.5px; line-height: 1.65; color: var(--ink-2); }
+  .t-cap { font-size: 11px; color: var(--ink-3); line-height: 1.55; }
+  .t-head { font-size: 13px; font-weight: 700; }
+  .bullets { display: flex; flex-direction: column; gap: 6px; }
+  .bullets p { display: flex; gap: 9px; }
+  .bullets p::before { content: ''; width: 6px; height: 6px; background: var(--ink); flex-shrink: 0; margin-top: .72em; }
+  b.k { color: var(--ink); font-weight: 700; }
+  .segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background: var(--bg-soft); border-radius: 12px; padding: 3px; flex-shrink: 0; }
+  .segment button { text-align: center; padding: 5px 0; font-size: 12.5px; font-weight: 600; color: var(--ink-2); border-radius: 9px; }
+  .segment button.on { background: var(--ink); color: #fff; }
+  .segment button:disabled { opacity: .35; cursor: default; }
+  .note { font-size: 12px; font-weight: 600; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+  .note i { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); display: inline-block; flex: none; }
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+  .center h3 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+  .back { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--bg-soft); border-radius: var(--r-pill); padding: 6px 12px 6px 8px; flex-shrink: 0; }
+  .back svg { width: 14px; height: 14px; }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .main-nav { display: flex; gap: 6px; }
+  .main-nav button { font-size: 12px; font-weight: 700; color: var(--ink-2); padding: 4px 12px; border-radius: var(--r-pill); }
+  .main-nav button.on { background: var(--ink); color: #fff; }
+  .count { font-size: 11px; font-weight: 700; color: var(--ink-2); background: var(--bg-soft); border-radius: var(--r-pill); padding: 3px 10px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+  .row:hover { background: var(--card-soft); }
+  .row.on { background: var(--card-soft); border-bottom-color: transparent; outline: 2px solid var(--ink); }
+  .row .meta { flex: 1; min-width: 0; }
+  .row b { font-size: 14px; font-weight: 700; }
+  .row .sub { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 18px; box-shadow: var(--shadow-card); }
+  .panel.feature { border: 2.5px solid var(--ink); box-shadow: var(--hard); }
+  .panel h3 { margin: 0 0 12px; font-size: 16px; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
+  .fl { font-size: 10.5px; font-weight: 700; color: var(--ink-3); letter-spacing: .04em; margin: 0 0 4px 4px; }
+  .fgroup + .fgroup { margin-top: 10px; }
+  .pill-field { width: 100%; border: 1px solid var(--line); background: var(--card-soft); border-radius: var(--r-pill); padding: 8px 14px; font-size: 13px; outline: none; color: var(--ink); }
+  .pill-field:focus { border-color: var(--ink); }
+  .pref { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .pref:last-child { border-bottom: 0; padding-bottom: 0; }
+  .pref:first-of-type { padding-top: 0; }
+  .switch { width: 40px; height: 24px; border-radius: var(--r-pill); background: var(--bg-soft); position: relative; flex: none; border: 2px solid var(--ink); }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--ink); transition: .2s; }
+  .switch.on { background: var(--orange); }
+  .switch.on::after { left: 18px; background: #fff; }
+  .status-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #0d7a5f; }
+  .numbered { display: grid; grid-template-columns: 1fr; }
+  .numbered div { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; font-weight: 600; }
+  .numbered div:last-child { border-bottom: 0; }
+  .numbered b { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .kbd { background: #fff; border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 8px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+  .popup { width: 420px; background: var(--card); border-radius: var(--r-card); border: 1px solid var(--line); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; overflow: hidden; }
+  .bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 600; color: var(--ink-3); flex-shrink: 0; }
+  .popup .body { padding: 18px 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .foot { margin-top: 64px; font-size: 13px; color: var(--ink-3); line-height: 1.8; }
+  .foot b { color: var(--ink-2); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  /* ---------- 游戏窗口 ---------- */
+  .game-win { zoom: var(--z); width: 1280px; height: 800px; background: var(--bg); border-radius: var(--r-card); border: 1px solid var(--line); box-shadow: var(--shadow-pop); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .hud { height: 44px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--card); border-bottom: 1px solid var(--line); position: relative; font-size: 12px; }
+  .hud .title { font-weight: 800; font-size: 13px; letter-spacing: -.01em; }
+  .hud .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .turn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff; border-radius: var(--r-pill); padding: 4px 14px 4px 5px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  .turn.wait { background: #fff; color: var(--ink); border: 2px solid var(--ink); }
+  .spinner { width: 12px; height: 12px; border: 2px solid var(--ink-3); border-top-color: var(--orange); border-radius: 50%; animation: spin .9s linear infinite; display: inline-block; flex: none; }
+  .table { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 330px; gap: 14px; padding: 14px; }
+  .left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .market { display: flex; gap: 14px; height: 470px; flex: none; }
+  .nobles { width: 100px; display: flex; flex-direction: column; gap: 10px; flex: none; }
+  .rows { display: flex; flex-direction: column; gap: 10px; }
+  .lrow { display: flex; gap: 10px; height: 150px; }
+
+  /* 宝石颜色：--c 底色、--t 字色、--tint 卡面浅色 */
+  .cW { --c: #ffffff; --t: #111; --tint: #efede8; }
+  .cU { --c: #3d7bff; --t: #fff; --tint: #e3ecff; }
+  .cG { --c: #1fb57f; --t: #fff; --tint: #dbf5e9; }
+  .cR { --c: #ff4d4d; --t: #fff; --tint: #ffe4e1; }
+  .cK { --c: #111111; --t: #fff; --tint: #e2e0dc; }
+  .cX { --c: #ffc53d; --t: #111; --tint: #fff3d1; }
+
+  /* 宝石筹码（圆）：持有 / 银行 / 支付 */
+  .chip { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: var(--t); border: 2px solid var(--ink); font-weight: 800; font-size: 14px; position: relative; flex: none; box-shadow: inset 0 -3px 0 rgb(0 0 0 / .14); }
+  .chip::before { content: ''; position: absolute; inset: 3px; border-radius: 50%; border: 1.5px dashed rgb(255 255 255 / .55); }
+  .chip.cW::before, .chip.cX::before { border-color: rgb(0 0 0 / .16); }
+  .chip b { position: relative; }
+  .chip.xs { width: 16px; height: 16px; border-width: 1.5px; } .chip.xs::before { display: none; }
+  .chip.sm { width: 24px; height: 24px; font-size: 11px; border-width: 1.5px; } .chip.sm::before { inset: 2px; border-width: 1px; }
+  .chip.md { width: 42px; height: 42px; font-size: 16px; }
+  .chip.lg { width: 58px; height: 58px; font-size: 21px; border-width: 2.5px; } .chip.lg::before { inset: 5px; border-width: 2px; }
+  .chip.zero, .chip.off { opacity: .28; }
+  .chip.sel { outline: 3px solid var(--orange); outline-offset: 3px; }
+  .chip .plus { position: absolute; top: -8px; right: -12px; background: var(--orange); color: #fff; border: 2px solid var(--ink); border-radius: var(--r-pill); font-size: 11px; font-style: normal; padding: 0 5px; line-height: 16px; }
+  .chip .minus { position: absolute; top: -8px; right: -12px; background: var(--ink); color: #fff; border-radius: var(--r-pill); font-size: 11px; font-style: normal; padding: 0 6px; line-height: 18px; }
+  .gd { width: 10px; height: 10px; border-radius: 50%; background: var(--c); border: 1.5px solid var(--ink); display: inline-block; vertical-align: -1px; margin: 0 1px; }
+
+  /* 折扣（方块） */
+  .bt { width: 26px; height: 30px; border-radius: 7px; background: var(--c); color: var(--t); border: 1.5px solid var(--ink); display: inline-grid; place-items: center; font-size: 12px; font-weight: 800; flex: none; }
+  .bt.zero { opacity: .22; }
+  .bt.md { width: 42px; height: 46px; font-size: 17px; border-width: 2px; border-radius: 10px; }
+
+  /* 发展卡 */
+  .gc { width: 128px; height: 150px; border-radius: 14px; border: 1px solid var(--line); background: linear-gradient(180deg, var(--tint) 0 56%, #fff 56%); padding: 8px 9px 9px; display: flex; flex-direction: column; position: relative; cursor: pointer; flex: none; transition: transform .15s; }
+  .gc:hover { transform: translateY(-2px); }
+  .gc .top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .gc .pts { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1; min-height: 30px; }
+  .gc .gem { width: 24px; height: 24px; border-radius: 6px; transform: rotate(45deg); background: var(--c); border: 2px solid var(--ink); margin: 4px 4px 0 0; flex: none; }
+  .gc .mid { flex: 1; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; align-content: center; }
+  .gc .costs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .cost { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: var(--c); color: var(--t); border: 1.5px solid var(--ink); }
+  .gc.sel { border: 2.5px solid var(--ink); box-shadow: 0 6px 0 rgb(17 17 17 / .12); transform: translateY(-4px); z-index: 10; }
+  .gc.flash { outline: 3px solid var(--orange); outline-offset: 3px; }
+  .gc.back { background: var(--ink); color: #fff; align-items: center; justify-content: center; gap: 4px; border-color: var(--ink); }
+  .gc.back .lv { font-size: 28px; font-weight: 800; font-family: Georgia, 'Times New Roman', serif; }
+  .gc.back small { font-size: 11px; color: var(--ink-3); font-weight: 700; }
+  .gc.back .lvd { color: var(--orange); font-size: 9px; letter-spacing: 3px; }
+  .gc.empty { background: transparent; border: 2px dashed #d6d3cd; align-items: center; justify-content: center; color: var(--ink-3); cursor: default; font-size: 11px; font-weight: 700; }
+  .gc.empty:hover, .gc.back:hover { transform: none; }
+  .gc.mini { width: 92px; height: 120px; padding: 6px 7px 7px; border-radius: 12px; }
+  .gc.mini .pts { font-size: 22px; min-height: 22px; }
+  .gc.mini .gem { width: 18px; height: 18px; border-width: 1.5px; }
+  .gc.mini .cost { width: 18px; height: 18px; font-size: 10px; border-width: 1.2px; }
+  .gc.mini .costs { gap: 3px; }
+  .gc.mini.back .lv { font-size: 22px; }
+  .gc .mid .tag { padding: 2px 7px; font-size: 10.5px; }
+  [data-lock] .gc, [data-lock] .deck, [data-lock] .chip.lg { cursor: default; }
+  [data-lock] .gc:hover { transform: none; }
+
+  /* 牌堆 */
+  .deck { width: 96px; height: 150px; border-radius: 14px; background: var(--ink); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; position: relative; flex: none; box-shadow: 0 4px 0 #3b3a38, 0 8px 0 #77746f; }
+  .deck b { font-family: Georgia, 'Times New Roman', serif; font-size: 30px; }
+  .deck .lvd { color: var(--orange); letter-spacing: 3px; font-size: 9px; }
+  .deck .n { font-size: 11px; font-weight: 700; color: var(--ink-3); }
+  .deck.empty { background: transparent; border: 2px dashed #d6d3cd; color: var(--ink-3); box-shadow: none; cursor: default; }
+  .deck.sel { outline: 3px solid var(--orange); outline-offset: 3px; z-index: 10; }
+
+  /* 贵族 */
+  .noble { flex: 1; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+  .noble .np { display: flex; justify-content: space-between; align-items: center; }
+  .noble .np b { width: 26px; height: 26px; border-radius: 50%; background: var(--purple); color: #fff; display: grid; place-items: center; font-size: 14px; border: 2px solid var(--ink); }
+  .noble .np span { font-size: 10px; font-weight: 700; color: var(--ink-3); }
+  .req { display: flex; gap: 4px; }
+  .rq { width: 24px; height: 28px; border-radius: 6px; background: var(--c); color: var(--t); border: 1.5px solid var(--ink); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+  .noble.big { flex: none; width: 190px; height: 160px; padding: 14px; border-radius: 18px; cursor: pointer; }
+  .noble.big .np b { width: 36px; height: 36px; font-size: 18px; }
+  .noble.big .rq { width: 40px; height: 46px; font-size: 18px; border-width: 2px; border-radius: 9px; }
+  .noble.big .req { gap: 8px; }
+  .noble.sel { border: 2.5px solid var(--ink); box-shadow: var(--hard); background: #fff3ee; }
+  .noble.taken { opacity: .4; }
+
+  /* 银行 */
+  .bank { width: 92px; flex: none; background: #fff; border: 1px solid var(--line); border-radius: var(--r-card); padding: 10px 0 12px; display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .bank .bk-l { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: .06em; }
+  .bank .chip.lg { cursor: pointer; }
+  .bank .chip.cX { cursor: default; }
+
+  /* 对手面板 */
+  .opp { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; flex: none; }
+  .opp.on { border: 2.5px solid var(--ink); box-shadow: var(--hard); }
+  .opp.offline { background: #fbfaf8; }
+  .opp.offline .oh svg { filter: grayscale(1); opacity: .5; }
+  .oh { display: flex; align-items: center; gap: 8px; }
+  .oh .meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; align-items: flex-start; }
+  .oh .meta .tags { display: flex; gap: 4px; }
+  .oh b { font-size: 14px; }
+  .score { margin-left: auto; font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+  .score small { font-size: 11px; color: var(--ink-3); margin-left: 2px; letter-spacing: 0; }
+  .orow { display: flex; align-items: center; gap: 5px; }
+  .orow .t-cap { margin-left: auto; font-weight: 700; }
+  .orow .lbl { font-size: 10.5px; font-weight: 700; color: var(--ink-3); width: 26px; }
+  .rm { width: 22px; height: 28px; border-radius: 5px; border: 1.5px solid var(--ink); background: var(--c); color: var(--t); display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; }
+  .rm.back { background: var(--ink); color: #fff; font-family: Georgia, serif; font-size: 10px; }
+  .think { display: flex; flex-direction: column; gap: 5px; background: var(--card-soft); border-radius: 10px; padding: 7px 9px; }
+  .bar-p { height: 6px; border-radius: 3px; background: var(--bg-soft); overflow: hidden; }
+  .bar-p i { display: block; height: 100%; background: var(--orange); border-radius: 3px; }
+
+  /* 我的面板 */
+  .me { height: 246px; flex: none; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; border-radius: var(--r-card) !important; }
+  .strip { display: flex; align-items: center; gap: 10px; height: 36px; padding-bottom: 10px; border-bottom: 1px solid var(--line); flex: none; }
+  .tray { display: flex; gap: 6px; align-items: center; margin-left: auto; background: var(--bg-soft); border-radius: var(--r-pill); padding: 3px 4px 3px 12px; font-size: 12.5px; }
+  .tray b { margin: 0 6px 0 2px; }
+  .me-grid { flex: 1; display: grid; grid-template-columns: 200px 1fr auto; gap: 24px; min-height: 0; }
+  .ident { display: flex; flex-direction: column; gap: 8px; }
+  .ident .who { display: flex; align-items: center; gap: 10px; }
+  .ident .nm { font-size: 17px; font-weight: 800; display: block; margin-bottom: 3px; }
+  .big b { font-size: 46px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+  .big span { font-size: 13px; color: var(--ink-2); font-weight: 700; margin-left: 4px; }
+  .gems-row, .bonus-row { display: flex; gap: 9px; align-items: center; }
+  .resv-row { display: flex; gap: 8px; }
+  .warn { color: var(--danger); }
+  .me .label { margin-bottom: 7px; }
+  .me .res .label + * + .label { margin-top: 12px; }
+
+  /* 日志 */
+  .log { flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: 18px !important; padding: 12px !important; }
+  .log-list { overflow: hidden; display: flex; flex-direction: column; }
+  .le { display: flex; gap: 8px; align-items: flex-start; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: 12.5px; line-height: 1.5; }
+  .le:last-child { border-bottom: 0; }
+  .le > svg { flex: none; margin-top: 2px; }
+  .le > p { flex: 1; min-width: 0; }
+  .le > .t-cap { white-space: nowrap; }
+  .le.new { background: #fff3ee; border-radius: 10px; border-bottom-color: transparent; padding-left: 6px; }
+  .ref { display: inline-flex; align-items: center; gap: 4px; padding: 0 7px 0 3px; border-radius: 6px; background: var(--tint); font-weight: 700; font-size: 11.5px; vertical-align: 1px; }
+  .ref i { width: 9px; height: 12px; border-radius: 3px; background: var(--c); border: 1.5px solid var(--ink); display: inline-block; }
+  .reason { margin-top: 4px; border-left: 3px solid var(--purple); padding-left: 8px; color: var(--ink-2); font-size: 12px; }
+
+  /* 浮层 */
+  .toast { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 10px; background: #fff; border: 2.5px solid var(--ink); border-radius: 18px; padding: 8px 14px 8px 10px; box-shadow: var(--hard), var(--shadow-pop); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .toast.warm { background: #fff3ee; }
+  .toast .t-cap { font-weight: 500; color: var(--ink-2); }
+  .scrim { position: absolute; inset: 0; z-index: 30; background: rgb(240 239 236 / .72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; }
+  .scrim.solid { background: var(--bg); backdrop-filter: none; }
+  .modal { background: #fff; border: 2.5px solid var(--ink); border-radius: 24px; box-shadow: 0 8px 0 rgb(17 17 17 / .08), var(--shadow-pop); padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .modal h3 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; }
+  .modal .actions { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+  .pop { position: absolute; left: calc(100% + 14px); top: -12px; width: 272px; z-index: 20; background: #fff; border: 2.5px solid var(--ink); border-radius: 18px; padding: 14px; box-shadow: var(--shadow-pop); cursor: default; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+  .pop.static { position: relative; left: auto; top: auto; z-index: auto; }
+  .pop-h { display: flex; align-items: center; gap: 8px; }
+  .pop-h b { font-size: 15px; font-weight: 800; }
+  .pay { background: var(--card-soft); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .pay-r { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+  .pay-r > span:first-child { width: 34px; color: var(--ink-3); font-weight: 700; font-size: 11px; flex: none; }
+  .pop .btns { display: flex; gap: 8px; }
+  .pop .btns .btn { flex: 1; }
+
+  /* 非牌桌屏 */
+  .scr { flex: 1; min-height: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; }
+  .scr-title { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+  .seat { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .seat:last-of-type { border-bottom: 0; }
+  .seat .sn { width: 22px; font-size: 12px; font-weight: 800; color: var(--ink-3); text-align: center; }
+  .seat .pill-field { width: 150px; }
+  .seat .sub { display: flex; align-items: center; gap: 8px; flex: 1; }
+  .seat .x { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--ink-3); padding: 5px 10px; border-radius: var(--r-pill); }
+  .seat .x:hover { color: var(--danger); background: #ffecec; }
+  .select { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); background: var(--card-soft); border-radius: var(--r-pill); padding: 6px 12px; font-size: 12.5px; font-weight: 600; min-width: 170px; }
+  .select::after { content: '⌄'; color: var(--ink-3); margin-top: -4px; }
+  .add-seat { width: 100%; margin-top: 10px; border: 2px dashed #d6d3cd; border-radius: 14px; padding: 12px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+  .chips-line { display: flex; flex-wrap: wrap; gap: 6px; }
+  .kv { display: grid; grid-template-columns: 84px 1fr; gap: 8px 10px; font-size: 12.5px; }
+  .kv span:nth-child(odd) { color: var(--ink-3); font-weight: 700; font-size: 11.5px; }
+  .kv span:nth-child(even) { font-weight: 600; }
+  .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; }
+  .prow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .prow:last-child { border-bottom: 0; }
+  .prow b { font-size: 13.5px; }
+  .prow .score { font-size: 20px; }
+  .menu-btn { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-radius: 18px; padding: 14px 20px; font-size: 16px; font-weight: 800; text-align: left; }
+  .menu-btn small { display: block; font-size: 11.5px; font-weight: 600; opacity: .7; margin-top: 2px; }
+  .menu-btn .arr { font-size: 18px; opacity: .6; }
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .node { background: #fff; border: 1px solid var(--line); border-radius: var(--r-pill); padding: 8px 16px; font-size: 13px; font-weight: 700; box-shadow: var(--shadow-card); }
+  .node.hot { border: 2.5px solid var(--ink); box-shadow: var(--hard); }
+  .node.dark { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .node small { color: var(--ink-3); font-weight: 600; margin-left: 6px; }
+  .arrow { color: var(--ink-3); font-weight: 800; }
+  .parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+  .part { background: #fff; border: 1px solid var(--line); border-radius: var(--r-card); padding: 18px 20px; box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 12px; }
+  .part .line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .part .lbl { font-size: 11px; color: var(--ink-3); font-weight: 700; text-align: center; margin-top: 6px; }
+  .part .item { display: flex; flex-direction: column; align-items: center; }
+  .rules-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+  .api { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .api td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.55; }
+  .api td:first-child { font-weight: 700; white-space: nowrap; width: 120px; }
+  .api code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px; background: var(--bg-soft); border-radius: 5px; padding: 1px 5px; }
+
+
+  /* ---------- V2 设计迭代：信息层级、状态语义、材质 ---------- */
+  :root {
+    --bg: #f2f0e9;
+    --bg-soft: #e7e3da;
+    --card: #fffefa;
+    --card-soft: #faf8f2;
+    --ink: #211f1a;
+    --ink-2: #625e55;
+    --ink-3: #817a6f;
+    --line: #e3ddd1;
+    --shadow-card: 0 5px 18px rgb(35 29 18 / .055);
+    --shadow-pop: 0 22px 55px rgb(35 29 18 / .16);
+  }
+  body { background-color: var(--bg); }
+  .deco .ring { border-color: #d6cdbd; }
+  .h2 b { background: #dba66c; }
+  .game-win {
+    background: radial-gradient(circle at 8% 0%, rgb(255 255 255 / .7), transparent 38%), var(--bg);
+    border-color: #ddd5c7;
+    box-shadow: 0 18px 42px rgb(35 29 18 / .12);
+  }
+  .hud { background: #fffefa; border-bottom-color: #e3ddd1; }
+  .hud .title { letter-spacing: .015em; }
+  .turn { box-shadow: 0 2px 0 rgb(17 17 17 / .10); }
+  .turn.wait { border-color: #cfc7b9; box-shadow: inset 3px 0 0 #d8d0c2; }
+  .table { gap: 16px; }
+
+  /* 筹码：不改变颜色编码，增加克制的高光与内凹感 */
+  .chip {
+    box-shadow: inset 0 -3px 0 rgb(0 0 0 / .16), inset 0 1px 0 rgb(255 255 255 / .28), 0 1px 1px rgb(0 0 0 / .08);
+  }
+  .chip::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 5px;
+    width: 10px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / .72);
+    transform: rotate(-35deg);
+    pointer-events: none;
+  }
+  .chip.sm::after { left: 5px; top: 4px; width: 7px; height: 3px; }
+  .chip.xs::after { display: none; }
+  .chip.cW::after { background: rgb(33 31 26 / .12); }
+  .chip.cX::after { background: rgb(255 255 255 / .82); }
+  .chip.sel { outline: 3px solid var(--orange); outline-offset: 3px; }
+
+  /* 卡牌：等级与成本继续沿用原布局，提升卡面层次 */
+  .gc {
+    border-color: #d6cfc2;
+    background: linear-gradient(148deg, rgb(255 255 255 / .55), transparent 38%), linear-gradient(180deg, var(--tint) 0 56%, #fffefa 56%);
+    box-shadow: 0 2px 0 rgb(33 31 26 / .045);
+  }
+  .gc .gem {
+    box-shadow: inset 2px 2px 0 rgb(255 255 255 / .42), inset -2px -2px 0 rgb(0 0 0 / .10), 0 1px 1px rgb(0 0 0 / .08);
+  }
+  .gc.affordable { border-color: #75c7a8; box-shadow: inset 0 3px 0 #75c7a8, 0 2px 0 rgb(33 31 26 / .045); }
+  .gc.sel {
+    border: 2px solid var(--ink);
+    outline: 3px solid var(--orange);
+    outline-offset: 2px;
+    box-shadow: 0 5px 0 rgb(33 31 26 / .10);
+    transform: translateY(-3px);
+  }
+  .gc.affordable.sel { box-shadow: inset 0 3px 0 #75c7a8, 0 5px 0 rgb(33 31 26 / .10); }
+  /* 最近发生的动作使用虚线环；避免与玩家主动选中状态混淆 */
+  .gc.flash { outline: 3px dashed var(--orange); outline-offset: 3px; }
+  .noble.sel { border: 1.5px solid var(--ink); outline: 3px solid var(--orange); outline-offset: 2px; box-shadow: var(--hard); background: #fff8ed; }
+  .deck.sel { outline: 3px solid var(--orange); outline-offset: 3px; }
+
+  /* 右栏：当前行动者用橙色侧标；分数进度用于快速识别终局威胁 */
+  .side { gap: 8px; }
+  .opp {
+    background: #fffefa;
+    border-color: #e3ddd1;
+    border-radius: 15px;
+    padding: 8px 10px;
+    gap: 5px;
+    box-shadow: 0 2px 8px rgb(35 29 18 / .025);
+  }
+  .opp.on {
+    border: 1px solid #d7cdbd;
+    box-shadow: inset 4px 0 0 var(--orange), 0 4px 12px rgb(35 29 18 / .06);
+    background: #fffdf7;
+  }
+  .oh { gap: 7px; }
+  .oh .meta { gap: 2px; }
+  .oh .meta .tags { flex-wrap: wrap; }
+  .oh b { font-size: 13.5px; }
+  .opp .score { font-size: 24px; }
+  .opp .score small { font-size: 10px; }
+  .opp-progress {
+    height: 4px;
+    margin: -1px 0 1px 37px;
+    border-radius: 999px;
+    background: #eee9df;
+    overflow: hidden;
+  }
+  .opp-progress i { display: block; height: 100%; border-radius: inherit; background: #bdb3a2; }
+  .opp-progress.hot i { background: var(--orange); }
+  .orow { gap: 4px; }
+  .opp .orow .chip.sm { width: 22px; height: 22px; font-size: 10px; }
+  .opp .orow .chip.sm::before { inset: 2px; }
+  .opp .orow .bt { width: 22px; height: 24px; font-size: 10.5px; border-radius: 6px; }
+  .opp .orow .t-cap { font-size: 10.5px; }
+  .rm { width: 20px; height: 25px; font-size: 10px; }
+  .opp.offline { background: #f5f2ec; }
+
+  /* 我的面板是玩家的操作锚点，不再使用整圈粗黑框 */
+  .me.card.feature {
+    border: 1px solid #d8d0c2;
+    box-shadow: inset 4px 0 0 var(--orange), 0 6px 18px rgb(35 29 18 / .045);
+  }
+  .me .big b { letter-spacing: -.055em; }
+  .me .label { color: #71695d; }
+  .label i { background: #c79a5b; }
+
+  /* 日志降低视觉权重，但保留滚动能力，避免四人局内容被直接裁掉 */
+  .log { background: #fffefa; border-color: #e3ddd1; box-shadow: none; }
+  .log-list { overflow: auto; scrollbar-width: thin; scrollbar-color: #c9c0b1 transparent; }
+  .le { font-size: 12px; padding: 5px 2px; gap: 6px; }
+  .le > .t-cap { font-size: 10.5px; }
+  .le.new { background: #fff2e8; }
+
+  /* 提升次级文本对比度与键盘可见性 */
+  .t-cap { color: #716b60; }
+  .label { color: #81786a; }
+  button:focus-visible, .gc:focus-visible, .chip:focus-visible {
+    outline: 3px solid var(--orange);
+    outline-offset: 3px;
+  }
+  .btn:not(:disabled):hover { filter: brightness(.97); transform: translateY(-1px); }
+  .btn { transition: transform .12s ease, filter .12s ease; }
+  .btn:disabled { filter: grayscale(.25); }
+
+
+  /* ---------- V3：颜色 + 形状双编码、事件不遮挡市场、就近确认、对手信息重排 ---------- */
+  :root {
+    --serif: 'Songti SC', 'STSong', 'Noto Serif SC', Georgia, serif;
+    --gold-line: #c9a45f;
+    --ok: #1f8f6a;
+  }
+  /* 宝石色加深一档；--edge 用于空心（数量为 0）状态的描边 */
+  .cW { --c: #ffffff; --t: #211f1a; --tint: #f6f3eb; --edge: #b8ae9c; }
+  .cU { --c: #2f6fe4; --t: #fff; --tint: #e5edfc; --edge: #2f6fe4; }
+  .cG { --c: #15966a; --t: #fff; --tint: #def2e8; --edge: #15966a; }
+  .cR { --c: #e0403c; --t: #fff; --tint: #fbe4e1; --edge: #e0403c; }
+  .cK { --c: #2a2621; --t: #fff; --tint: #e6e2da; --edge: #2a2621; }
+  .cX { --c: #f2b630; --t: #211f1a; --tint: #fcefcc; --edge: #d49a17; }
+
+  /* 宝石形状：白◇ 蓝● 绿▮ 红♥ 黑■ 金★ —— 色盲时靠形状区分 */
+  .gs { display: inline-block; flex: none; overflow: visible; vertical-align: -2px; }
+  .gs.col { fill: var(--c); stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+  .gs.mono { fill: currentColor; stroke: none; }
+
+  /* 筹码（圆 = 宝石）：形状 + 数字；不用虚线内圈（Godot StyleBox 不支持） */
+  .chip {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1;
+    box-shadow: inset 0 0 0 3px rgb(255 255 255 / .16), inset 0 -3px 0 rgb(0 0 0 / .18), 0 2px 0 rgb(33 31 26 / .12);
+  }
+  .chip { background: radial-gradient(circle at 30% 22%, rgb(255 255 255 / .38), transparent 46%), var(--c); }
+  .chip::before, .chip::after, .chip.sm::after { display: none; }
+  .chip .gs { width: 34%; height: 34%; color: var(--t); opacity: .62; }
+  .chip.bare .gs { width: 48%; height: 48%; opacity: .72; }
+  .chip.cW .gs, .chip.cX .gs { color: #7d7465; }
+  .chip.lg { width: 52px; height: 52px; font-size: 19px; }
+  .chip.md { width: 44px; height: 44px; font-size: 16px; }
+  .chip.zero, .chip.off { opacity: 1; background: var(--card); border-color: var(--edge); color: var(--ink-3); box-shadow: none; }
+  .chip.zero::after, .chip.off::after { display: none; }
+  .chip.zero .gs, .chip.off .gs { color: var(--edge); opacity: 1; }
+
+  /* 折扣（方 = 已购卡） */
+  .bt { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1; width: 28px; height: 32px; font-size: 12px; box-shadow: inset 0 -2px 0 rgb(0 0 0 / .16); }
+  .bt .gs { width: 9px; height: 9px; color: var(--t); opacity: .68; }
+  .bt.cW .gs { color: #7d7465; }
+  .bt.md { width: 44px; height: 48px; font-size: 17px; }
+  .bt.md .gs { width: 13px; height: 13px; }
+  .bt.zero { opacity: 1; background: var(--card); border-color: var(--edge); color: var(--ink-3); box-shadow: none; }
+  .bt.zero .gs { color: var(--edge); opacity: 1; }
+
+  /* 发展卡：整条实色色带标出加成颜色；花费竖排在左下（照实体牌） */
+  .gc { padding: 0; overflow: hidden; background: var(--card); border: 1.5px solid #d3cbbd; border-radius: 13px; box-shadow: 0 2px 0 rgb(33 31 26 / .06); }
+  .gc .top { height: 42px; flex: none; align-items: center; padding: 0 9px; color: var(--t); background: linear-gradient(155deg, rgb(255 255 255 / .26), transparent 55%), var(--c); border-bottom: 1.5px solid rgb(33 31 26 / .14); }
+  .gc.cW .top { border-bottom-color: #d3cbbd; }
+  .gc .top .gs { width: 22px; height: 22px; opacity: .92; }
+  .gc .pts { font-family: var(--serif); font-size: 28px; min-height: 0; }
+  .gc .body { flex: 1; min-height: 0; display: flex; justify-content: space-between; align-items: flex-end; gap: 4px; padding: 6px 7px 7px; background: linear-gradient(180deg, var(--tint), var(--card) 75%); position: relative; }
+  .gc .costs { flex-direction: column; flex-wrap: nowrap; gap: 3px; }
+  .cost { width: auto; min-width: 34px; height: 20px; border-radius: 999px; padding: 0 7px 0 4px; display: inline-flex; align-items: center; justify-content: flex-start; gap: 4px; font-size: 12px; }
+  .cost .gs { width: 10px; height: 10px; color: var(--t); opacity: .8; }
+  .cost.cW .gs { color: #7d7465; opacity: 1; }
+  .gc .cflags { align-self: stretch; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 4px; }
+  .gc .cflags .fl-b { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .gc .tag { padding: 2px 7px; font-size: 12px; }
+  .gc .tag.can { background: var(--ok); color: #fff; }
+  .gc .tag.need-n { background: rgb(255 255 255 / .7); color: var(--ink-2); border: 1px solid var(--line); }
+  .gc .threat { display: flex; gap: 2px; padding: 2px; background: rgb(255 255 255 / .85); border-radius: 999px; box-shadow: 0 0 0 1px var(--line); }
+  .gc .need { position: absolute; left: 0; right: 0; bottom: 0; display: none; flex-wrap: wrap; align-items: center; gap: 4px; padding: 7px; background: rgb(33 31 26 / .93); color: #fff; font-size: 12px; font-weight: 700; }
+  .gc .need .t-cap { color: #d9d2c4; }
+  .gc:hover .need { display: flex; }
+  .gc.affordable { border: 2px solid var(--ok); box-shadow: 0 0 0 3px rgb(31 143 106 / .14), 0 2px 0 rgb(33 31 26 / .06); }
+  .gc.affordable.sel { box-shadow: 0 5px 0 rgb(33 31 26 / .10); }
+  .gc.flash { outline: 3px solid var(--orange); outline-offset: 3px; animation: flash 1.2s ease-in-out infinite; }
+  @keyframes flash { 50% { box-shadow: 0 0 0 10px rgb(255 106 43 / .22); } }
+  .gc.mini .top { height: 30px; padding: 0 7px; }
+  .gc.mini .top .gs { width: 16px; height: 16px; }
+  .gc.mini .pts { font-size: 20px; min-height: 0; }
+  .gc.mini .body { padding: 4px 5px 5px; }
+  .gc.mini .cost { height: 17px; min-width: 30px; font-size: 12px; padding: 0 5px 0 3px; gap: 3px; }
+  .gc.mini .cost .gs { width: 8px; height: 8px; }
+  .gc.mini .tag { padding: 1px 6px; font-size: 11px; }
+
+  /* 牌背 / 牌堆：斜纹 + 金色衬线罗马数字 */
+  .deck, .gc.back { background: repeating-linear-gradient(45deg, rgb(255 255 255 / .045) 0 7px, transparent 7px 14px), radial-gradient(circle at 50% 38%, #3a352d, #1d1a16 72%); }
+  .deck { border: 1.5px solid #1d1a16; box-shadow: 0 3px 0 #4a443b, 0 6px 0 #8a8273; }
+  .deck b, .gc.back .lv { font-family: var(--serif); color: #e7c983; }
+  .deck .lvd, .gc.back .lvd { color: #e7c983; }
+  .deck .n, .gc.back small { color: #b9b0a0; font-size: 12px; }
+
+  /* 贵族：金边奶油色方牌，和发展卡明显区分 */
+  .noble { background: linear-gradient(160deg, #fffaf0, #f4e9d2); border: 1.5px solid var(--gold-line); box-shadow: inset 0 0 0 3px #fffaf0, inset 0 0 0 4px #e6d3a8; border-radius: 12px; padding: 9px; }
+  .noble .np b { background: radial-gradient(circle at 35% 30%, #fbe3a2, #d6a443); color: #3b2a0c; border: 1.5px solid #8a6420; font-family: var(--serif); }
+  .noble .np span { font-family: var(--serif); font-size: 12px; color: #9a8662; font-weight: 700; }
+  .req { gap: 3px; flex-wrap: wrap; }
+  .bt.rq { width: 24px; height: 30px; }
+  .noble.big { width: 200px; height: 170px; }
+  .noble.big .bt.rq { width: 42px; height: 50px; font-size: 18px; border-width: 2px; border-radius: 9px; }
+  .noble.big .bt.rq .gs { width: 13px; height: 13px; }
+  .noble.sel { border: 2px solid var(--ink); background: linear-gradient(160deg, #fff6ea, #fbe7cf); }
+
+  /* 银行：确认 / 取消就在筹码下面 */
+  .bank { width: 100px; gap: 7px; padding: 10px 0; }
+  .bank .bk-l { font-size: 12px; }
+  .bank-act { margin-top: auto; width: 100%; padding: 0 8px; display: flex; flex-direction: column; gap: 5px; }
+  .bank-act .btn { width: 100%; padding: 6px 0; font-size: 12px; text-align: center; }
+  .bank-act .t-cap { text-align: center; line-height: 1.4; }
+
+  /* 对手面板：6 列网格，上方块 = 折扣，下圆 = 宝石 */
+  .opp { gap: 5px; padding: 8px 10px; }
+  .opp .oh .meta { flex-direction: row; align-items: center; gap: 6px; }
+  .opp .opp-progress { margin: 0; }
+  .opp .score { font-family: var(--serif); font-size: 26px; }
+  .opp .score small { font-family: inherit; font-size: 12px; }
+  .ogrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; background: var(--card-soft); border: 1px solid var(--line); border-radius: 12px; padding: 5px 4px 4px; }
+  .oc { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .oc .bt { width: 30px; height: 27px; font-size: 13px; }
+  .oc .chip.sm { width: 26px; height: 26px; font-size: 12px; }
+  .oc .ph { width: 30px; height: 27px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--ink-3); }
+  .ofoot { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .ofoot .ores { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+  .rm { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 20px; height: 24px; font-size: 11px; line-height: 1; }
+  .rm .gs { width: 8px; height: 8px; color: var(--t); opacity: .75; }
+  .rm.cW .gs { color: #7d7465; }
+  .rm.back { background: #1d1a16; color: #e7c983; font-family: var(--serif); }
+
+  /* 事件：写进我的面板顶条（玩家视线落点），不再浮在市场上方 */
+  .strip.event { height: 40px; padding: 0 12px; background: #fff2e8; border: 1.5px solid #f3c6a8; border-radius: 12px; }
+  .evt { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; min-width: 0; white-space: nowrap; }
+  .evt .t-cap { font-weight: 500; }
+  .strip .when { margin-left: auto; font-weight: 700; }
+  /* 持续状态（掉线等）放右栏顶部 */
+  .notice { display: flex; gap: 10px; align-items: center; background: #fff2e8; border: 1.5px solid #f3c6a8; border-radius: 14px; padding: 9px 11px; flex: none; }
+  .notice b { display: block; font-size: 13px; }
+
+  /* 日志降权：只露最近几条 */
+  .log { min-height: 130px; }
+  .log-more { margin-top: auto; align-self: flex-start; font-size: 12px; font-weight: 700; color: var(--ink-2); padding: 6px 2px 0; }
+
+  /* 最小字号 12px；品牌位置用衬线体 */
+  .game-win .t-cap, .game-win .label, .game-win .tag, .game-win .count { font-size: 12px; }
+  .game-win .le { font-size: 12.5px; }
+  .game-win .le > .t-cap { font-size: 12px; }
+  .hud { font-size: 12.5px; }
+  h1, .hud .title, .me .big b { font-family: var(--serif); }
+  .ref .gs { margin-left: 2px; }
+  .scrim { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(242 240 233 / .88); }
+  .pile { position: relative; width: 52px; }
+
+
+  /* ================= V4：像素风 =================
+     美术按 2px = 1 像素画；文字用 12px 原生像素字体（每个字形像素 = 1px，保证信息密度）。
+     边框全部是 9 宫格贴图（border-image），对应 Godot 的 StyleBoxTexture / NinePatchRect；
+     贴图由页面底部 JS 生成（--fr-*、--coin）。 */
+  :root {
+    --px-font: 'Fusion Pixel 12px Proportional Simplified Chinese', 'PingFang SC', sans-serif;
+    --num-font: 'Press Start 2P', var(--px-font);
+    --serif: var(--num-font);
+    --bg: #e9d8b4; --bg-soft: #dcc59a; --card: #fbf3df; --card-soft: #f4e8cb;
+    --ink: #2a1c12; --ink-2: #5b4632; --ink-3: #8a7155; --line: #cdb68c;
+    --orange: #e8582a; --ok: #2f9e5f; --gold: #f2b630; --cream: #f3e6c8;
+    --shadow-card: none; --shadow-pop: none; --hard: none;
+    --drop: drop-shadow(0 4px 0 rgb(20 12 6 / .45));
+    --drop-s: drop-shadow(0 3px 0 rgb(20 12 6 / .4));
+  }
+  html { font-synthesis: none; }
+  *, *::before, *::after { border-radius: 0 !important; letter-spacing: 0 !important; transition: none !important; }
+  body, button, input, select { font-family: var(--px-font); -webkit-font-smoothing: none; }
+
+  /* 页面（样张外框）：深色木桌 */
+  html, body { color: var(--cream); background: repeating-conic-gradient(#2a1e15 0 25%, #2f2218 0 50%) 0 0 / 4px 4px; }
+  .deco { display: none; }
+  h1 { color: var(--cream); text-shadow: 4px 4px 0 #120c08; }
+  h1 em { background: var(--gold); color: var(--ink); text-shadow: none; box-shadow: 0 4px 0 #8a6420; }
+  .eyebrow { background: var(--gold); color: var(--ink); }
+  .eyebrow i { background: var(--ink); }
+  .lede, .h2-sub, .cap-note, .zoom-box { color: #cdb68c; }
+  .h2 { color: var(--cream); }
+  .h2 b { background: var(--gold); }
+  .cap { background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 #120c08; }
+  .foot { color: #a8916f; }
+  .foot b { color: var(--cream); }
+  .game-win, .panel, .part, .popup { color: var(--ink); }
+  .game-win h1 { color: var(--ink); text-shadow: 4px 4px 0 #c9a45f; }
+  .game-win .lede { color: var(--ink-2); }
+
+  /* 9 宫格边框：小（2px 描边 + 缺角）/ 大（阶梯圆角 + 内衬） */
+  .btn, .tag, .card, .gc, .pill-field, .segment, .select, .kbd, .strip.event, .notice, .toast, .node, .back, .add-seat, .pay, .cap, .eyebrow, .turn, .count, .menu-btn {
+    border: 2px solid transparent; border-image: var(--fr-s) 1 / 2px stretch; background-clip: padding-box;
+  }
+  .panel, .part, .popup, .modal, .me.card, .opp, .log.card, .bank, .pop {
+    border: 4px solid transparent; border-image: var(--fr-l) 2 / 4px stretch; background-clip: padding-box;
+    background-color: var(--card); box-shadow: inset 0 2px 0 #fffaf0; filter: var(--drop);
+  }
+  .panel.feature, .card.feature { box-shadow: inset 0 4px 0 var(--gold); }
+  .card.dark { background: #3a281b; color: var(--cream); }
+
+  /* 游戏窗口 */
+  .game-win { background: repeating-conic-gradient(#e9d8b4 0 25%, #e3d0a8 0 50%) 0 0 / 4px 4px; border: 4px solid #120c08; box-shadow: 0 8px 0 rgb(0 0 0 / .45); }
+  .hud { background: #3a281b; color: var(--cream); border-bottom: 4px solid #1a110b; box-shadow: inset 0 2px 0 #5a4030; }
+  .hud .tag, .hud .btn-quiet, .hud .back { background: #5a4030; color: var(--cream); }
+  .hud .tag.orange { background: var(--orange); color: #fff; }
+  .hud .tag.mint { background: var(--ok); color: #fff; }
+  .hud .kbd { background: #3a281b; color: var(--gold); }
+  .dots i { width: 8px; height: 8px; }
+  .turn { background: #1a110b; color: #ffd23f; border-image-source: var(--fr-s-gold); box-shadow: none; }
+  .turn.wait { background: var(--cream); color: var(--ink); border-image-source: var(--fr-s); box-shadow: none; }
+  .table { background: repeating-linear-gradient(0deg, transparent 0 46px, rgb(0 0 0 / .22) 46px 48px), repeating-conic-gradient(#4a3424 0 25%, #452f20 0 50%) 0 0 / 4px 4px; }
+  .scrim { background: rgb(26 17 10 / .72); }
+  .scrim.solid { background: repeating-conic-gradient(#e9d8b4 0 25%, #e3d0a8 0 50%) 0 0 / 4px 4px; }
+  .modal { filter: drop-shadow(0 6px 0 rgb(0 0 0 / .5)); }
+  .popup .bar { background: #3a281b; color: var(--cream); border-bottom: 4px solid #1a110b; }
+
+  /* 按钮：上亮下暗的厚块，悬停抬起、按下压扁 */
+  .btn { padding: 7px 14px 9px; box-shadow: inset 0 -3px 0 rgb(0 0 0 / .28), inset 0 2px 0 rgb(255 255 255 / .3); filter: var(--drop-s); }
+  .btn-sm { padding: 4px 10px 6px; }
+  .btn-lg, .menu-btn { padding: 11px 20px 13px; }
+  .btn:not(:disabled):hover { transform: translateY(-2px); filter: brightness(1.06) drop-shadow(0 5px 0 rgb(20 12 6 / .4)); }
+  .btn:not(:disabled):active { transform: translateY(2px); filter: none; }
+  .btn:disabled { opacity: .5; filter: grayscale(.4); }
+  .btn-quiet { background: #e4cfa2; color: var(--ink); }
+  .btn-ghost { background: var(--card); color: var(--ink); }
+  .btn-dark { background: #3a281b; color: var(--cream); }
+  .btn-accent { background: var(--orange); color: #fff; text-shadow: 2px 2px 0 rgb(0 0 0 / .3); }
+  .btn-danger { background: #c8322e; color: #fff; }
+  .tag { padding: 2px 7px; background: #e4cfa2; }
+  .tag.dark { background: #3a281b; color: var(--gold); }
+  .tag.mint { background: #cdeed6; color: #1d6b3d; }
+  .tag.orange { background: #ffd9c2; color: #9a3510; }
+  .tag.purple { background: #e2dcff; color: #4b39c4; }
+  .tag.red { background: #ffd6d0; color: #a3201c; }
+  .segment { padding: 2px; gap: 2px; background: #e4cfa2; }
+  .segment button { padding: 4px 0; }
+  .segment button.on, .main-nav button.on { background: #3a281b; color: #ffd23f; box-shadow: inset 0 -2px 0 rgb(0 0 0 / .4); }
+  .switch { border: 2px solid var(--ink); }
+  .pill-field { background: #fffaf0; box-shadow: inset 0 2px 0 rgb(0 0 0 / .12); }
+  .row { border-bottom: 2px solid var(--line); }
+  .row.on { outline: 2px solid var(--ink); background: #fff6df; }
+  .node.dark { background: #3a281b; color: #ffd23f; }
+  .node.hot { border-image-source: var(--fr-s-hot); }
+  .kbd { background: #fffaf0; padding: 0 5px; }
+  .bar-p, .opp-progress { height: 6px; background: #d8c296; }
+  .bar-p i, .opp-progress i { background-image: repeating-linear-gradient(90deg, transparent 0 6px, rgb(0 0 0 / .28) 6px 8px); }
+  .opp-progress.hot i { background-color: var(--orange); }
+  .spinner { border-width: 2px; }
+
+  /* 像素图形 */
+  .gs { stroke: none !important; shape-rendering: crispEdges; }
+  .gs.col { --gs-o: var(--ink); --gs-f: var(--c); --gs-h: rgb(255 255 255 / .8); }
+  .gs.mono { --gs-o: transparent; --gs-f: currentColor; --gs-h: currentColor; }
+  svg use { shape-rendering: crispEdges; }
+
+  /* 筹码 = 像素金币贴图 */
+  .chip { border: 0 !important; background: var(--coin) center / 100% 100% no-repeat !important; box-shadow: none !important; image-rendering: pixelated; filter: drop-shadow(0 2px 0 rgb(20 12 6 / .45)); color: var(--t); }
+  .chip.zero, .chip.off { background-image: var(--coin0) !important; filter: none; color: var(--ink-3); }
+  .chip.lg { width: 48px; height: 48px; }
+  .chip.md { width: 36px; height: 36px; }
+  .chip.sm, .oc .chip.sm { width: 24px; height: 24px; }
+  .chip.xs { width: 12px; height: 12px; }
+  .chip .gs, .chip.bare .gs { width: 12px; height: 12px; opacity: .75; }
+  .chip.sm:not(.bare) .gs { display: none; }
+  .chip:not(.cW):not(.cX):not(.zero):not(.off) b { text-shadow: 1px 0 0 rgb(0 0 0 / .55), -1px 0 0 rgb(0 0 0 / .55), 0 1px 0 rgb(0 0 0 / .55), 0 -1px 0 rgb(0 0 0 / .55); }
+  .chip.sel { outline: 3px solid var(--orange); outline-offset: 2px; }
+  .gd { border-radius: 0; }
+
+  /* 折扣 / 花费 / 预留小卡：2px 实线方块 */
+  .bt, .cost, .rm { border-width: 2px; }
+  .bt { box-shadow: inset 0 -2px 0 rgb(0 0 0 / .25), inset 0 2px 0 rgb(255 255 255 / .3); }
+  .bt .gs, .bt.md .gs, .noble.big .bt.rq .gs { width: 12px; height: 12px; }
+  .cost .gs, .gc.mini .cost .gs { width: 12px; height: 12px; }
+  .rm .gs { display: none; }
+  .rm.back { font-family: var(--num-font); font-size: 8px !important; }
+
+  /* 发展卡 */
+  .gc { overflow: visible; background: var(--card); filter: var(--drop-s); box-shadow: none; }
+  .gc .top { background: var(--c); border-bottom: 2px solid rgb(42 28 18 / .45); box-shadow: inset 0 2px 0 rgb(255 255 255 / .35), inset 0 -2px 0 rgb(0 0 0 / .15); }
+  .gc.cW .top { border-bottom-color: var(--line); }
+  .gc .top .gs { width: 24px; height: 24px; opacity: 1; }
+  .gc.mini .top .gs { width: 12px; height: 12px; }
+  .gc.cK .top .gs.col { --gs-o: #b9ab95; }
+  .gc .pts { text-shadow: 2px 2px 0 rgb(0 0 0 / .3); }
+  .gc.cW .pts { text-shadow: none; }
+  .gc .body { background: var(--tint); box-shadow: inset 0 2px 0 rgb(255 255 255 / .4); }
+  .gc .threat { background: var(--card); box-shadow: 0 0 0 2px var(--ink); }
+  .gc.affordable { border-image-source: var(--fr-s-ok); box-shadow: 0 0 0 2px var(--ok); }
+  .gc.affordable.sel { box-shadow: none; }
+  .gc.sel { border: 2px solid transparent; border-image-source: var(--fr-s); outline: 3px solid var(--orange); outline-offset: 2px; transform: translateY(-4px); }
+  .gc.sel::after { content: '▼'; position: absolute; left: 50%; top: -24px; transform: translateX(-50%); color: var(--orange); font-size: 12px; text-shadow: 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 2px 0 var(--ink), 0 -2px 0 var(--ink); animation: bob .6s steps(2) infinite; z-index: 30; }
+  @keyframes bob { 50% { top: -20px; } }
+  .gc.flash { outline: 3px solid var(--orange); outline-offset: 3px; animation: blink .5s steps(2) infinite; }
+  @keyframes blink { 50% { outline-color: #ffd23f; } }
+  .gc.empty, .deck.empty { border: 2px dashed rgb(243 230 200 / .35); border-image: none; background: transparent; color: #cdb68c; filter: none; }
+  .gc.back, .deck { border: 2px solid transparent; border-image: var(--fr-s-dark) 1 / 2px; background-clip: padding-box; box-shadow: inset 0 2px 0 rgb(255 255 255 / .12); }
+  .deck { filter: drop-shadow(0 3px 0 #6b5440) drop-shadow(0 3px 0 #1a110b); }
+  .deck b, .gc.back .lv { color: var(--gold); text-shadow: 2px 2px 0 #000; }
+
+  /* 贵族：金框羊皮纸 */
+  .noble { border: 2px solid transparent; border-image: var(--fr-s-gold) 1 / 2px; background: #f6e7c1; background-clip: padding-box; box-shadow: inset 0 0 0 2px #fff6dc, inset 0 0 0 4px #e0c58a; filter: var(--drop-s); }
+  .noble .np b { font-family: var(--px-font); background: var(--gold); border: 2px solid #5a3a06; box-shadow: inset 0 2px 0 #ffe28a; color: var(--ink); }
+  .noble.sel { border-image-source: var(--fr-s); outline: 3px solid var(--orange); outline-offset: 2px; background: #ffe9cf; }
+
+  /* 面板细节 */
+  .opp.on { border-image-source: var(--fr-l-hot); box-shadow: inset 4px 0 0 var(--orange), inset 0 2px 0 #fffaf0; }
+  .opp.offline { background-color: #eadcbc; }
+  .me.card.feature { box-shadow: inset 4px 0 0 var(--orange), inset 0 2px 0 #fffaf0; }
+  .ogrid { border: 2px solid var(--line); background: var(--card-soft); }
+  .strip { border-bottom-width: 2px; }
+  .strip.event, .notice, .toast { border-image-source: var(--fr-s-hot); background: #ffe7cc; }
+  .le { border-bottom-width: 2px; }
+  .le.new { background: #ffe3c8; }
+  .tray { background: #e4cfa2; }
+  .ref { background: var(--tint); }
+  .pay { background: var(--card-soft); }
+  .numbered div, .pref, .seat, .prow, .api td { border-bottom-width: 2px; }
+
+  /* 字号：12 / 24 / 48 三档（像素字体整数倍才清晰）；数字用 Press Start 2P 的 8 / 16 / 32 */
+  .t-body, .t-quiet, .t-cap, .t-head, .tag, .btn, .label, .note, .count, .kbd, .fl, .pill-field, .segment button, .select,
+  .row b, .row .sub, .le, .ref, .evt, .ofoot, .bk-l, .cost, .menu-btn small, .cap, .cap-note, .h2-sub, .main-nav button,
+  .numbered div, .numbered b, .kv, .kv span, .api, .api code, .mono, .status-ok, .noble .np span, .noble .np b, .deck .n, .gc .tag,
+  .pay-r, .pay-r > span:first-child, .add-seat, .seat .x, .seat .sn, .oh b, .hud, .hud .title, .ident .nm, .prow b, .pop-h b,
+  .back, .node, .node small, .eyebrow, .zoom-box, .foot, .tray, .score small, .big span, .gc .need, .le > .t-cap, .bar,
+  .menu-btn .arr, .log-more, .oc .ph, .chip b, .bt b, .rm b, .gc.back small, [style*="font-size"] { font-size: 12px !important; }
+  .h2, .panel h3, .modal h3, .scr-title, .center h3, .menu-btn, .lede { font-size: 24px !important; line-height: 1.4 !important; }
+  h1, h1[style] { font-size: 48px !important; line-height: 1.3 !important; }
+  .gc .pts, .deck b, .gc.back .lv, .opp .score, .prow .score, .big b, .chip.lg b, .bt.md b, .noble.big .bt.rq b { font-family: var(--num-font) !important; line-height: 1; }
+  .gc .pts, .gc.mini .pts, .deck b, .gc.back .lv, .gc.mini.back .lv, .opp .score, .prow .score, .chip.lg b, .bt.md b, .noble.big .bt.rq b { font-size: 16px !important; }
+  .big b { font-size: 32px !important; }
+
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="m-black" viewBox="0 0 76 76"><circle cx="38" cy="38" r="38" fill="#111"/><ellipse cx="28" cy="34" rx="5.5" ry="9" fill="#fff"/><ellipse cx="48" cy="34" rx="5.5" ry="9" fill="#fff"/></symbol>
+  <symbol id="m-mint" viewBox="0 0 58 58"><circle cx="29" cy="29" r="29" fill="#2fd3a8"/><ellipse cx="21" cy="26" rx="4" ry="7" fill="#fff"/><ellipse cx="37" cy="26" rx="4" ry="7" fill="#fff"/></symbol>
+  <symbol id="m-purple" viewBox="0 0 62 58"><path d="M31 4 58 54H4Z" fill="#7b6cf6"/><ellipse cx="24" cy="40" rx="4" ry="6.5" fill="#fff"/><ellipse cx="38" cy="40" rx="4" ry="6.5" fill="#fff"/></symbol>
+  <symbol id="m-orange" viewBox="0 0 44 44"><circle cx="22" cy="22" r="22" fill="#ff6a2b"/><ellipse cx="17" cy="20" rx="3" ry="5" fill="#fff"/><ellipse cx="28" cy="20" rx="3" ry="5" fill="#fff"/></symbol>
+  <symbol id="g-W" viewBox="0 0 24 24" style="overflow:visible"><path d="M12 2 22 12 12 22 2 12Z"/></symbol>
+  <symbol id="g-U" viewBox="0 0 24 24" style="overflow:visible"><circle cx="12" cy="12" r="9.5"/></symbol>
+  <symbol id="g-G" viewBox="0 0 24 24" style="overflow:visible"><path d="M12 2.5 20.5 7.25v9.5L12 21.5 3.5 16.75v-9.5Z"/></symbol>
+  <symbol id="g-R" viewBox="0 0 24 24" style="overflow:visible"><path d="M12 3 21.5 20h-19Z"/></symbol>
+  <symbol id="g-K" viewBox="0 0 24 24" style="overflow:visible"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/></symbol>
+  <symbol id="g-X" viewBox="0 0 24 24" style="overflow:visible"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.3l7.1-.7Z"/></symbol>
+  <symbol id="m-sleepy" viewBox="0 0 76 76"><circle cx="38" cy="38" r="38" fill="#111"/><path d="M22 36q6 5 12 0M42 36q6 5 12 0" stroke="#fff" stroke-width="3.5" fill="none" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="deco">
+  <span style="width:420px;height:420px;left:-140px;top:120px"></span>
+  <span style="width:260px;height:260px;right:-80px;top:480px"></span>
+  <span class="ring" style="width:180px;height:180px;right:220px;top:40px"></span>
+  <span class="ring" style="width:90px;height:90px;left:120px;bottom:60px"></span>
+</div>
+
+<div class="wrap">
+  <header class="head-row">
+    <div>
+      <span class="eyebrow"><i></i>UI 设计迭代 V4 · 像素风</span>
+      <h1>璀璨宝石的<br /><em>全部界面</em></h1>
+      <p class="lede">23 屏：入口（主菜单、开局设置、读档）、牌桌（轮到我、拿宝石、买卡、电脑回合、4 人局、同屏换人）、弹窗（弃宝石、选贵族、结算、暂停）、回放与设置、大模型与联网、异常提示。游戏窗口按 1280×800 画；卡面、贵族、银行数字都取自 <b class="k">data/*.json</b>。</p>
+      <div class="zoom-box">窗口缩放
+        <div class="segment" id="zoom" style="width:210px"><button data-z=".6">60%</button><button class="on" data-z=".8">80%</button><button data-z="1">100%</button></div>
+      </div>
+    </div>
+    <div class="mascots">
+      <svg width="76" height="76"><use href="#m-black"/></svg>
+      <svg width="58" height="58"><use href="#m-mint"/></svg>
+      <svg width="62" height="58"><use href="#m-purple"/></svg>
+      <svg width="44" height="44"><use href="#m-orange"/></svg>
+    </div>
+  </header>
+
+  <!-- ================= 00 零件 ================= -->
+  <section>
+    <p class="h2"><b></b>设计零件</p>
+    <p class="h2-sub">V4 像素风：所有边框是 9 宫格像素贴图；筹码是像素金币；宝石、吉祥物是点阵；字体是像素字体（中文缝合像素 12px，数字 Press Start 2P）。信息结构沿用 V3</p>
+    <div class="parts" id="parts"></div>
+  </section>
+
+  <!-- ================= 01 流程 ================= -->
+  <section>
+    <p class="h2"><b></b>界面流程</p>
+    <p class="h2-sub">黑描边是牌桌主循环；虚线框里的页面要等对应阶段（大模型阶段 5、联网阶段 6）才接上</p>
+    <div class="panel" style="display:flex;flex-direction:column;gap:16px">
+      <div class="flow"><span class="node dark">01 主菜单</span><span class="arrow">→</span><span class="node">02 本地开局设置</span><span class="arrow">→</span><span class="node hot">04 牌桌</span><span class="arrow">→</span><span class="node">12 结算</span><span class="arrow">→</span><span class="node">再来一局 <small>回 04</small></span><span class="node">14 看回放</span><span class="node">回主菜单</span></div>
+      <div class="flow"><span class="node dark">01 主菜单</span><span class="arrow">→</span><span class="node">03 读档</span><span class="arrow">→</span><span class="node hot">04 牌桌 <small>继续</small></span><span class="node">14 回放 <small>只读</small></span></div>
+      <div class="flow"><span class="node dark">01 主菜单</span><span class="arrow">→</span><span class="node" style="border-style:dashed">18 建房 / 加入</span><span class="arrow">→</span><span class="node" style="border-style:dashed">19 大厅</span><span class="arrow">→</span><span class="node hot">04 牌桌 <small>联网</small></span><span class="arrow">⇢</span><span class="node" style="border-style:dashed">20 掉线接管</span></div>
+      <div class="flow"><span class="node hot">牌桌内</span><span class="arrow">→</span><span class="node">05 拿宝石</span><span class="node">06 买 / 预留</span><span class="arrow">→</span><span class="node">10 弃宝石 <small>持币 &gt; 10</small></span><span class="arrow">→</span><span class="node">11 选贵族 <small>同时满足 ≥ 2 位</small></span><span class="arrow">→</span><span class="node">下一位</span><span class="arrow">→</span><span class="node">07 电脑回合 / 09 换人遮挡 / 17 大模型思考</span></div>
+      <div class="flow"><span class="node hot">牌桌内</span><span class="arrow">→</span><span class="node">13 暂停菜单 <small>Esc</small></span><span class="arrow">→</span><span class="node">存档 / 读档 / 规则速查 / 15–16 设置 / 退出</span></div>
+    </div>
+  </section>
+
+  <!-- ================= 02 入口 ================= -->
+  <section>
+    <p class="h2"><b></b>入口 · 主菜单、开局设置、读档</p>
+    <p class="h2-sub">阶段 7 的“最小主菜单”就是这一组；现在的 debug_ui/setup 对应 02</p>
+    <div class="screens">
+
+      <figure>
+        <div class="game-win">
+          <div class="hud"><span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><span class="title">璀璨宝石</span></div>
+          <div style="flex:1;display:grid;grid-template-columns:520px 1fr;gap:30px;padding:56px 70px;align-items:center;position:relative">
+            <div>
+              <span class="eyebrow"><i></i>基础版 · 2–4 人</span>
+              <h1 style="font-size:64px;margin:20px 0 12px">璀璨<em>宝石</em></h1>
+              <p class="lede" style="font-size:15px">收集宝石、购买发展卡、吸引贵族来访。先到 <b class="k">15 分</b>的人触发终局，打完这一轮分数最高者获胜。</p>
+              <div style="display:flex;flex-direction:column;gap:10px;width:360px;margin-top:30px">
+                <button class="menu-btn btn-accent"><span>继续上一局<small>3 人 · 第 9 轮 · 10 分钟前</small></span><span class="arr">›</span></button>
+                <button class="menu-btn btn-dark"><span>本地游戏<small>同屏轮流，空座位交给电脑</small></span><span class="arr">›</span></button>
+                <button class="menu-btn btn-ghost"><span>联网游戏<small>建房或输入 IP 加入</small></span><span class="arr">›</span></button>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                  <button class="btn btn-quiet">读取存档</button><button class="btn btn-quiet">设置</button><button class="btn btn-quiet">退出</button>
+                </div>
+              </div>
+            </div>
+            <div style="position:relative;height:560px" id="menu-art"></div>
+            <p class="t-cap" style="position:absolute;left:70px;bottom:24px">v0.4</p>
+          </div>
+        </div>
+        <figcaption><span class="cap">01 <u>主菜单</u></span><span class="cap-note">“继续上一局”只在有自动存档时出现，是唯一的橙色按钮；联网是黑框次要按钮；读档 / 设置 / 退出收成一排灰按钮</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win">
+          <div class="hud"><button class="back"><svg><use href="#i-back"/></svg>主菜单</button><span class="title">本地游戏</span></div>
+          <div class="scr" style="display:grid;grid-template-columns:1fr 380px;gap:22px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:18px">
+            <div class="panel feature">
+              <h3>座位 <span class="tag">座位 1 先手，按顺序轮流</span><span class="tag mint" style="margin-left:auto">3 人</span></h3>
+              <div class="seat"><span class="sn">1</span><svg width="40" height="40"><use href="#m-black"/></svg><input class="pill-field" value="小明" />
+                <div class="segment" style="width:210px"><button class="on">人类</button><button>电脑</button><button>大模型</button></div>
+                <div class="sub"><span class="tag dark">你</span><span class="t-cap">同屏时轮到你才显示你的盲抽牌</span></div>
+              </div>
+              <div class="seat"><span class="sn">2</span><svg width="40" height="40"><use href="#m-mint"/></svg><input class="pill-field" value="薄荷" />
+                <div class="segment" style="width:210px"><button>人类</button><button class="on">电脑</button><button>大模型</button></div>
+                <div class="sub"><div class="segment" style="width:180px"><button>简单</button><button>普通</button><button class="on">困难</button></div></div>
+                <button class="x">移除</button>
+              </div>
+              <div class="seat"><span class="sn">3</span><svg width="40" height="40"><use href="#m-purple"/></svg><input class="pill-field" value="紫晶" />
+                <div class="segment" style="width:210px"><button>人类</button><button>电脑</button><button class="on">大模型</button></div>
+                <div class="sub" style="flex-direction:column;align-items:flex-start;gap:4px"><span class="select">DeepSeek · deepseek-chat</span><span class="t-cap">失败时由「困难电脑」兜底 · 在设置里管理配置档</span></div>
+                <button class="x">移除</button>
+              </div>
+              <button class="add-seat">＋ 加一位玩家（最多 4 人）</button>
+              <p class="t-cap" style="margin-top:12px">名字只用于显示。至少要有 1 个人类座位才能在本机操作；全部是电脑时进入观战。</p>
+            </div>
+            <div class="panel">
+              <h3>常用组合 <span class="t-cap" style="font-weight:600">点一下填好座位，再微调</span></h3>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+                <button class="card" style="text-align:left"><div class="mascots" style="gap:4px"><svg width="22" height="22"><use href="#m-black"/></svg><svg width="22" height="22"><use href="#m-mint"/></svg></div><p class="t-head" style="margin-top:6px">单挑电脑</p><p class="t-cap">你 vs 困难</p></button>
+                <button class="card feature" style="text-align:left"><div class="mascots" style="gap:4px"><svg width="22" height="22"><use href="#m-black"/></svg><svg width="22" height="22"><use href="#m-mint"/></svg><svg width="22" height="21"><use href="#m-purple"/></svg></div><p class="t-head" style="margin-top:6px">标准 3 人</p><p class="t-cap">你 + 2 个普通电脑</p></button>
+                <button class="card" style="text-align:left"><div class="mascots" style="gap:4px"><svg width="22" height="22"><use href="#m-black"/></svg><svg width="22" height="22"><use href="#m-mint"/></svg><svg width="22" height="21"><use href="#m-purple"/></svg><svg width="22" height="22"><use href="#m-orange"/></svg></div><p class="t-head" style="margin-top:6px">4 人同屏</p><p class="t-cap">全部人类，换人遮挡</p></button>
+                <button class="card" style="text-align:left"><div class="mascots" style="gap:4px"><svg width="22" height="22"><use href="#m-mint"/></svg><svg width="22" height="21"><use href="#m-purple"/></svg></div><p class="t-head" style="margin-top:6px">电脑对战</p><p class="t-cap">观战，可调速</p></button>
+              </div>
+            </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:18px">
+              <div class="panel">
+                <h3>对局</h3>
+                <div class="fgroup"><p class="fl">人数</p><div class="segment"><button>2 人</button><button class="on">3 人</button><button>4 人</button></div></div>
+                <div class="fgroup"><p class="fl">随机种子（可选）</p><div style="display:flex;gap:8px"><input class="pill-field" placeholder="留空就随机" /><button class="btn btn-quiet">随机</button></div></div>
+                <p class="t-cap" style="margin:8px 4px 0">同一个种子开局完全一致，方便复盘或和朋友打同一副牌。</p>
+                <p class="fl" style="margin-top:14px">本局规则</p>
+                <div class="chips-line"><span class="tag">15 分触发终局</span><span class="tag">持币上限 10</span><span class="tag">预留上限 3</span><span class="tag">每色 5 枚 · 金 5</span><span class="tag">贵族 4 位</span></div>
+              </div>
+              <div class="panel">
+                <h3>同屏</h3>
+                <div class="pref"><div><p class="t-head">换人时遮挡</p><p class="t-cap">有 2 个以上人类座位时，换人先盖屏</p></div><button class="switch on" data-switch></button></div>
+                <div class="pref"><div><p class="t-head">电脑思考延迟</p><p class="t-cap">只影响观感，不影响强度</p></div><div class="segment" style="width:170px"><button>关</button><button class="on">0.6 秒</button><button>1.2 秒</button></div></div>
+              </div>
+              <button class="btn btn-accent btn-lg">开始对局</button>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">02 <u>本地开局设置</u></span><span class="cap-note">每个座位一行：名字 + 类型分段 + 类型专属选项（电脑选难度、大模型选配置档）；规则数值只读展示，人数一变跟着变（宝石 4/5/7，贵族 3/4/5）</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win">
+          <div class="hud"><button class="back"><svg><use href="#i-back"/></svg>主菜单</button><span class="title">读取存档</span></div>
+          <div style="flex:1;display:grid;grid-template-columns:1fr 440px;min-height:0">
+            <div style="padding:22px 26px;border-right:1px solid var(--line);background:#fff">
+              <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 class="scr-title">存档</h2><span class="count">共 5 个</span></div>
+              <div style="margin-top:14px" data-rows>
+                <div class="row on"><svg width="30" height="30"><use href="#m-black"/></svg><div class="meta"><b>自动存档</b> <span class="tag orange" style="margin-left:6px">进行中</span><p class="sub">3 人 · 第 9 轮 · 小明 3 分 / 薄荷 7 分 / 紫晶 1 分</p></div><span class="tag purple">回放</span><span class="t-cap" style="width:70px;text-align:right">10 分钟前</span></div>
+                <div class="row"><svg width="30" height="30"><use href="#m-mint"/></svg><div class="meta"><b>快速存档</b><p class="sub">4 人 · 第 21 轮 · 薄荷领先 12 分</p></div><span class="tag purple">回放</span><span class="t-cap" style="width:70px;text-align:right">昨天</span></div>
+                <div class="row"><svg width="30" height="30"><use href="#m-orange"/></svg><div class="meta"><b>10-14 · 小明获胜</b> <span class="tag mint" style="margin-left:6px">已结束</span><p class="sub">3 人 · 27 轮 · 16 : 14 : 9</p></div><span class="tag purple">回放</span><span class="t-cap" style="width:70px;text-align:right">10-14</span></div>
+                <div class="row"><svg width="30" height="30"><use href="#m-purple"/></svg><div class="meta"><b>残局练习 · 两位贵族</b><p class="sub">2 人 · 预设局面</p></div><span class="tag orange">快照</span><span class="t-cap" style="width:70px;text-align:right">10-12</span></div>
+                <div class="row"><svg width="30" height="30"><use href="#m-sleepy"/></svg><div class="meta"><b>旧版本存档</b> <span class="tag red" style="margin-left:6px">无法读取</span><p class="sub">由更新版本的游戏保存，升级后才能读取</p></div><span class="tag purple">回放</span><span class="t-cap" style="width:70px;text-align:right">10-01</span></div>
+              </div>
+            </div>
+            <div style="padding:22px 26px;background:var(--card-soft);display:flex;flex-direction:column;gap:16px">
+              <div><h2 class="scr-title" style="font-size:22px">自动存档</h2><p class="t-cap" style="margin-top:4px">2026-10-17 15:26 · 每回合结束自动覆盖</p></div>
+              <div class="card">
+                <div class="prow"><svg width="26" height="26"><use href="#m-black"/></svg><b>小明</b><span class="tag">人类</span><span class="score">3<small>分</small></span></div>
+                <div class="prow"><svg width="26" height="26"><use href="#m-mint"/></svg><b>薄荷</b><span class="tag">电脑 · 困难</span><span class="score">7<small>分</small></span></div>
+                <div class="prow"><svg width="26" height="26"><use href="#m-purple"/></svg><b>紫晶</b><span class="tag">电脑 · 普通</span><span class="score">1<small>分</small></span></div>
+              </div>
+              <div class="kv"><span>种子</span><span class="mono">482913</span><span>动作</span><span>74 步 · 第 9 轮 · 轮到小明</span><span>完整性</span><span class="status-ok">✓ 可以完整重放</span></div>
+              <div style="margin-top:auto;display:flex;gap:10px;align-items:center">
+                <button class="btn btn-accent">继续这局</button><button class="btn btn-ghost">从头看回放</button><button class="btn btn-quiet" style="margin-left:auto">删除</button>
+              </div>
+              <p class="t-cap">快照存档（预设局面、从快照继续的局）只有“继续”，没有“看回放”——它没有种子和动作序列。</p>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">03 <u>读档</u></span><span class="cap-note">左列表右详情（照样张生词本）；紫标签 = 回放存档（种子 + 动作，可重放），橙标签 = 快照；读不了的存档留在列表里并写明原因，不静默消失</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 03 牌桌 ================= -->
+  <section>
+    <p class="h2"><b></b>牌桌 · 主循环</p>
+    <p class="h2-sub">市场上方不放任何浮层；拿宝石在银行下方直接确认；别人出手的结果写进我的面板顶条。橙色 = 当前选择，深绿 = 可以购买，卡上的小头像 = 对手现在就买得起</p>
+    <div class="screens">
+
+      <figure>
+        <div class="game-win" id="s04" data-play></div>
+        <figcaption><span class="cap">04 牌桌 · <u>轮到我</u>（3 人）</span><span class="cap-note">能买的卡深绿描边 +“可买”；买不起的写“差 N”，鼠标悬停显示具体缺哪几色、金币能抵几枚。卡右上的小头像表示那个对手现在就买得起（要不要抢 / 预留卡位）。这一屏可以点：点银行选宝石（同色点两次 = 拿 2 枚），点卡会被选中</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s05" data-play></div>
+        <figcaption><span class="cap">05 牌桌 · <u>拿宝石</u>选择中</span><span class="cap-note">选中的筹码橙圈 + “+1”角标；“确认拿取 / 取消”就出现在银行筹码下方，鼠标不用横跨屏幕。我的面板顶条同步显示托盘（已选什么、拿后几枚），Enter 也能确认；拿完会超过 10 枚时提前说“确认后需要弃 N 枚”</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s06"></div>
+        <figcaption><span class="cap">06 牌桌 · <u>选中卡牌</u> → 购买 / 预留</span><span class="cap-note">点卡弹出浮层：自动支付预览（先折扣、再同色、最后金币，和规则引擎一致）、支付后剩几枚；预留按钮写明能不能拿到金币。点牌堆是“盲抽预留”，浮层只有预留一个按钮</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s07" data-lock></div>
+        <figcaption><span class="cap">07 牌桌 · <u>电脑回合</u></span><span class="cap-note">薄荷刚出手、轮到紫晶思考：顶栏白胶囊 + 转圈；正在行动的对手面板橙色侧标；所有卡和筹码不可点。上一步的结果写进我的面板顶条（暖色），相关卡外圈光晕 1.5 秒——市场上方没有任何遮挡</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s08" data-lock></div>
+        <figcaption><span class="cap">08 牌桌 · <u>4 人局</u> + 终局触发</span><span class="cap-note">右栏三个对手面板 + 只露 4 条的日志（按 L 看全部）。有人到 15 分：顶栏常驻橙色“终局轮 · 还剩 N 人”，我的面板顶条写清还剩谁没走；不再弹会挡住三级牌的 toast</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win">
+          <div class="scrim solid" style="flex-direction:column;gap:18px">
+            <div class="mascots" style="gap:14px"><svg width="76" height="76"><use href="#m-black"/></svg><svg width="62" height="58" style="opacity:.25"><use href="#m-purple"/></svg></div>
+            <span class="tag dark">同屏 · 换人</span>
+            <h2 class="scr-title" style="font-size:40px">轮到 <span style="background:var(--ink);color:#fff;border-radius:14px;padding:0 14px">小明</span></h2>
+            <p class="t-quiet" style="max-width:26rem;text-align:center">其他人请先别看屏幕。点下面的按钮后才会显示你的宝石和预留牌（包括盲抽的那张）。</p>
+            <div class="card" style="display:flex;gap:16px;align-items:center;padding:12px 18px">
+              <svg width="28" height="28"><use href="#m-purple"/></svg>
+              <p class="t-body"><b>紫晶</b> 刚才购买了 <span class="ref cR"><i></i>二级红 · 1 分</span>，并获得了贵族</p>
+            </div>
+            <button class="btn btn-accent btn-lg">我是小明，开始我的回合</button>
+            <p class="t-cap">只在有 2 个以上人类座位时出现；可在开局设置里关掉</p>
+          </div>
+        </div>
+        <figcaption><span class="cap">09 <u>同屏换人遮挡</u></span><span class="cap-note">整屏实色盖住（不是半透明），只露出上一位做了什么；人类 vs 电脑时不出现。这一屏对应“盲抽预留只有本人可见”这条规则</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 04 弹窗 ================= -->
+  <section>
+    <p class="h2"><b></b>回合内弹窗 · 弃宝石、选贵族、结算、暂停</p>
+    <p class="h2-sub">弹窗盖在半透明牌桌上（不做模糊，Godot 省一个着色器），黑描边白卡；电脑座位的弃宝石 / 选贵族不弹窗，直接在日志里写结果</p>
+    <div class="screens">
+
+      <figure>
+        <div class="game-win" id="s10" data-lock>
+          <div class="scrim">
+            <div class="modal" style="width:560px">
+              <h3>宝石太多了 <span class="tag red">12 / 10</span></h3>
+              <p class="t-quiet">回合结束时最多持有 <b class="k">10</b> 枚。点筹码选出要还给银行的 <b class="k">2</b> 枚，金币也可以弃。</p>
+              <div style="display:flex;gap:18px;justify-content:center;padding:14px 0 6px" id="discard-row"></div>
+              <div class="card soft" style="display:flex;align-items:center;gap:10px">
+                <span class="t-cap" style="font-weight:700">弃掉</span><span class="chip sm cG"></span><span class="chip sm cR"></span><b style="font-size:13px">绿 1 · 红 1</b>
+                <span class="t-cap" style="margin-left:auto">弃后 10 / 10</span>
+              </div>
+              <div class="actions"><button class="btn btn-quiet">重选</button><button class="btn btn-accent">确认弃掉 2 枚</button></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">10 <u>弃宝石</u></span><span class="cap-note">界面一次选够再确认；引擎是一次弃 1 枚，界面确认后按顺序提交 N 个 discard 动作。选够之前确认按钮禁用，不能取消（规则强制）</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s11" data-lock>
+          <div class="scrim">
+            <div class="modal" style="width:560px;align-items:center;text-align:center">
+              <svg width="56" height="52"><use href="#m-purple"/></svg>
+              <h3>两位贵族都想来拜访你</h3>
+              <p class="t-quiet">你的折扣同时满足两位，但每回合只能请一位。另一位留在场上，以后仍可能来访。</p>
+              <div style="display:flex;gap:18px;padding:8px 0" id="noble-pick"></div>
+              <div class="card soft" style="display:flex;gap:10px;align-items:center;width:100%"><span class="t-cap" style="font-weight:700">你的折扣</span><span id="noble-bonus" style="display:flex;gap:6px"></span></div>
+              <div class="actions" style="width:100%"><button class="btn btn-accent" style="flex:1">请右边这位来访（+3 分）</button></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">11 <u>选贵族</u></span><span class="cap-note">贵族放大成 200px 的金边方牌，选中的黑描边暖底；底下摆出自己的折扣，方便核对“为什么两位都满足”。贵族还没有名字，按钮用位置指代，不露出内部 id</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s12" data-lock>
+          <div class="scrim">
+            <div class="modal" style="width:720px;gap:16px">
+              <div style="display:flex;align-items:center;gap:14px">
+                <svg width="64" height="64"><use href="#m-black"/></svg>
+                <div><span class="tag dark">对局结束 · 第 27 轮</span><h3 style="font-size:30px;margin-top:6px">小明 获胜</h3></div>
+                <div class="mascots" style="margin-left:auto;gap:8px"><svg width="40" height="40"><use href="#m-mint"/></svg><svg width="40" height="38"><use href="#m-purple"/></svg><svg width="32" height="32"><use href="#m-orange"/></svg></div>
+              </div>
+              <div class="card" style="padding:4px 14px">
+                <div class="prow" style="padding:10px 0"><b style="width:22px;color:var(--orange)">1</b><svg width="30" height="30"><use href="#m-black"/></svg><b>小明</b><span class="tag">人类</span><span class="t-cap" style="margin-left:auto">卡 12 · 贵族 2</span><span class="score" style="width:70px;text-align:right">16<small>分</small></span></div>
+                <div class="prow" style="padding:10px 0"><b style="width:22px;color:var(--ink-3)">2</b><svg width="30" height="30"><use href="#m-mint"/></svg><b>薄荷</b><span class="tag">电脑 · 困难</span><span class="t-cap" style="margin-left:auto">卡 14 · 贵族 1</span><span class="score" style="width:70px;text-align:right">16<small>分</small></span></div>
+                <div class="prow" style="padding:10px 0"><b style="width:22px;color:var(--ink-3)">3</b><svg width="30" height="30"><use href="#m-orange"/></svg><b>橘子</b><span class="tag purple">大模型</span><span class="t-cap" style="margin-left:auto">卡 11 · 贵族 0</span><span class="score" style="width:70px;text-align:right">11<small>分</small></span></div>
+                <div class="prow" style="padding:10px 0"><b style="width:22px;color:var(--ink-3)">4</b><svg width="30" height="30"><use href="#m-purple"/></svg><b>紫晶</b><span class="tag">电脑 · 普通</span><span class="t-cap" style="margin-left:auto">卡 9 · 贵族 0</span><span class="score" style="width:70px;text-align:right">9<small>分</small></span></div>
+              </div>
+              <div class="card dark"><p class="t-body">小明和薄荷同为 <b>16 分</b>，按规则比较购买的卡牌数：小明 12 张 &lt; 薄荷 14 张，<b>小明胜</b>。</p></div>
+              <div class="actions" style="justify-content:space-between"><span class="t-cap">用时 38 分钟 · 结束原因：达到 15 分</span><span style="display:flex;gap:8px"><button class="btn btn-quiet">回主菜单</button><button class="btn btn-quiet">看回放</button><button class="btn btn-ghost">保存回放</button><button class="btn btn-accent">再来一局</button></span></div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">12 <u>结算</u></span><span class="cap-note">名次表 + 黑底说明卡（只在需要破同分时出现）。并列胜者同为第 1；保险丝结束（stalled）时标题改成“对局僵持，按分数结算”</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s13" data-lock>
+          <div class="toast warm" style="z-index:40"><svg width="26" height="26"><use href="#m-orange"/></svg>已保存到「快速存档」<span class="t-cap">可从主菜单 → 读取存档 继续</span></div>
+          <div class="scrim">
+            <div class="modal" style="width:720px;flex-direction:row;gap:22px;padding:24px">
+              <div style="width:230px;display:flex;flex-direction:column;gap:8px">
+                <h3 style="margin-bottom:8px">暂停</h3>
+                <button class="btn btn-accent btn-lg">继续游戏</button>
+                <button class="btn btn-quiet btn-lg">保存</button>
+                <button class="btn btn-quiet btn-lg">读取存档</button>
+                <button class="btn btn-quiet btn-lg">设置</button>
+                <div style="margin-top:auto;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px">
+                  <p class="t-cap">退出会丢掉自上次保存以来的进度</p>
+                  <span style="display:flex;gap:6px"><button class="btn btn-danger btn-sm">确认退出</button><button class="btn btn-quiet btn-sm">取消</button></span>
+                </div>
+              </div>
+              <div style="flex:1;border-left:1px solid var(--line);padding-left:22px">
+                <p class="label"><i></i>规则速查</p>
+                <div class="bullets">
+                  <p class="t-quiet"><span><b class="k">拿宝石</b>：3 种不同色各 1 枚；或同色 2 枚（该色银行剩 ≥ 4）。可取颜色不足 3 种时可以少拿。</span></p>
+                  <p class="t-quiet"><span><b class="k">预留</b>：场面卡或牌堆顶（盲抽），手里最多 3 张；银行有金币就附带 1 枚。</span></p>
+                  <p class="t-quiet"><span><b class="k">购买</b>：自动付款——先用折扣，再用同色宝石，最后用金币补。</span></p>
+                  <p class="t-quiet"><span><b class="k">回合末</b>：持币超过 10 枚要弃回；折扣满足贵族就来访（每回合最多一位）。</span></p>
+                  <p class="t-quiet"><span><b class="k">终局</b>：有人到 15 分，打完这一轮；分高者胜，同分比谁买的卡少。</span></p>
+                </div>
+                <p class="label" style="margin-top:14px"><i></i>快捷键</p>
+                <div class="chips-line"><span class="t-cap"><span class="kbd">1</span>–<span class="kbd">5</span> 选宝石</span><span class="t-cap"><span class="kbd">Enter</span> 确认</span><span class="t-cap"><span class="kbd">Esc</span> 取消 / 暂停</span><span class="t-cap"><span class="kbd">L</span> 日志</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">13 <u>暂停菜单</u> + 规则速查</span><span class="cap-note">Esc 打开；左边操作，右边规则速查（数值来自 rules.json）。退出要二次确认（照样张生词本删除的做法）；保存成功是顶部暖色 toast。联网局里“暂停”不会停住别人，只是打开菜单</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 05 回放与设置 ================= -->
+  <section>
+    <p class="h2"><b></b>回放与设置</p>
+    <p class="h2-sub">回放用同一张牌桌，底部换成播放条；设置照样张主窗口：顶栏胶囊切页、重点卡黑描边</p>
+    <div class="screens">
+
+      <figure>
+        <div class="game-win" id="s14" data-lock></div>
+        <figcaption><span class="cap">14 <u>回放</u></span><span class="cap-note">右栏列出全部玩家（回放没有“我”）；底部播放条：当前步说明、按座位着色的时间轴、上一步 / 播放 / 下一步、速度和视角。视角决定能不能看到某人的盲抽牌</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win">
+          <div class="hud"><button class="back"><svg><use href="#i-back"/></svg>返回</button><span class="title">设置</span><span class="main-nav" style="margin-left:auto"><button class="on">通用</button><button>大模型</button><button>联网</button><button>关于</button></span></div>
+          <div class="scr" style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;align-content:center">
+            <div class="panel feature">
+              <h3>对局</h3>
+              <div class="pref"><div><p class="t-head">默认昵称</p><p class="t-cap">本地开局和联网大厅都用它</p></div><input class="pill-field" style="width:180px" value="小明" /></div>
+              <div class="pref"><div><p class="t-head">电脑思考延迟</p><p class="t-cap">电脑出手前停多久，方便看清</p></div><div class="segment" style="grid-template-columns:repeat(4,1fr);width:220px"><button>关</button><button class="on">0.6s</button><button>1.2s</button><button>2s</button></div></div>
+              <div class="pref"><div><p class="t-head">动画速度</p><p class="t-cap">筹码飞行、发牌、贵族来访</p></div><div class="segment" style="width:220px"><button>慢</button><button class="on">标准</button><button>快</button></div></div>
+              <div class="pref"><div><p class="t-head">购买前确认</p><p class="t-cap">关掉后点“可买”的卡直接购买</p></div><button class="switch on" data-switch></button></div>
+              <div class="pref"><div><p class="t-head">同屏换人遮挡</p><p class="t-cap">2 个以上人类座位时生效</p></div><button class="switch on" data-switch></button></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:22px">
+              <div class="panel">
+                <h3>声音与显示</h3>
+                <div class="pref"><div><p class="t-head">音效</p><p class="t-cap">拿宝石、买卡、贵族来访</p></div><button class="switch on" data-switch></button></div>
+                <div class="pref"><div><p class="t-head">全屏</p></div><button class="switch" data-switch></button></div>
+                <div class="pref"><div><p class="t-head">显示卡牌 id</p><p class="t-cap">调试用，卡面角落显示 L2-U-03</p></div><button class="switch" data-switch></button></div>
+              </div>
+              <div class="panel">
+                <h3>存档</h3>
+                <div class="pref"><div><p class="t-head">每回合自动存档</p><p class="t-cap">主菜单的“继续上一局”靠它</p></div><button class="switch on" data-switch></button></div>
+                <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><button class="btn btn-ghost btn-sm">打开存档目录</button><span class="t-cap mono">user://saves/</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">15 设置 · <u>通用</u></span><span class="cap-note">对局偏好是重点卡；开关、分段都照样张（黑描边开关，选中分段黑底反白）</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win">
+          <div class="hud"><button class="back"><svg><use href="#i-back"/></svg>返回</button><span class="title">设置</span><span class="main-nav" style="margin-left:auto"><button>通用</button><button class="on">大模型</button><button>联网</button><button>关于</button></span></div>
+          <div style="flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0">
+            <div style="padding:22px 22px;border-right:1px solid var(--line);background:#fff">
+              <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 class="scr-title" style="font-size:22px">配置档</h2><button class="btn btn-dark btn-sm">＋ 新建</button></div>
+              <p class="t-cap" style="margin:6px 0 12px">不同座位可以用不同配置档，让两个模型对战</p>
+              <div data-rows>
+                <div class="row on"><div class="meta"><b>DeepSeek</b><p class="sub">deepseek-chat · 3 个座位在用</p></div><span class="tag mint">已连接</span></div>
+                <div class="row"><div class="meta"><b>本地 Ollama</b><p class="sub">qwen2.5:14b · localhost</p></div><span class="tag">未测试</span></div>
+                <div class="row"><div class="meta"><b>Kimi</b><p class="sub">moonshot-v1-8k</p></div><span class="tag red">Key 无效</span></div>
+              </div>
+            </div>
+            <div class="scr" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;background:var(--card-soft)">
+              <div class="panel feature" style="grid-row:span 2">
+                <h3>DeepSeek <span class="tag mint">已连接</span></h3>
+                <div class="fgroup"><p class="fl">名称</p><input class="pill-field" value="DeepSeek" /></div>
+                <div class="fgroup"><p class="fl">BASE URL</p><input class="pill-field" value="https://api.deepseek.com/v1" /></div>
+                <div class="fgroup"><p class="fl">API KEY</p><input class="pill-field" type="password" value="sk-xxxxxxxxxxxxxxxx" /></div>
+                <div class="fgroup"><p class="fl">模型名</p><input class="pill-field" value="deepseek-chat" /></div>
+                <p class="t-cap" style="margin:10px 4px 0">兼容 OpenAI 接口格式。API Key 只存在本机 <span class="mono">user://config.json</span>，不进存档、不发给联网对手。</p>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:18px"><button class="btn btn-ghost">测试连接</button><button class="btn btn-accent">保存</button><span class="status-ok" style="margin-left:auto">✓ 连接成功 · 1.3 秒</span></div>
+              </div>
+              <div class="panel">
+                <h3>出手</h3>
+                <div class="fgroup"><p class="fl">每步思考上限</p><div class="segment" style="grid-template-columns:repeat(4,1fr)"><button>15s</button><button class="on">30s</button><button>60s</button><button>不限</button></div></div>
+                <div class="fgroup"><p class="fl">回复无法解析时重试</p><div class="segment"><button>0 次</button><button class="on">2 次</button><button>4 次</button></div></div>
+                <div class="fgroup"><p class="fl">温度</p><input class="pill-field" value="0.7" /></div>
+              </div>
+              <div class="panel">
+                <h3>兜底与性格</h3>
+                <div class="fgroup"><p class="fl">失败时交给</p><div class="segment"><button>简单电脑</button><button>普通电脑</button><button class="on">困难电脑</button></div></div>
+                <div class="fgroup"><p class="fl">性格（提示词模板）</p><div class="segment" style="grid-template-columns:repeat(4,1fr)"><button class="on">均衡</button><button>激进</button><button>保守</button><button>阻挡</button></div></div>
+                <p class="t-cap" style="margin:8px 4px 0">4 人局一局大约 60–120 次请求，整局偏慢是正常的。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">16 设置 · <u>大模型配置档</u></span><span class="cap-note">阶段 5：左边配置档列表，右边编辑；连接配置是重点卡，“测试连接”黑框、“保存”橙色，状态写在按钮行右侧（照样张设置页）</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 06 大模型与联网 ================= -->
+  <section>
+    <p class="h2"><b></b>大模型与联网</p>
+    <p class="h2-sub">阶段 5 / 6 的界面；牌桌本身不变，只多了等待计时、兜底提示、在线状态</p>
+    <div class="screens">
+
+      <figure>
+        <div class="game-win" id="s17" data-lock></div>
+        <figcaption><span class="cap">17 牌桌 · <u>大模型思考</u>与兜底</span><span class="cap-note">大模型座位的面板里有等待条（已等 12.4 秒 / 上限 30 秒）；模型给的理由用紫色竖线引在日志里；回复解析失败、超时、断网时我的面板顶条说明“已由困难电脑代打”，日志里也留一条</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win">
+          <div class="hud"><button class="back"><svg><use href="#i-back"/></svg>主菜单</button><span class="title">联网游戏</span><span class="tag" style="margin-left:auto">协议 v1</span></div>
+          <div class="scr" style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;align-content:center;padding:30px 40px">
+            <div class="panel feature">
+              <h3>创建房间 <span class="tag orange">你当主机</span></h3>
+              <div class="fgroup"><p class="fl">昵称</p><input class="pill-field" value="小明" /></div>
+              <div class="fgroup"><p class="fl">端口</p><input class="pill-field" value="7000" /></div>
+              <div class="fgroup"><p class="fl">把这个地址告诉朋友</p>
+                <div class="card soft" style="display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px"><span class="tag">局域网</span><b class="mono" style="font-size:13px">192.168.1.23:7000</b><button class="btn btn-quiet btn-sm" style="margin-left:auto">复制</button></div>
+                  <div style="display:flex;align-items:center;gap:8px"><span class="tag purple">Tailscale</span><b class="mono" style="font-size:13px">100.64.0.5:7000</b><button class="btn btn-quiet btn-sm" style="margin-left:auto">复制</button></div>
+                </div>
+              </div>
+              <button class="btn btn-accent btn-lg" style="width:100%;margin-top:16px">创建房间</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:22px">
+              <div class="panel">
+                <h3>加入房间</h3>
+                <div class="fgroup"><p class="fl">昵称</p><input class="pill-field" value="小明" /></div>
+                <div class="fgroup"><p class="fl">主机地址</p><div style="display:flex;gap:8px"><input class="pill-field" placeholder="192.168.1.23" /><input class="pill-field" style="width:110px" value="7000" /></div></div>
+                <p class="fl" style="margin-top:12px">最近连接</p>
+                <div class="chips-line"><span class="tag">阿青家 · 192.168.1.40</span><span class="tag">公司 · 100.64.0.9</span></div>
+                <button class="btn btn-dark btn-lg" style="width:100%;margin-top:16px">加入</button>
+              </div>
+              <div class="card" style="display:flex;gap:12px;align-items:flex-start">
+                <svg width="36" height="36" style="flex:none"><use href="#m-mint"/></svg>
+                <p class="t-quiet">不在同一个局域网？直连 IP 需要路由器端口转发；更省事的是双方都装 <b class="k">Tailscale</b> 或 <b class="k">ZeroTier</b>，用它给的地址。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">18 联网 · <u>建房 / 加入</u></span><span class="cap-note">建房是重点卡，直接列出可分享的地址（局域网 / 虚拟局域网）带复制按钮；公网说明只放一张小卡</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win">
+          <div class="hud"><button class="back"><svg><use href="#i-back"/></svg>离开房间</button><span class="title">房间 · 192.168.1.23:7000</span><span class="tag orange">你是主机</span><span class="tag" style="margin-left:auto">协议 v1</span></div>
+          <div class="scr" style="display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start;align-content:center">
+            <div class="panel feature">
+              <h3>座位 <span class="tag">3 / 4 已就绪</span></h3>
+              <div class="seat"><span class="sn">1</span><svg width="40" height="40"><use href="#m-black"/></svg><div style="width:150px"><b>小明</b><p class="t-cap">主机 · 你</p></div><span class="tag">人类</span><div class="sub"><span class="status-ok">✓ 已准备</span></div></div>
+              <div class="seat"><span class="sn">2</span><svg width="40" height="40"><use href="#m-mint"/></svg><div style="width:150px"><b>小红</b><p class="t-cap">远程 · 23 ms</p></div><span class="tag">人类</span><div class="sub"><span class="status-ok">✓ 已准备</span></div><button class="x">请出</button></div>
+              <div class="seat"><span class="sn">3</span><svg width="40" height="40"><use href="#m-purple"/></svg><div style="width:150px"><b>阿青</b><p class="t-cap">远程 · 41 ms</p></div><span class="tag">人类</span><div class="sub"><span class="note"><i style="animation:pulse 1.2s infinite"></i>还没准备</span></div><button class="x">请出</button></div>
+              <div class="seat"><span class="sn">4</span><svg width="40" height="40" style="opacity:.35"><use href="#m-orange"/></svg><div style="width:150px"><b style="color:var(--ink-3)">空座位</b><p class="t-cap">等待加入…</p></div>
+                <div class="segment" style="width:240px"><button class="on">等人</button><button>电脑</button><button>大模型</button></div></div>
+              <p class="t-cap" style="margin-top:12px">电脑和大模型座位只在主机上运行；客户端看到的是同一张表，但不能改座位。</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:18px">
+              <div class="panel">
+                <h3>对局</h3>
+                <div class="kv"><span>人数</span><span>按已占座位 · 3–4 人</span><span>种子</span><span>主机开局时随机</span><span>规则</span><span>15 分 · 上限 10 / 3</span></div>
+              </div>
+              <div class="card dark" style="display:flex;flex-direction:column;gap:6px"><p class="t-body">断线的人由<b>困难电脑</b>临时接管；用同一台电脑重连会收回座位（凭本机保存的令牌，不按昵称）。</p></div>
+              <button class="btn btn-accent btn-lg" disabled>开始对局</button>
+              <p class="t-cap" style="text-align:center">等待 阿青 准备；空座位设成电脑或“不要这个座位”后也能开</p>
+            </div>
+          </div>
+        </div>
+        <figcaption><span class="cap">19 联网 · <u>大厅</u></span><span class="cap-note">主机视角：每个座位显示延迟和准备状态，空座位可设成电脑 / 大模型；开始按钮禁用时写明在等谁。客户端视角相同但没有“请出”和座位类型分段</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="game-win" id="s20" data-lock></div>
+        <figcaption><span class="cap">20 牌桌 · <u>掉线接管</u></span><span class="cap-note">掉线玩家的面板灰掉角色、标“离线 · 电脑代打”；右栏顶部常驻提示卡说明重连规则（持续状态不用会消失的 toast）；顶栏右侧显示在线人数</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 07 异常 ================= -->
+  <section>
+    <p class="h2"><b></b>异常提示</p>
+    <p class="h2-sub">说清原因，给一个能做的按钮；小角色只出现在留白里（照样张“请求失败”）</p>
+    <div class="screens">
+
+      <figure>
+        <div class="popup">
+          <div class="bar"><span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><span>璀璨宝石</span></div>
+          <div class="body">
+            <div class="center" style="padding-top:6px"><svg width="64" height="64"><use href="#m-sleepy"/></svg><h3>游戏数据有问题，没法开局</h3></div>
+            <div class="card quiet bullets">
+              <p class="t-quiet"><span><b class="k">cards.json</b> · L2-R-03 的花费里有未知颜色 <span class="mono">purpel</span></span></p>
+              <p class="t-quiet"><span><b class="k">ai/hard.json</b> · 权重键 <span class="mono">targt_gap</span> 拼错了</span></p>
+            </div>
+            <p class="t-cap">启动时会检查卡表、贵族、规则和电脑配置，有一项不对就不让开局，免得打到一半出错。</p>
+            <div style="display:flex;gap:8px;justify-content:center"><button class="btn btn-ghost">复制错误</button><button class="btn btn-dark">退出</button></div>
+          </div>
+        </div>
+        <figcaption><span class="cap">21 <u>数据加载失败</u></span><span class="cap-note">对应 DataRegistry.is_valid() 为 false；逐条列出错误</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar"><span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><span>读取存档</span></div>
+          <div class="body">
+            <div class="center" style="padding-top:6px"><svg width="58" height="58"><use href="#m-mint"/></svg><h3>这个存档读不了</h3></div>
+            <div class="card feature">
+              <span class="tag orange">重放校验失败</span>
+              <p style="margin-top:8px;font-size:14px;font-weight:800;line-height:1.4">重放到第 37 步时，局面和存档记录的不一样。</p>
+              <p class="t-cap" style="margin-top:6px">通常是卡表或规则改过数值。存档文件没有动，换回原来的数据就能读。</p>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center"><button class="btn btn-quiet">返回列表</button><button class="btn btn-dark">读到第 36 步为止</button></div>
+          </div>
+        </div>
+        <figcaption><span class="cap">22 <u>存档无法读取</u></span><span class="cap-note">版本太新、指纹不一致、文件损坏各有一句人话；指纹不一致时允许停在出错前一步</span></figcaption>
+      </figure>
+
+      <figure>
+        <div class="popup">
+          <div class="bar"><span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><span>联网游戏</span></div>
+          <div class="body">
+            <div class="center" style="padding-top:6px"><div class="mascots" style="gap:10px"><svg width="58" height="58"><use href="#m-black"/></svg><svg width="44" height="44"><use href="#m-orange"/></svg></div><h3>和主机断开了</h3>
+              <p class="t-cap" style="max-width:18rem">正在重连（第 3 次 / 共 10 次）。这段时间你的座位由困难电脑代打，连上后自动交还。</p>
+              <div class="bar-p" style="width:220px"><i style="width:30%"></i></div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center"><button class="btn btn-quiet">回主菜单</button><button class="btn btn-dark">立即重试</button></div>
+          </div>
+        </div>
+        <figcaption><span class="cap">23 <u>客户端断线重连</u></span><span class="cap-note">客户端一侧的提示；协议版本不一致、房间已满用同一个弹窗换文案</span></figcaption>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ================= 08 交互规则 ================= -->
+  <section>
+    <p class="h2"><b></b>交互规则与接口对照</p>
+    <p class="h2-sub">做正式 UI 时照这一节实现；接口都已在 docs/UI_INTEGRATION.md 里</p>
+    <div class="rules-grid">
+      <div class="panel feature">
+        <h3>交互规则</h3>
+        <div class="bullets">
+          <p class="t-quiet"><span><b class="k">能点什么只看合法动作。</b>筹码、卡、牌堆、贵族是否可点，全部由 <span class="mono">Rules.get_legal_actions()</span> 决定；界面不自己判断“看起来合法”。</span></p>
+          <p class="t-quiet"><span><b class="k">拿宝石先选后确认。</b>点不同色累积到 3 种；同色再点一次变成拿 2 枚（只有该色剩 ≥ 4 时才可能）；再点取消。可取颜色不足 3 种时，选 1–2 种也能确认。</span></p>
+          <p class="t-quiet"><span><b class="k">买 / 预留走浮层。</b>点卡出浮层，显示自动支付预览；设置里关掉“购买前确认”后，点可买的卡直接买。</span></p>
+          <p class="t-quiet"><span><b class="k">弃宝石一次选够。</b>界面收集 N 枚后，按顺序提交 N 个 discard 动作；中途收到 action_rejected 就重新打开弹窗。</span></p>
+          <p class="t-quiet"><span><b class="k">非人类回合全锁。</b><span class="mono">is_current_human()</span> 为 false 时只能看、能开暂停菜单；电脑的弃宝石 / 选贵族不弹窗。</span></p>
+          <p class="t-quiet"><span><b class="k">隐私。</b>别人的盲抽牌一律画成牌背；电脑回合时 state_changed 带的是电脑自己的视图，它的盲抽牌也要画成牌背。同屏多个人类时换人先盖屏（09）。</span></p>
+          <p class="t-quiet"><span><b class="k">反馈。</b>每个事件对应一个动效：筹码飞到玩家面板、卡从场面滑走并补牌、贵族飞到得分区、到 15 分时分数跳动。电脑 / 远程玩家出手时，结果写进我的面板顶条 + 相关卡光晕 1.5 秒；<b class="k">市场上方永远不放浮层</b>。持续状态（掉线、终局轮）用右栏提示卡或顶栏标签。</span></p>
+          <p class="t-quiet"><span><b class="k">颜色永远配形状。</b>任何表示宝石颜色的地方（筹码、折扣、花费、贵族要求、日志）都带专属形状；数量为 0 用空心描边。</span></p>
+          <p class="t-quiet"><span><b class="k">缩放。</b>按 1280×800 设计；Godot 用 <span class="mono">canvas_items</span> + <span class="mono">expand</span>。更宽的屏幕把多出来的宽度给右栏，更高的屏幕给市场卡牌放大；最小字号 12px（按 1280×800 计）。</span></p>
+          <p class="t-quiet"><span><b class="k">座位号对用户从 1 开始</b>（引擎里是 0 开始）；规则数值（15 分、10 枚、3 张）从 RulesConfig 读，不写死在界面里。</span></p>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>界面 ↔ 接口</h3>
+        <table class="api">
+          <tr><td>牌桌刷新</td><td><code>state_changed(view)</code> → 整桌按视图重画；视图里只有 card_id，数值查 <code>DataRegistry.card_catalog()</code></td></tr>
+          <tr><td>动效 / 日志 / toast</td><td><code>events_emitted(events)</code>，事件类型见 <code>core/game_event.gd</code></td></tr>
+          <tr><td>可点状态</td><td><code>Rules.get_legal_actions(view, catalog, config)</code></td></tr>
+          <tr><td>提交动作</td><td><code>submit_action(action)</code>；被拒时收到 <code>action_rejected(message)</code></td></tr>
+          <tr><td>锁定牌桌</td><td><code>is_current_human()</code></td></tr>
+          <tr><td>02 开局</td><td><code>start_new_game(count, seed, seat_types)</code></td></tr>
+          <tr><td>12 结算</td><td><code>game_finished(winners, scores)</code> + 视图里的 finished_reason</td></tr>
+          <tr><td>03 / 13 存读档</td><td><code>build_replay_data()</code> / <code>can_save_replay()</code> / <code>load_replay()</code> / <code>load_snapshot()</code></td></tr>
+          <tr><td>14 回放</td><td>现在只有一次性 <code>load_replay()</code>；逐步播放要新增“重放到第 N 步”（见页尾）</td></tr>
+          <tr><td>17 大模型</td><td>阶段 5 的 LLM 控制器要另发“已等待秒数 / 理由 / 兜底”信号</td></tr>
+          <tr><td>19–20 联网</td><td>阶段 6 的 NetworkManager：座位、准备、延迟、掉线 / 重连事件</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    <b>V4 本轮修改（像素风）：</b>① 视觉整体换成像素风：深色木纹牌桌 + 羊皮纸面板，所有直角 / 缺角像素边框（9 宫格），按钮上亮下暗、悬停抬起、按下压扁，阴影一律是硬投影；② 字体换成像素字体，字号只用 12 / 24 / 48 三档（数字 8 / 16 / 32），保证整数倍清晰；③ 筹码改成 12×12 像素金币贴图，数量为 0 用空心金币；④ 宝石形状重画成点阵，并换成剪影差异更大的一组：白◇ 蓝● 绿▮（祖母绿切割）红♥ 黑■ 金★；⑤ 吉祥物改成 14×14 点阵；⑥ 选中卡上方有跳动的 ▼ 光标，刚被拿走的卡边框闪烁（按 steps 逐帧，不做平滑过渡）。<br />
+    <b>Godot 落地：</b>边框用 StyleBoxTexture / NinePatchRect（本稿的 border-image 就是 9 宫格，切片 1 或 2 像素）；贴图导入时 Filter = Nearest；美术按 2px = 1 像素画，界面基准 1280×800、canvas_items 拉伸 + 整数倍缩放；字体打包 Fusion Pixel 12px 与 Press Start 2P（都是 OFL，可商用），关掉抗锯齿与 hinting。<br />
+    <b>V3：</b>① 宝石颜色 + 专属形状双编码（色盲友好），宝石色加深；卡牌改为实色色带，黑白卡一眼可分；② 电脑出手结果写进我的面板顶条，掉线提示放右栏，市场上方不再有浮层；③ 拿宝石的确认 / 取消放到银行下方；④ 对手面板改为按颜色 6 列的网格，最小字号 12px，日志只露最近几条；⑤ 买不起的卡显示“差 N”并可悬停查看缺口，卡上标出哪些对手现在买得起；⑥ 去掉界面里的开发术语（座位类型 id、rules.json、schema、贵族 id）；⑦ 数量为 0 改为空心；⑧ 主题：衬线体用于标题 / 分数 / 罗马数字，贵族金边方牌，牌背斜纹，主菜单改成一组桌面静物；⑨ 去掉 Godot 难实现的虚线内圈和毛玻璃。<br />
+    <b>V2：</b>统一橙色选中反馈与绿色可买反馈；对手当前行动改为侧边强调；新增分数进度提示；强化筹码和卡牌材质与次级文字对比度。<br />
+    <b>样张里有、但现在代码里还没有的：</b>自动存档与“继续上一局”（01、15）、多存档槽列表（03，现在只有一个快速存档）、逐步回放播放条（14）、设置持久化（15，计划在阶段 7）、玩家昵称（引擎只有座位号，名字由界面层保存）、贵族名字（nobles.json 只有 id，样张暂用 N-06）。<br />
+    <b>没有画的：</b>动效本身（只在交互规则里写了约定）、深色模式、窗口小于 1280×800 时的缩放策略。
+  </p>
+</div>
+
+<script>
+/* ---------- V4 像素贴图：9 宫格边框、金币、宝石形状、吉祥物（Godot 版换成同样的 PNG 贴图） ---------- */
+{
+  const svgURL = (s) => `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
+  const cell = (x, y) => `M${x} ${y}h1v1h-1z`;
+  const svg = (w, h, body) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">${body}</svg>`;
+  /* 小框：3×3，1 像素缺角 */
+  const frameS = (ol) => svgURL(svg(3, 3, `<path d="${[[1, 0], [0, 1], [2, 1], [1, 2]].map(([x, y]) => cell(x, y)).join('')}" fill="${ol}"/>`));
+  /* 大框：5×5，阶梯圆角 + 内衬色 */
+  const frameL = (ol, fill) => svgURL(svg(5, 5,
+    `<path d="${[[2, 0], [1, 1], [3, 1], [0, 2], [4, 2], [1, 3], [3, 3], [2, 4]].map(([x, y]) => cell(x, y)).join('')}" fill="${ol}"/>` +
+    `<path d="${[[2, 1], [1, 2], [2, 2], [3, 2], [2, 3]].map(([x, y]) => cell(x, y)).join('')}" fill="${fill}"/>`));
+  /* 金币：12×12 像素圆，外描边 + 内圈凹槽 + 左上高光 + 下缘阴影 */
+  const coin = ([base, shade, light, ol, edge], empty) => {
+    const p = { o: '', b: '', s: '', l: '' };
+    const R = 5.9, c = 5.5, inside = (x, y) => Math.hypot(x - c, y - c) <= R;
+    for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
+      if (!inside(x, y)) continue;
+      const d = Math.hypot(x - c, y - c);
+      const edgePx = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !inside(x + dx, y + dy));
+      const k = edgePx ? 'o' : empty ? 'b' : (d > 3.4 && d <= 4.3) || (d > 4.3 && y >= 7) ? 's' : d > 4.3 && x + y <= 6 ? 'l' : 'b';
+      p[k] += cell(x, y);
+    }
+    return svgURL(svg(12, 12, `<path d="${p.o}" fill="${empty ? edge : ol}"/><path d="${p.b}" fill="${empty ? '#fbf3df' : base}"/><path d="${p.s}" fill="${shade}"/><path d="${p.l}" fill="${light}"/>`));
+  };
+  const COIN = {
+    W: ['#f6f1e4', '#c8bca5', '#ffffff', '#2a1c12', '#b8ae9c'],
+    U: ['#3b74e0', '#244c9c', '#8fb3f5', '#14244a', '#3b74e0'],
+    G: ['#1f9a69', '#126444', '#6fd3a6', '#0b3524', '#1f9a69'],
+    R: ['#e0403c', '#9c2422', '#ff8f84', '#4a1110', '#e0403c'],
+    K: ['#3a332c', '#1c1814', '#6e655b', '#0e0b08', '#3a332c'],
+    X: ['#f2b630', '#b67d12', '#ffe28a', '#5a3a06', '#d49a17'],
+  };
+  let css = `:root{--fr-s:${frameS('#2a1c12')};--fr-s-ok:${frameS('#2f9e5f')};--fr-s-hot:${frameS('#e8582a')};--fr-s-gold:${frameS('#8a6420')};--fr-s-dark:${frameS('#120c08')};--fr-l:${frameL('#2a1c12', '#fbf3df')};--fr-l-hot:${frameL('#e8582a', '#fbf3df')}}`;
+  Object.entries(COIN).forEach(([k, v]) => { css += `.c${k}{--coin:${coin(v)};--coin0:${coin(v, true)}}`; });
+  document.head.insertAdjacentHTML('beforeend', `<style>${css}</style>`);
+
+  /* 点阵 → SVG symbol：自动描一圈 8 邻域外描边（字符 o） */
+  const pxSymbol = (id, rows, colors) => {
+    const W = rows[0].length + 2;
+    const pad = ['.'.repeat(W), ...rows.map((r) => `.${r}.`), '.'.repeat(W)];
+    const at = (x, y) => (pad[y] || '')[x] || '.';
+    const paths = {};
+    pad.forEach((r, y) => [...r].forEach((ch, x) => {
+      const k = ch !== '.' ? ch : [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].some(([dx, dy]) => at(x + dx, y + dy) !== '.') ? 'o' : '';
+      if (k) paths[k] = (paths[k] || '') + cell(x, y);
+    }));
+    const el = document.getElementById(id);
+    el.setAttribute('viewBox', `0 0 ${W} ${pad.length}`);
+    el.innerHTML = Object.entries(paths).map(([k, d]) => `<path d="${d}" shape-rendering="crispEdges" style="fill:${colors[k]}"/>`).join('');
+  };
+  /* 宝石：白◇ 蓝● 绿▮（祖母绿切割）红♥ 黑■ 金★；# = 本色，h = 高光 */
+  const GEMS = {
+    W: ['....##....', '...#h##...', '..#h####..', '.#h######.', '##########', '##########', '.########.', '..######..', '...####...', '....##....'],
+    U: ['...####...', '.##hh####.', '.#h######.', '##h#######', '##########', '##########', '##########', '.########.', '.########.', '...####...'],
+    G: ['...####...', '..#hh###..', '..#h####..', '..#h####..', '..######..', '..######..', '..######..', '..######..', '..######..', '...####...'],
+    R: ['..........', '.###..###.', '#hh#######', '#h########', '##########', '.########.', '..######..', '...####...', '....##....', '..........'],
+    K: ['..........', '.########.', '.#hhh####.', '.#h######.', '.#h######.', '.########.', '.########.', '.########.', '.########.', '..........'],
+    X: ['....##....', '....##....', '...#h##...', '##########', '.#h######.', '..######..', '..######..', '.###..###.', '.##....##.', '..........'],
+  };
+  const gemColors = { o: 'var(--gs-o, transparent)', '#': 'var(--gs-f, currentColor)', h: 'var(--gs-h, var(--gs-f, currentColor))' };
+  Object.entries(GEMS).forEach(([k, rows]) => pxSymbol(`g-${k}`, rows, gemColors));
+
+  /* 吉祥物：14×14 点阵，# = 身体，e = 眼睛，h = 高光 */
+  const blob = (tri, eyes) => Array.from({ length: 14 }, (_, y) => Array.from({ length: 14 }, (_, x) => {
+    const inside = tri ? y >= 1 && Math.abs(x - 6.5) <= (y + 1) / 2 : Math.hypot(x - 6.5, y - 6.5) <= 6.8;
+    if (!inside) return '.';
+    if (eyes(x, y)) return 'e';
+    if (!tri && ((x === 3 && y === 3) || (x === 4 && y === 2) || (x === 2 && y === 4))) return 'h';
+    return '#';
+  }).join(''));
+  const open = (x, y) => (x === 4 || x === 5 || x === 8 || x === 9) && y >= 5 && y <= 7;
+  const triEyes = (x, y) => (x === 5 || x === 8) && y >= 8 && y <= 10;
+  const sleepy = (x, y) => y === 6 && ((x >= 3 && x <= 5) || (x >= 8 && x <= 10));
+  const mascotPx = (id, rows, body, light) => pxSymbol(id, rows, { o: '#1a120c', '#': body, e: '#ffffff', h: light });
+  mascotPx('m-black', blob(false, open), '#26201a', '#5a5048');
+  mascotPx('m-mint', blob(false, open), '#2fd3a8', '#9ff0d8');
+  mascotPx('m-purple', blob(true, triEyes), '#7b6cf6', '#b9b0ff');
+  mascotPx('m-orange', blob(false, open), '#ff6a2b', '#ffb08a');
+  mascotPx('m-sleepy', blob(false, sleepy), '#26201a', '#5a5048');
+}
+
+/* ---------- 数据：卡表由 data/cards.json 导出（id:分数:花费），贵族照 data/nobles.json ---------- */
+const RAW = 'L1-W-01:0:U3 L1-W-02:0:R2K1 L1-W-03:0:U1G1R1K1 L1-W-04:0:U2K2 L1-W-05:0:W3U1K1 L1-W-06:0:U1G2R1K1 L1-W-07:0:U2G2K1 L1-W-08:1:G4 L1-U-01:0:W1K2 L1-U-02:0:K3 L1-U-03:0:W1G1R1K1 L1-U-04:0:G2K2 L1-U-05:0:W1G2R2 L1-U-06:0:W1G1R2K1 L1-U-07:0:U1G3R1 L1-U-08:1:R4 L1-G-01:0:W2U1 L1-G-02:0:R3 L1-G-03:0:W1U1R1K1 L1-G-04:0:U2R2 L1-G-05:0:W1U3G1 L1-G-06:0:W1U1R1K2 L1-G-07:0:U1R2K2 L1-G-08:1:K4 L1-R-01:0:W3 L1-R-02:0:U2G1 L1-R-03:0:W1U1G1K1 L1-R-04:0:W2R2 L1-R-05:0:W2U1G1K1 L1-R-06:0:W2G1K2 L1-R-07:0:W1R1K3 L1-R-08:1:W4 L1-K-01:0:G3 L1-K-02:0:G2R1 L1-K-03:0:W1U1G1R1 L1-K-04:0:W2G2 L1-K-05:0:W1U2G1R1 L1-K-06:0:W2U2R1 L1-K-07:0:G1R3K1 L1-K-08:1:U4 L2-W-01:1:G3R2K2 L2-W-02:1:W2U3R3 L2-W-03:2:R5 L2-W-04:2:G1R4K2 L2-W-05:2:R5K3 L2-W-06:3:W6 L2-U-01:1:U2G2R3 L2-U-02:1:U2G3K3 L2-U-03:2:U5 L2-U-04:2:W2R1K4 L2-U-05:2:W5U3 L2-U-06:3:U6 L2-G-01:1:W2U3K2 L2-G-02:1:W3G2R3 L2-G-03:2:G5 L2-G-04:2:W4U2K1 L2-G-05:2:U5G3 L2-G-06:3:G6 L2-R-01:1:W2R2K3 L2-R-02:1:U3R2K3 L2-R-03:2:K5 L2-R-04:2:W1U4G2 L2-R-05:2:W3K5 L2-R-06:3:R6 L2-K-01:1:W3U2G2 L2-K-02:1:W3G3K2 L2-K-03:2:W5 L2-K-04:2:U1G4R2 L2-K-05:2:G5R3 L2-K-06:3:K6 L3-W-01:3:U3G3R5K3 L3-W-02:4:K7 L3-W-03:4:W3R3K6 L3-W-04:5:W3K7 L3-U-01:3:W3G3R3K5 L3-U-02:4:W7 L3-U-03:4:W6U3K3 L3-U-04:5:W7U3 L3-G-01:3:W5U3R3K3 L3-G-02:4:U7 L3-G-03:4:W3U6G3 L3-G-04:5:U7G3 L3-R-01:3:W3U5G3K3 L3-R-02:4:G7 L3-R-03:4:U3G6R3 L3-R-04:5:G7R3 L3-K-01:3:W3U3G5R3 L3-K-02:4:R7 L3-K-03:4:G3R6K3 L3-K-04:5:R7K3';
+const CARDS = {};
+RAW.split(' ').forEach((s) => {
+  const [id, p, c] = s.split(':');
+  CARDS[id] = { id, lvl: +id[1], b: id[3], p: +p, cost: (c.match(/[WUGRK]\d/g) || []).map((t) => [t[0], +t[1]]) };
+});
+const NOBLES = {
+  'N-01': { W: 3, U: 3, G: 3 }, 'N-02': { W: 3, U: 3, K: 3 }, 'N-03': { W: 3, R: 3, K: 3 }, 'N-04': { U: 3, G: 3, R: 3 }, 'N-05': { G: 3, R: 3, K: 3 },
+  'N-06': { W: 4, U: 4 }, 'N-07': { W: 4, K: 4 }, 'N-08': { U: 4, G: 4 }, 'N-09': { G: 4, R: 4 }, 'N-10': { R: 4, K: 4 },
+};
+const ORDER = ['W', 'U', 'G', 'R', 'K'];
+const ALL = [...ORDER, 'X'];
+const ZH = { W: '白', U: '蓝', G: '绿', R: '红', K: '黑', X: '金' };
+const ROMAN = { 1: 'I', 2: 'II', 3: 'III' };
+const LV_ZH = { 1: '一级', 2: '二级', 3: '三级' };
+const MASCOT = [['m-black', 1, 1], ['m-mint', 1, 1], ['m-purple', 1, 1], ['m-orange', 1, 1]];
+const TYPE = { human: '人类', bot_easy: '电脑 · 简单', bot_normal: '电脑 · 普通', bot_hard: '电脑 · 困难', llm: '大模型', remote: '远程' };
+const WIN = 15, MAX_TOKENS = 10, MAX_RESERVED = 3;
+
+/* ---------- 零件 ---------- */
+const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+const mascot = (seat, size) => { const [id, w, h] = MASCOT[seat]; return `<svg width="${size}" height="${Math.round(size * h / w)}"><use href="#${id}"/></svg>`; };
+const gem = (k, s = 12, mode = 'col') => `<svg class="gs ${mode} c${k}" width="${s}" height="${s}" aria-label="${ZH[k]}"><use href="#g-${k}"/></svg>`;
+const chip = (k, n, cls = '') => {
+  const bare = n === '' || n == null;
+  return `<span class="chip c${k} ${cls} ${bare ? 'bare' : ''}">${gem(k, 12, 'mono')}${bare ? '' : `<b>${n}</b>`}</span>`;
+};
+const gd = (k) => gem(k, 11);
+const ref = (id) => { const c = CARDS[id]; return `<span class="ref c${c.b}">${gem(c.b, 11)}${LV_ZH[c.lvl]}${ZH[c.b]}${c.p ? ' · ' + c.p + ' 分' : ''}</span>`; };
+const bt = (k, n, cls = '') => `<span class="bt c${k} ${n ? '' : 'zero'} ${cls}">${gem(k, 9, 'mono')}<b>${n}</b></span>`;
+const costPill = (k, n) => `<span class="cost c${k}">${gem(k, 10, 'mono')}${n}</span>`;
+
+function shortfall(p, id) {
+  let short = 0;
+  const pay = { bonus: {}, gems: {}, gold: 0 };
+  CARDS[id].cost.forEach(([k, n]) => {
+    const b = Math.min(p.bonus[k] || 0, n);
+    const g = Math.min(p.gems[k] || 0, n - b);
+    if (b) pay.bonus[k] = b;
+    if (g) pay.gems[k] = g;
+    short += n - b - g;
+  });
+  pay.gold = Math.min(short, p.gems.X || 0);
+  return { short: short - pay.gold, pay };
+}
+
+function needHTML(p, id) {
+  const miss = CARDS[id].cost.map(([k, n]) => {
+    const b = Math.min(p.bonus[k] || 0, n);
+    return [k, n - b - Math.min(p.gems[k] || 0, n - b)];
+  }).filter(([, m]) => m > 0);
+  const gold = Math.min(p.gems.X || 0, miss.reduce((a, [, m]) => a + m, 0));
+  return miss.map(([k, m]) => costPill(k, m)).join('') + (gold ? `<span class="t-cap">金币可抵 ${gold}</span>` : '');
+}
+
+function card(id, o = {}) {
+  if (!id) return `<div class="gc empty ${o.mini ? 'mini' : ''}">空位</div>`;
+  const c = CARDS[id];
+  const cls = ['gc', 'c' + c.b, o.mini && 'mini', o.can && 'affordable', o.sel && 'sel', o.flash && 'flash'].filter(Boolean).join(' ');
+  const status = o.can ? '<span class="tag can">可买</span>' : o.short ? `<span class="tag need-n">差 ${o.short}</span>` : '';
+  const threat = o.threat && o.threat.length ? `<span class="threat" title="${o.threat.map((q) => q.name).join('、')} 现在就能买">${o.threat.map((q) => mascot(q.seat, 16)).join('')}</span>` : '<span></span>';
+  const need = o.need ? `<div class="need"><span>还差</span>${o.need}</div>` : '';
+  return `<div class="${cls}" data-card="${id}"><div class="top"><span class="pts">${c.p || ''}</span>${gem(c.b, o.mini ? 16 : 22, 'col')}</div><div class="body"><div class="costs">${c.cost.map(([k, n]) => costPill(k, n)).join('')}</div><div class="cflags">${threat}<span class="fl-b">${o.flag || ''}${status}</span></div>${need}</div>${o.pop || ''}</div>`;
+}
+const back = (lvl, o = {}) => `<div class="gc back ${o.mini ? 'mini' : ''}"><span class="lv">${ROMAN[lvl]}</span><span class="lvd">${'◆'.repeat(lvl)}</span><small>${o.label || '盲抽'}</small></div>`;
+const deck = (lvl, n, o = {}) => n ? `<div class="deck ${o.sel ? 'sel' : ''}" data-deck="${lvl}"><b>${ROMAN[lvl]}</b><span class="lvd">${'◆'.repeat(lvl)}</span><span class="n">剩 ${n}</span>${o.pop || ''}</div>` : `<div class="deck empty"><b>${ROMAN[lvl]}</b><span class="n">已空</span></div>`;
+const noble = (id, o = {}) => `<div class="noble ${o.big ? 'big' : ''} ${o.sel ? 'sel' : ''} ${o.taken ? 'taken' : ''}" title="${id}"><div class="np"><b>3</b><span>贵族</span></div><div class="req">${Object.entries(NOBLES[id]).map(([k, n]) => bt(k, n, 'rq')).join('')}</div></div>`;
+
+function selState(sel, bankCounts) {
+  const keys = Object.keys(sel).filter((k) => sel[k]);
+  const two = keys.length === 1 && sel[keys[0]] === 2;
+  const available = ORDER.filter((k) => bankCounts[k] > 0).length;
+  return { keys, n: sum(sel), two, ready: keys.length > 0 && (two || keys.length === 3 || keys.length === available) };
+}
+
+function bankAct(sel, b, active) {
+  if (!active) return '';
+  const s = selState(sel, b);
+  if (!s.keys.length) return '<p class="t-cap">点筹码<br />选宝石</p>';
+  return `<button class="btn btn-accent" ${s.ready ? '' : 'disabled'}>确认拿取</button><button class="btn btn-quiet" data-clear>取消</button>`;
+}
+
+function bank(b, o = {}) {
+  return `<div class="bank"><p class="bk-l">银行</p>${ALL.map((k) => {
+    const s = (o.sel || {})[k] || 0;
+    return `<span class="chip lg c${k} ${s ? 'sel' : ''} ${b[k] ? '' : 'off'}" data-bank="${k}" data-n="${b[k]}" title="${ZH[k]}">${gem(k, 12, 'mono')}<b>${b[k]}</b>${s ? `<i class="plus">+${s}</i>` : ''}</span>`;
+  }).join('')}<div class="bank-act">${bankAct(o.sel || {}, b, o.active)}</div></div>`;
+}
+
+function opp(p, o = {}) {
+  const res = (p.reserved || []).map((r) => r.blind && !r.shown ? `<span class="rm back">${ROMAN[r.lvl]}</span>` : `<span class="rm c${CARDS[r.id].b}" title="${r.id}">${gem(CARDS[r.id].b, 8, 'mono')}<b>${CARDS[r.id].p || ''}</b></span>`).join('') || '<span class="t-cap" style="margin:0">无</span>';
+  const tags = `<span class="tag ${p.type === 'llm' ? 'purple' : ''}">${TYPE[p.type]}</span>${o.tag || ''}`;
+  const scorePct = Math.max(0, Math.min(100, Math.round(p.score / WIN * 100)));
+  const total = sum(p.gems);
+  const grid = ALL.map((k) => `<div class="oc" title="${ZH[k]}：折扣 ${k === 'X' ? '—' : p.bonus[k]} · 宝石 ${p.gems[k]}">${k === 'X' ? '<span class="ph">—</span>' : bt(k, p.bonus[k])}${chip(k, p.gems[k], 'sm' + (p.gems[k] ? '' : ' zero'))}</div>`).join('');
+  return `<div class="opp ${o.on ? 'on' : ''} ${o.offline ? 'offline' : ''}">
+    <div class="oh">${mascot(p.seat, 30)}<div class="meta"><b>${p.name}</b><span class="tags">${tags}</span></div><span class="score">${p.score}<small> / ${WIN}</small></span></div>
+    <div class="opp-progress ${p.score >= 12 ? 'hot' : ''}" aria-label="距离 ${WIN} 分终局 ${scorePct}%"><i style="width:${scorePct}%"></i></div>
+    <div class="ogrid">${grid}</div>
+    <div class="ofoot"><span>宝石 <b class="${total >= MAX_TOKENS - 1 ? 'warn' : ''}">${total}</b> / ${MAX_TOKENS}</span><span>· 贵族 ${p.nobles.length}</span><span class="ores">预留 ${res}</span></div>
+    ${o.extra || ''}
+  </div>`;
+}
+
+function trayHTML(p, sel, bankCounts) {
+  const { keys, n, two, ready } = selState(sel, bankCounts);
+  const hint = '轮到你：点银行拿宝石，或点一张卡购买 / 预留';
+  if (!keys.length) return `<span class="note"><i></i>${hint}</span><span class="tray"><span class="t-cap" style="margin-right:6px">还没选宝石</span><button class="btn btn-sm btn-accent" disabled>确认拿取</button></span>`;
+  const after = sum(p.gems) + n;
+  let note = two ? `同色 2 枚（${ZH[keys[0]]}色银行剩 ${bankCounts[keys[0]]} 枚）` : keys.length < 3 ? `再选 ${3 - keys.length} 种不同颜色；同一颜色再点一次 = 拿 2 枚` : '三种不同颜色各 1 枚';
+  if (after > MAX_TOKENS) note = `拿后 ${after} 枚，确认后需要弃 ${after - MAX_TOKENS} 枚`;
+  const chips = keys.map((k) => Array(sel[k]).fill(chip(k, '', 'sm')).join('')).join('');
+  const label = two ? `拿 2 枚${ZH[keys[0]]}` : '拿 ' + keys.map((k) => ZH[k]).join(' ');
+  return `<span class="note"><i></i>${note}</span><span class="tray">${chips}<b>${label}</b><span class="t-cap" style="margin-right:4px">拿后 ${after} / ${MAX_TOKENS}</span><button class="btn btn-sm btn-quiet" data-clear>取消</button><button class="btn btn-sm btn-accent" ${ready ? '' : 'disabled'}>确认拿取</button></span>`;
+}
+
+function me(p, o = {}) {
+  const total = sum(p.gems);
+  const resv = [];
+  for (let i = 0; i < MAX_RESERVED; i++) {
+    const r = p.reserved[i];
+    if (!r) { resv.push('<div class="gc empty mini">空</div>'); continue; }
+    const { short } = shortfall(p, r.id);
+    resv.push(card(r.id, { mini: true, can: o.canBuy && short === 0, flag: r.blind ? '<span class="tag dark">盲抽</span>' : '', pop: (o.resvPop || {})[r.id] }));
+  }
+  return `<div class="me card feature">
+    <div class="strip ${o.stripCls || ''}">${o.strip ?? ''}</div>
+    <div class="me-grid">
+      <div class="ident">
+        <div class="who">${mascot(p.seat, 50)}<div><b class="nm">${p.name}</b><span class="tag dark">你 · 座位 ${p.seat + 1}</span></div></div>
+        <div class="big"><b>${p.score}</b><span>/ ${WIN} 分</span></div>
+        <span class="t-cap">已购卡 ${sum(p.bonus)} 张 · 贵族 ${p.nobles.length} 位${p.nobles.length ? '（' + p.nobles.join(' ') + '）' : ''}</span>
+      </div>
+      <div class="res">
+        <p class="label"><i></i>宝石 <span class="${total > MAX_TOKENS ? 'warn' : ''}">${total} / ${MAX_TOKENS}</span></p>
+        <div class="gems-row">${ALL.map((k) => chip(k, p.gems[k], 'md' + (p.gems[k] ? '' : ' zero'))).join('')}</div>
+        <p class="label"><i></i>折扣</p>
+        <div class="bonus-row">${ORDER.map((k) => bt(k, p.bonus[k], 'md')).join('')}</div>
+      </div>
+      <div class="resv"><p class="label"><i></i>预留 ${p.reserved.length} / ${MAX_RESERVED}</p><div class="resv-row">${resv.join('')}</div></div>
+    </div>
+  </div>`;
+}
+
+function log(entries, round, limit = 7) {
+  const shown = entries.slice(0, limit);
+  return `<div class="log card"><p class="label"><i></i>对局日志<span class="tools"><span class="count">第 ${round} 轮</span></span></p><div class="log-list">${shown.map((e) => `<div class="le ${e.new ? 'new' : ''}">${e.s >= 0 ? mascot(e.s, 16) : '<span style="width:16px"></span>'}<p>${e.t}</p><span class="t-cap">${e.time || ''}</span></div>`).join('')}</div><button class="log-more">全部记录 <span class="kbd">L</span></button></div>`;
+}
+
+function board(cfg) {
+  const players = cfg.players;
+  const viewer = players.find((p) => p.seat === cfg.viewer);
+  const cur = players.find((p) => p.seat === cfg.current);
+  const humanTurn = cfg.current === cfg.viewer && !cfg.replay;
+  const side = cfg.replay ? players : players.filter((p) => p.seat !== cfg.viewer);
+  const pill = cfg.pill ?? (humanTurn
+    ? `<span class="turn">${mascot(cur.seat, 22)}轮到你 · ${cur.name}</span>`
+    : `<span class="turn wait">${mascot(cur.seat, 22)}${cur.name} · ${TYPE[cur.type]}<span class="spinner"></span>思考中…</span>`);
+  const rivals = cfg.replay ? [] : players.filter((p) => p.seat !== cfg.viewer);
+  const rows = [3, 2, 1].map((lvl) => `<div class="lrow">${deck(lvl, cfg.decks[lvl], (cfg.deckOpt || {})[lvl])}${cfg.market[lvl].map((id) => {
+    const o = Object.assign({}, (cfg.cardOpt || {})[id]);
+    if (id) {
+      o.threat = rivals.filter((q) => shortfall(q, id).short === 0);
+      if (humanTurn && viewer) {
+        const { short } = shortfall(viewer, id);
+        if (short === 0) o.can = true;
+        else { o.short = short; o.need = needHTML(viewer, id); }
+      }
+    }
+    return card(id, o);
+  }).join('')}</div>`).join('');
+  const waitStrip = cfg.event
+    ? { stripCls: 'event', strip: `<span class="evt">${cfg.event}</span><span class="t-cap when">${cfg.eventWhen || '刚刚'}</span>` }
+    : { strip: `<span class="note"><i></i>${cfg.waitNote || `等 ${cur.name} 出手…你可以先看看场面`}</span>` };
+  const bottom = cfg.bottom ?? me(viewer, Object.assign({ canBuy: humanTurn }, humanTurn ? { strip: trayHTML(viewer, cfg.sel || {}, cfg.bank) } : waitStrip, cfg.meOpt));
+  const logLimit = cfg.logLimit ?? (side.length >= 3 ? 4 : 7);
+  return `
+    <div class="hud"><span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><span class="title">璀璨宝石</span><span class="tag">${players.length} 人局 · 第 ${cfg.round} 轮</span>${cfg.hudLeft || ''}${pill}<span class="right">${cfg.hudRight ?? '<button class="btn btn-sm btn-quiet">规则</button><button class="btn btn-sm btn-quiet">菜单 <span class="kbd" style="margin-left:2px">Esc</span></button>'}</span></div>
+    <div class="table">
+      <div class="left">
+        <div class="market">
+          <div class="nobles">${cfg.nobles.map((id) => noble(id)).join('')}</div>
+          <div class="rows">${rows}</div>
+          ${bank(cfg.bank, { sel: cfg.sel, active: humanTurn && !cfg.modal })}
+        </div>
+        ${bottom}
+      </div>
+      <div class="side">${cfg.notice || ''}${side.map((p) => opp(p, Object.assign({ on: p.seat === cfg.current }, (cfg.oppOpt || {})[p.seat]))).join('')}${log(cfg.log, cfg.round, logLimit)}</div>
+    </div>`;
+}
+
+/* ---------- 局面数据（3 人局 / 4 人局，宝石总数守恒） ---------- */
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const G3 = {
+  round: 9, viewer: 0, current: 0,
+  bank: { W: 2, U: 2, G: 3, R: 1, K: 4, X: 3 },
+  decks: { 3: 14, 2: 20, 1: 23 },
+  market: { 3: ['L3-W-04', 'L3-G-02', 'L3-R-03', 'L3-K-01'], 2: ['L2-U-03', 'L2-G-04', 'L2-R-01', 'L2-K-03'], 1: ['L1-W-03', 'L1-U-02', 'L1-G-08', 'L1-R-04'] },
+  nobles: ['N-01', 'N-06', 'N-09', 'N-10'],
+  players: [
+    { seat: 0, name: '小明', type: 'human', score: 3, gems: { W: 1, U: 2, G: 1, R: 1, K: 0, X: 1 }, bonus: { W: 2, U: 2, G: 1, R: 0, K: 1 }, reserved: [{ id: 'L2-K-04' }, { id: 'L3-U-02', blind: true, lvl: 3 }], nobles: [] },
+    { seat: 1, name: '薄荷', type: 'bot_hard', score: 7, gems: { W: 0, U: 1, G: 0, R: 2, K: 0, X: 0 }, bonus: { W: 1, U: 0, G: 3, R: 2, K: 2 }, reserved: [{ blind: true, lvl: 3 }], nobles: [] },
+    { seat: 2, name: '紫晶', type: 'bot_normal', score: 1, gems: { W: 2, U: 0, G: 1, R: 1, K: 1, X: 1 }, bonus: { W: 0, U: 1, G: 1, R: 1, K: 0 }, reserved: [{ id: 'L2-W-03' }, { blind: true, lvl: 1 }], nobles: [] },
+  ],
+  log: [
+    { s: 2, t: `紫晶 拿了 ${gd('W')}${gd('G')}${gd('K')} 各 1 枚`, time: '刚刚' },
+    { s: 1, t: '薄荷 盲抽预留了三级牌堆顶（没有金币了）', time: '20 秒' },
+    { s: 0, t: `小明 购买 ${ref('L1-W-02')}，付 ${gd('R')}×1`, time: '1 分钟' },
+    { s: 2, t: `紫晶 预留 ${ref('L2-W-03')}，拿到 1 枚 ${gd('X')}`, time: '1 分钟' },
+    { s: 1, t: `薄荷 购买 ${ref('L2-G-03')}`, time: '2 分钟' },
+    { s: 0, t: `小明 拿了 ${gd('U')}${gd('U')} 2 枚`, time: '2 分钟' },
+    { s: 2, t: `紫晶 拿了 ${gd('W')}${gd('R')}${gd('X')}…`, time: '3 分钟' },
+  ],
+};
+const G4 = {
+  round: 24, viewer: 0, current: 1,
+  bank: { W: 3, U: 1, G: 4, R: 2, K: 3, X: 2 },
+  decks: { 3: 9, 2: 14, 1: 12 },
+  market: { 3: ['L3-W-01', 'L3-U-04', 'L3-R-02', 'L3-K-03'], 2: ['L2-W-05', 'L2-U-01', 'L2-G-06', 'L2-K-01'], 1: ['L1-U-07', 'L1-G-04', 'L1-R-06', 'L1-K-05'] },
+  nobles: ['N-04', 'N-05', 'N-08', 'N-10'],
+  players: [
+    { seat: 0, name: '小明', type: 'human', score: 15, gems: { W: 2, U: 1, G: 0, R: 1, K: 2, X: 1 }, bonus: { W: 4, U: 3, G: 2, R: 2, K: 3 }, reserved: [{ id: 'L3-K-02' }], nobles: ['N-02'] },
+    { seat: 1, name: '薄荷', type: 'bot_hard', score: 12, gems: { W: 1, U: 2, G: 1, R: 1, K: 0, X: 0 }, bonus: { W: 2, U: 1, G: 4, R: 3, K: 2 }, reserved: [{ blind: true, lvl: 3 }], nobles: [] },
+    { seat: 2, name: '紫晶', type: 'bot_normal', score: 9, gems: { W: 0, U: 1, G: 1, R: 2, K: 1, X: 1 }, bonus: { W: 1, U: 3, G: 1, R: 1, K: 2 }, reserved: [{ id: 'L2-R-05' }, { blind: true, lvl: 2 }], nobles: [] },
+    { seat: 3, name: '橘子', type: 'llm', score: 11, gems: { W: 1, U: 2, G: 1, R: 1, K: 1, X: 1 }, bonus: { W: 2, U: 2, G: 2, R: 3, K: 1 }, reserved: [{ id: 'L3-G-04' }], nobles: [] },
+  ],
+  log: [
+    { s: 0, t: `小明 购买 ${ref('L2-W-04')}，到达 <b>15 分</b>，触发终局`, time: '刚刚' },
+    { s: 0, t: '贵族 N-02 来拜访小明（+3 分）', time: '刚刚' },
+    { s: 3, t: `橘子 拿了 ${gd('U')}${gd('G')}${gd('K')}`, time: '30 秒' },
+    { s: 2, t: `紫晶 购买 ${ref('L1-U-03')}`, time: '1 分钟' },
+    { s: 1, t: `薄荷 购买 ${ref('L3-G-03')}`, time: '1 分钟' },
+  ],
+};
+
+/* ---------- 各屏 ---------- */
+const render = (id, cfg) => { const el = document.getElementById(id); el.insertAdjacentHTML('afterbegin', board(cfg)); el._cfg = cfg; };
+
+render('s04', clone(G3));
+render('s05', Object.assign(clone(G3), { sel: { W: 1, U: 1, K: 1 } }));
+
+(() => {
+  const g = clone(G3);
+  const p = g.players[0];
+  const { pay } = shortfall(p, 'L2-U-03');
+  const after = sum(p.gems) - sum(pay.gems) - pay.gold;
+  const pop = `<div class="pop">
+    <div class="pop-h"><span class="tag mint">可买</span><b>二级 · 蓝 · 2 分</b></div>
+    <div class="pay">
+      <p class="t-cap" style="font-weight:700">自动支付（共 5）</p>
+      <div class="pay-r"><span>折扣</span>${Object.entries(pay.bonus).map(([k, n]) => bt(k, n)).join('')}<span class="t-cap">蓝卡 2 张抵 2</span></div>
+      <div class="pay-r"><span>宝石</span>${Object.entries(pay.gems).map(([k, n]) => Array(n).fill(chip(k, '', 'sm')).join('')).join('')}<span class="t-cap">蓝 2</span></div>
+      <div class="pay-r"><span>金币</span>${Array(pay.gold).fill(chip('X', '', 'sm')).join('')}<span class="t-cap">补差 1</span></div>
+    </div>
+    <p class="t-cap">买后：宝石 ${sum(p.gems)} → ${after}，蓝色折扣 2 → 3，分数 3 → 5</p>
+    <div class="btns"><button class="btn btn-accent">购买</button><button class="btn btn-ghost">预留 · +1 金</button></div>
+    <p class="t-cap" style="text-align:center"><span class="kbd">Enter</span> 购买 · <span class="kbd">R</span> 预留 · <span class="kbd">Esc</span> 取消</p>
+  </div>`;
+  g.cardOpt = { 'L2-U-03': { sel: true, pop } };
+  g.meOpt = { strip: '<span class="note"><i></i>已选中 二级蓝卡 —— 在浮层里购买或预留，点空白处取消</span><span class="tray"><span class="t-cap" style="margin-right:6px">没有选宝石</span><button class="btn btn-sm btn-accent" disabled>确认拿取</button></span>' };
+  render('s06', g);
+})();
+
+render('s07', Object.assign(clone(G3), {
+  current: 2,
+  cardOpt: { 'L2-R-01': { flash: true } },
+  event: `${mascot(1, 24)}<b>薄荷</b> 预留了 ${ref('L2-R-01')}<span class="t-cap">拿到 1 枚金币 · 现在轮到紫晶</span>`,
+  oppOpt: { 2: { tag: '<span class="tag orange"><span class="spinner" style="width:9px;height:9px"></span>思考中</span>' } },
+  log: [{ s: 1, t: `薄荷 预留 ${ref('L2-R-01')}，拿到 1 枚 ${gd('X')}`, time: '刚刚', new: true }, ...G3.log.slice(0, 6)],
+}));
+
+render('s08', Object.assign(clone(G4), {
+  hudLeft: '<span class="tag orange">终局轮 · 还剩 3 人</span>',
+  event: `${mascot(0, 24)}<b>小明 到 15 分了！</b><span class="t-cap">终局轮：薄荷、紫晶、橘子各还有一回合，之后结算</span>`,
+  eventWhen: '终局轮',
+  oppOpt: { 1: { tag: '<span class="tag orange">思考中</span>' } },
+}));
+
+(() => {
+  const g = clone(G3);
+  g.players[0].gems = { W: 2, U: 3, G: 2, R: 2, K: 1, X: 2 };
+  g.bank = { W: 1, U: 1, G: 2, R: 0, K: 4, X: 2 };
+  g.meOpt = { strip: '<span class="note"><i></i>持币超过上限，先弃回银行</span>' };
+  g.pill = `<span class="turn">${mascot(0, 22)}小明 · 弃宝石</span>`;
+  g.modal = true;
+  render('s10', g);
+  const p = g.players[0];
+  document.getElementById('discard-row').innerHTML = ALL.map((k) => {
+    const d = { G: 1, R: 1 }[k] || 0;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><span class="chip lg c${k} ${d ? 'sel' : ''}" style="cursor:pointer">${gem(k, 12, 'mono')}<b>${p.gems[k] - d}</b>${d ? `<i class="minus">−${d}</i>` : ''}</span><span class="t-cap" style="font-weight:700">${ZH[k]}</span></div>`;
+  }).join('');
+})();
+
+(() => {
+  const g = clone(G3);
+  g.players[0].bonus = { W: 4, U: 4, G: 3, R: 0, K: 1 };
+  g.players[0].score = 9;
+  g.pill = `<span class="turn">${mascot(0, 22)}小明 · 选贵族</span>`;
+  g.meOpt = { strip: '<span class="note"><i></i>回合末：贵族来访</span>' };
+  g.modal = true;
+  render('s11', g);
+  document.getElementById('noble-pick').innerHTML = noble('N-01', { big: true }) + noble('N-06', { big: true, sel: true });
+  document.getElementById('noble-bonus').innerHTML = ORDER.map((k) => bt(k, g.players[0].bonus[k])).join('');
+})();
+
+render('s12', Object.assign(clone(G4), { current: 0, modal: true, pill: '<span class="turn">对局结束</span>' }));
+render('s13', Object.assign(clone(G3), { modal: true }));
+
+(() => {
+  const g = clone(G3);
+  g.players[0].reserved[1] = { blind: true, lvl: 3 };
+  const ticks = Array.from({ length: 74 }, (_, i) => {
+    const seat = i % 3;
+    const col = ['#111', '#2fd3a8', '#7b6cf6'][seat];
+    const on = i === 36;
+    return `<i style="flex:1;height:${on ? 26 : 14}px;border-radius:3px;background:${i <= 36 ? col : 'var(--bg-soft)'};${on ? 'outline:2.5px solid var(--orange);outline-offset:2px' : ''}"></i>`;
+  }).join('');
+  g.replay = true;
+  g.pill = '<span class="turn wait">回放 · 自动存档 · 第 37 / 74 步</span>';
+  g.hudRight = '<button class="btn btn-sm btn-quiet">从这里接着玩</button><button class="btn btn-sm btn-dark">退出回放</button>';
+  g.oppOpt = { 0: { on: false }, 1: { on: true } };
+  g.bottom = `<div class="me card feature" style="gap:14px">
+    <div style="display:flex;align-items:center;gap:12px">${mascot(1, 34)}<div><p class="t-cap" style="font-weight:700">第 37 步 · 第 13 轮</p><p style="font-size:17px;font-weight:800">薄荷 盲抽预留了三级牌堆顶</p></div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px"><span class="t-cap" style="font-weight:700">视角</span><div class="segment" style="grid-template-columns:repeat(4,1fr);width:300px"><button class="on">小明</button><button>薄荷</button><button>紫晶</button><button>全部公开</button></div></div></div>
+    <div style="display:flex;gap:2px;align-items:center;height:30px">${ticks}</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="t-cap">● 小明 ● 薄荷 ● 紫晶（按座位着色）</span>
+      <div style="margin:0 auto;display:flex;gap:8px;align-items:center"><button class="btn btn-quiet">⏮ 开头</button><button class="btn btn-quiet">‹ 上一步</button><button class="btn btn-accent btn-lg">▶ 播放</button><button class="btn btn-quiet">下一步 ›</button><button class="btn btn-quiet">结尾 ⏭</button></div>
+      <div class="segment" style="width:180px"><button>0.5×</button><button class="on">1×</button><button>2×</button></div>
+    </div>
+  </div>`;
+  g.log = [{ s: 1, t: '薄荷 盲抽预留了三级牌堆顶', time: '#37', new: true }, ...G3.log.slice(2, 7).map((e, i) => Object.assign({}, e, { time: '#' + (36 - i) }))];
+  render('s14', g);
+})();
+
+render('s17', Object.assign(clone(G4), {
+  current: 3, round: 22,
+  players: G4.players.map((p) => Object.assign({}, p, { score: { 0: 12, 1: 11, 2: 9, 3: 10 }[p.seat] }, p.seat === 2 ? { type: 'llm' } : {})),
+  pill: `<span class="turn wait">${mascot(3, 22)}橘子 · 大模型<span class="spinner"></span>已等 12.4 秒</span>`,
+  event: `${mascot(2, 24)}<b>紫晶</b> 的大模型回复两次都解析失败<span class="t-cap">这一步已由困难电脑代打</span>`,
+  oppOpt: { 3: { extra: '<div class="think"><div style="display:flex;justify-content:space-between"><span class="t-cap" style="font-weight:700">DeepSeek · 第 1 次请求</span><span class="t-cap" style="font-weight:700">12.4 / 30 秒</span></div><div class="bar-p"><i style="width:41%"></i></div></div>' } },
+  log: [
+    { s: 2, t: `紫晶 拿了 ${gd('U')}${gd('G')}${gd('R')} <span class="tag orange">电脑代打</span><span class="t-cap" style="display:block">大模型回复无法解析，重试 2 次后兜底</span>`, time: '刚刚', new: true },
+    { s: 1, t: `薄荷 购买 ${ref('L2-G-06')}`, time: '40 秒' },
+    { s: 0, t: `小明 预留 ${ref('L3-K-02')}，拿到 1 枚 ${gd('X')}`, time: '1 分钟' },
+    { s: 3, t: `橘子 购买 ${ref('L1-R-06')}<span class="reason" style="display:block">“先拿红色折扣，离 N-10（红 4 黑 4）只差 1 张红卡；三级红卡也会更便宜。”</span>`, time: '2 分钟' },
+  ],
+}));
+
+render('s20', Object.assign(clone(G4), {
+  current: 0, round: 18,
+  players: G4.players.map((p) => Object.assign({}, p, p.seat === 1 ? { name: '小红', type: 'remote' } : p.seat === 2 ? { name: '阿青', type: 'remote' } : {}, { score: { 0: 10, 1: 9, 2: 7, 3: 8 }[p.seat] })),
+  hudLeft: '<span class="tag orange">联网 · 主机</span>',
+  hudRight: '<span class="tag mint">● 3 / 4 在线</span><button class="btn btn-sm btn-quiet">菜单 <span class="kbd" style="margin-left:2px">Esc</span></button>',
+  notice: `<div class="notice">${mascot(1, 26)}<div><b>小红 掉线了 · 困难电脑代打中</b><span class="t-cap">她用同一台电脑重连后自动交还座位</span></div></div>`,
+  logLimit: 3,
+  oppOpt: { 1: { offline: true, tag: '<span class="tag red">离线 · 电脑代打</span>' }, 2: { tag: '<span class="tag">41 ms</span>' } },
+  log: [
+    { s: 1, t: '小红 断开连接，座位由困难电脑接管', time: '刚刚', new: true },
+    { s: 3, t: `橘子 拿了 ${gd('W')}${gd('U')}${gd('R')}`, time: '30 秒' },
+    { s: 2, t: `阿青 购买 ${ref('L1-U-03')}`, time: '1 分钟' },
+    { s: 1, t: `小红 预留 ${ref('L2-R-05')}`, time: '2 分钟' },
+  ],
+}));
+
+/* ---------- 主菜单装饰 ---------- */
+{
+  const pile = (k, n) => `<div class="pile" style="height:${52 + (n - 1) * 7}px">${Array.from({ length: n }, (_, i) => `<span style="position:absolute;left:0;bottom:${i * 7}px">${chip(k, '', 'lg')}</span>`).join('')}</div>`;
+  const fan = (id, x, deg, z) => `<div style="position:absolute;left:${x}px;top:150px;transform-origin:50% 120%;transform:rotate(${deg}deg) scale(1.45);z-index:${z}">${card(id)}</div>`;
+  document.getElementById('menu-art').innerHTML = `
+  <div style="position:absolute;left:20px;top:40px;width:470px;height:420px;border-radius:50%;background:radial-gradient(closest-side, rgb(255 255 255 / .9), transparent)"></div>
+  <div style="position:absolute;left:440px;top:70px;transform:rotate(12deg) scale(1.2);z-index:1">${deck(3, 20)}</div>
+  ${fan('L3-R-04', 140, -14, 2)}${fan('L2-U-06', 225, 0, 4)}${fan('L1-G-08', 310, 14, 3)}
+  <div style="position:absolute;left:0;top:330px;transform:rotate(-7deg);z-index:5">${noble('N-06', { big: true })}</div>
+  <div style="position:absolute;left:225px;top:400px;display:flex;align-items:flex-end;gap:8px;z-index:5">${pile('R', 4)}${pile('U', 3)}${pile('X', 5)}${pile('G', 2)}${pile('K', 3)}</div>
+  <div style="position:absolute;left:490px;top:440px;z-index:6">${mascot(0, 64)}</div>`;
+}
+
+/* ---------- 零件表 ---------- */
+(() => {
+  const p = G3.players[0];
+  const pa = (title, body, note) => `<div class="part"><p class="label"><i></i>${title}</p>${body}${note ? `<p class="t-cap">${note}</p>` : ''}</div>`;
+  const item = (html, lbl) => `<div class="item">${html}<span class="lbl">${lbl}</span></div>`;
+  const unaff = shortfall(p, 'L2-K-03');
+  document.getElementById('parts').innerHTML = [
+    pa('宝石：颜色 + 形状', `<div class="line">${ALL.map((k) => item(gem(k, 26), ZH[k])).join('')}</div><div class="line">${ALL.map((k) => item(chip(k, G3.bank[k], 'lg'), ZH[k])).join('')}</div><div class="line">${item(chip('U', 2, 'lg sel').replace('</span>', '<i class="plus">+1</i></span>'), '已选')}${item(chip('R', 0, 'lg off'), '没了（空心）')}${item(chip('K', 2, 'md'), '持有（中）')}${item(chip('G', 1, 'sm'), '对手（小）')}</div>`, '每种颜色一个专属形状（白◇ 蓝● 绿▮ 红♥ 黑■ 金★），筹码、折扣、花费、日志里都带着它，红绿色盲也能分。圆 = 宝石，方 = 折扣卡。数量为 0 改成空心描边，不再只降透明度。'),
+    pa('发展卡', `<div class="line">${item(card('L2-G-04', { short: 3, need: needHTML(p, 'L2-G-04') }), '差 3（悬停看缺什么）')}${item(card('L1-R-04', { can: true }), '买得起')}${item(card('L3-W-04', { sel: true }), '选中')}${item(card('L2-K-03', { threat: [G3.players[1]] }), '对手能买')}</div><div class="line">${item(card('L3-K-01'), '黑卡')}${item(card('L3-W-01'), '白卡')}${item(card('L2-R-01', { flash: true, mini: true }), '刚被拿走（光圈）')}${item(back(3, { mini: true }), '别人盲抽')}${item(card(null, { mini: true }), '空位')}</div>`, '顶部整条实色色带 + 形状 = 加成颜色（黑白卡一眼可分）；分数用衬线体；花费在左下竖排；右下是状态（可买 / 差 N），右上头像表示哪个对手现在就买得起。'),
+    pa('牌堆 · 贵族 · 折扣', `<div class="line">${item(deck(3, 14), '牌堆')}${item(deck(1, 0), '已空')}<div style="width:100px;height:96px;display:flex">${noble('N-06')}</div><div style="width:100px;height:96px;display:flex">${noble('N-03')}</div></div><div class="line">${ORDER.map((k) => item(bt(k, p.bonus[k], 'md'), ZH[k] + '折扣')).join('')}</div>`, '牌堆是斜纹深色厚卡 + 金色衬线罗马数字；贵族是金边奶油色方牌、金色徽章写分数，和发展卡明显不是一类东西。'),
+    pa('卡牌浮层', `<div class="line" style="align-items:flex-start">${`<div class="pop static" style="width:240px"><div class="pop-h"><span class="tag red">还差 1</span><b>二级 · 黑 · 2 分</b></div><div class="pay"><div class="pay-r"><span>需要</span>${chip('W', 5, 'sm')}<span class="t-cap">白 5</span></div><div class="pay-r"><span>已有</span>${bt('W', 2)}${chip('W', '', 'sm')}${chip('X', '', 'sm')}<span class="t-cap">折扣 2 + 白 1 + 金 1</span></div></div><div class="btns"><button class="btn btn-accent" disabled>购买</button><button class="btn btn-ghost">预留 · +1 金</button></div></div>`}${`<div class="pop static" style="width:200px"><div class="pop-h"><b>三级牌堆 · 盲抽</b></div><p class="t-cap">看不到是哪张，抽到后只有你自己能看见。</p><div class="btns"><button class="btn btn-ghost">盲抽预留 · +1 金</button></div></div>`}</div>`, `买不起时写“还差几枚”，购买按钮禁用（这张卡还差 ${unaff.short}）；预留已满 3 张时预留按钮禁用并写原因。`),
+    pa('玩家面板', `<div style="width:330px">${opp(G3.players[2])}</div>`, '对手面板按颜色排成 6 列：上面方块 = 折扣，下面圆 = 宝石，同一列就是这个颜色的“购买力”。分数带进度条，宝石接近上限变红；公开预留画成彩色小卡（数字是分数），盲抽画成牌背。'),
+    pa('座位与提示', `<div class="line">${[0, 1, 2, 3].map((s) => item(mascot(s, 44), '座位 ' + (s + 1))).join('')}</div><div class="line"><span class="turn" style="position:static;transform:none">${mascot(0, 22)}轮到你 · 小明</span><span class="turn wait" style="position:static;transform:none">${mascot(1, 22)}薄荷<span class="spinner"></span>思考中…</span></div><div class="line" style="width:100%"><div class="strip event" style="width:100%"><span class="evt">${mascot(1, 22)}<b>薄荷</b> 购买了 ${ref('L3-R-02')}</span><span class="t-cap when">刚刚</span></div></div>`, '顶栏胶囊：黑底 = 你操作，白底黑框 = 等别人。别人出手的结果写进我的面板顶条（暖色），不再浮在市场上方挡牌；掉线这类持续状态放右栏顶部提示卡。'),
+  ].join('');
+})();
+
+/* ---------- 交互 ---------- */
+document.querySelectorAll('#zoom button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('#zoom button').forEach((x) => x.classList.toggle('on', x === b));
+  document.documentElement.style.setProperty('--z', b.dataset.z);
+}));
+document.querySelectorAll('[data-play]').forEach((win) => {
+  const cfg = win._cfg;
+  const p = cfg.players.find((x) => x.seat === cfg.viewer);
+  let sel = Object.assign({}, cfg.sel || {});
+  const refresh = () => {
+    win.querySelectorAll('[data-bank]').forEach((c) => {
+      const k = c.dataset.bank;
+      c.classList.toggle('sel', !!sel[k]);
+      c.querySelector('.plus')?.remove();
+      if (sel[k]) c.insertAdjacentHTML('beforeend', `<i class="plus">+${sel[k]}</i>`);
+    });
+    win.querySelector('.strip').innerHTML = trayHTML(p, sel, cfg.bank);
+    win.querySelector('.bank-act').innerHTML = bankAct(sel, cfg.bank, true);
+  };
+  win.addEventListener('click', (e) => {
+    const c = e.target.closest('[data-bank]');
+    if (c) {
+      const k = c.dataset.bank, n = +c.dataset.n;
+      if (k === 'X' || !n) return;
+      const keys = Object.keys(sel);
+      if (sel[k] === 2) delete sel[k];
+      else if (sel[k] === 1) { if (keys.length === 1 && n >= 4) sel[k] = 2; else delete sel[k]; }
+      else { if (Object.values(sel).includes(2)) sel = {}; if (Object.keys(sel).length < 3) sel[k] = 1; }
+      refresh();
+      return;
+    }
+    if (e.target.closest('[data-clear]')) { sel = {}; refresh(); return; }
+    const card = e.target.closest('.gc[data-card]');
+    if (card) {
+      const was = card.classList.contains('sel');
+      win.querySelectorAll('.gc.sel').forEach((x) => x.classList.remove('sel'));
+      if (!was) card.classList.add('sel');
+    }
+  });
+});
+document.querySelectorAll('[data-switch]').forEach((s) => s.addEventListener('click', () => s.classList.toggle('on')));
+document.querySelectorAll('.segment').forEach((seg) => {
+  if (seg.id === 'zoom') return;
+  seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+  }));
+});
+document.querySelectorAll('[data-rows] .row').forEach((row, _, rows) => row.addEventListener('click', () => {
+  row.parentElement.querySelectorAll('.row').forEach((r) => r.classList.toggle('on', r === row));
+}));
+</script>
+</body>
+</html>
